@@ -1,7 +1,15 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pedometer/pedometer.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+// ============================================================================
+// 🚶 ЭКРАН ШАГОМЕРА — ПОЛНАЯ ВЕРСИЯ С ФОНОВОЙ РАБОТОЙ
+// ============================================================================
 
 class PedometerScreen extends StatefulWidget {
   const PedometerScreen({super.key});
@@ -10,157 +18,1556 @@ class PedometerScreen extends StatefulWidget {
   State<PedometerScreen> createState() => _PedometerScreenState();
 }
 
-class _PedometerScreenState extends State<PedometerScreen> with SingleTickerProviderStateMixin {
-  int _totalSteps = 0;
+class _PedometerScreenState extends State<PedometerScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  // ─── Счётчики шагов ──────────────────────────────────────────────────────
   int _todaySteps = 0;
+  int _weeklySteps = 0;
+  int _monthlySteps = 0;
+  int _totalSteps = 0;
   bool _isWalking = false;
-  StreamSubscription<StepCount>? _stepSubscription;
+  bool _permissionDenied = false;
+  bool _isLoading = true;
+
+  // ─── История и рекорды ───────────────────────────────────────────────────
+  List<int> _dailyHistory = [0, 0, 0, 0, 0, 0, 0];
+  List<String> _activityFeed = [];
+  int _bestDay = 0;
+  String _bestDayDate = '';
+
+  // ─── Активное время ──────────────────────────────────────────────────────
+  int _activeMinutes = 0;
+
+  // ─── Дневная статистика (последние 10 дней) ──────────────────────────────
+  List<DayStats> _last10DaysStats = [];
+
+  // ─── Анимации ────────────────────────────────────────────────────────────
+  late AnimationController _numberAnimController;
+  late AnimationController _ringsAnimController;
+
+  // ─── Подписки и таймеры ──────────────────────────────────────────────────
   StreamSubscription<PedestrianStatus>? _statusSubscription;
-  late AnimationController _pulseController;
+  Timer? _pollTimer;
+  Timer? _inactivityTimer;
+  Timer? _midnightTimer;
   bool _showJourney = false;
 
-  final double _stepLength = 0.75;
-  final int _totalDistance = 9300;
+  // ─── Предыдущие значения для отслеживания изменений ─────────────────────
+  int _previousTodaySteps = 0;
+  int _previousTotalSteps = 0;
+
+  // ─── Константы ───────────────────────────────────────────────────────────
+  static const double _stepLength = 0.75;
+  static const int _totalDistance = 9300;
+  static const int _dailyGoal = 10000;
+  static const Duration _pollInterval = Duration(seconds: 2);
+
+  // ==========================================================================
+  // ЖИЗНЕННЫЙ ЦИКЛ
+  // ==========================================================================
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
-    _loadData();
-    _initPedometer();
+    WidgetsBinding.instance.addObserver(this);
+    _numberAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _ringsAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _initializeApp();
+    });
+  }
+
+  Future<void> _initializeApp() async {
+    // Сначала загружаем данные
+    await _loadData();
+    await _loadLast10DaysStats();
+
+    // Запрашиваем разрешения с таймаутом
+    final allGranted = await _checkAndRequestAllPermissions().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        print('⚠️ Таймаут запроса разрешений, продолжаем...');
+        return true; // Продолжаем работу даже если разрешения не все получены
+      },
+    );
+
+    if (allGranted) {
+      await _startServiceAndListen();
+      _ringsAnimController.forward();
+      _startInactivityTimer();
+      _scheduleMidnightReset();
+    } else {
+      setState(() => _permissionDenied = true);
+    }
+
+    setState(() => _isLoading = false);
   }
 
   @override
   void dispose() {
-    _stepSubscription?.cancel();
+    _pollTimer?.cancel();
+    _midnightTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _statusSubscription?.cancel();
-    _pulseController.dispose();
+    _numberAnimController.dispose();
+    _ringsAnimController.dispose();
+    _inactivityTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _todaySteps = prefs.getInt('today_steps') ?? 0;
-      _totalSteps = prefs.getInt('total_steps') ?? 0;
-    });
-  }
-
-  Future<void> _saveData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('today_steps', _todaySteps);
-    await prefs.setInt('total_steps', _totalSteps);
-  }
-
-  void _initPedometer() {
-    try {
-      _stepSubscription = Pedometer.stepCountStream.listen((event) {
-        if (mounted) {
-          setState(() {
-            _todaySteps = event.steps;
-            _totalSteps++;
-          });
-          _saveData();
-        }
-      });
-      _statusSubscription = Pedometer.pedestrianStatusStream.listen((event) {
-        if (mounted) setState(() => _isWalking = event.status == 'walking');
-      });
-    } catch (e) {
-      print("Pedometer error: $e");
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadDataFromPrefs();
+      _loadLast10DaysStats();
+      _startPolling();
+    } else if (state == AppLifecycleState.paused) {
+      _pollTimer?.cancel();
     }
   }
 
+  // ==========================================================================
+  // ПРОВЕРКА И ЗАПРОС ВСЕХ РАЗРЕШЕНИЙ СРАЗУ
+  // ==========================================================================
+
+  Future<bool> _checkAndRequestAllPermissions() async {
+    if (!Platform.isAndroid) return true;
+
+    print('🔍 Запрос всех разрешений для шагомера...');
+
+    // Запрашиваем только критичные разрешения
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.activityRecognition,
+      Permission.locationWhenInUse, // Только in use, не always
+    ].request();
+
+    // Проверяем результаты
+    bool allGranted = true;
+    List<String> deniedPermissions = [];
+
+    if (statuses[Permission.activityRecognition]?.isGranted != true) {
+      deniedPermissions.add('Физическая активность');
+      allGranted = false;
+    }
+
+    if (statuses[Permission.locationWhenInUse]?.isGranted != true) {
+      deniedPermissions.add('Местоположение');
+      // Не критично для шагомера на большинстве устройств
+      print('⚠️ Местоположение не получено, но продолжаем');
+    }
+
+    // Запрашиваем battery optimization в фоне, без ожидания
+    _requestBatteryOptimizationAsync();
+
+    // Пытаемся запросить notification (не критично)
+    if (await Permission.notification.isDenied) {
+      Permission.notification.request();
+    }
+
+    if (!allGranted && deniedPermissions.contains('Физическая активность')) {
+      print('⚠️ Критичные разрешения не получены');
+      _showAllPermissionsDialog(deniedPermissions);
+      return false;
+    }
+
+    print('✅ Минимальные разрешения получены!');
+    return true;
+  }
+
+// Асинхронный запрос battery optimization
+  void _requestBatteryOptimizationAsync() async {
+    try {
+      const platform = MethodChannel('com.example.kid_loop/step_counter');
+      await platform.invokeMethod('requestIgnoreBattery');
+      print('✅ Запрошено игнорирование оптимизации батареи');
+    } catch (e) {
+      print('❌ Ошибка запроса игнорирования батареи: $e');
+    }
+  }
+
+  void _showAllPermissionsDialog(List<String> deniedPermissions) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('⚠️ Требуются разрешения',
+            style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Для корректной работы шагомера необходимо:',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...deniedPermissions.map((perm) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cancel, color: Color(0xFFFF6B6B), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(perm, style: const TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              )),
+              const SizedBox(height: 12),
+              const Text(
+                'Пожалуйста, включите все разрешения в настройках телефона.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _permissionDenied = true);
+            },
+            child: const Text('Позже', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openAppSettings();
+            },
+            child: const Text('Открыть настройки',
+                style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // ЗАПУСК СЕРВИСА И ОПРОС ДАННЫХ
+  // ==========================================================================
+
+  Future<void> _startServiceAndListen() async {
+    // Запускаем фоновый сервис
+    try {
+      const platform = MethodChannel('com.example.kid_loop/step_counter');
+      await platform.invokeMethod('startService');
+      print('✅ Фоновый сервис шагомера запущен');
+    } catch (e) {
+      print('❌ Ошибка запуска сервиса: $e');
+      return;
+    }
+
+    // Даем сервису время инициализироваться
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Подписываемся только на статус ходьбы (шаги будут из SharedPreferences)
+    try {
+      _statusSubscription = Pedometer.pedestrianStatusStream.listen(
+            (event) {
+          if (mounted) setState(() => _isWalking = event.status == 'walking');
+        },
+        onError: (error) {
+          print("Ошибка статуса пешехода: $error");
+        },
+      );
+    } catch (e) {
+      print("Ошибка подписки на статус: $e");
+    }
+
+    // Загружаем начальные данные
+    await _loadDataFromPrefs();
+
+    // Обновляем статистику за 10 дней
+    await _loadLast10DaysStats();
+
+    // Запоминаем текущие значения
+    _previousTodaySteps = _todaySteps;
+    _previousTotalSteps = _totalSteps;
+
+    // Запускаем периодический опрос
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (mounted) {
+        _loadDataFromPrefs();
+      }
+    });
+    print('🔄 Опрос данных запущен (каждые ${_pollInterval.inSeconds} сек)');
+  }
+
+  // ==========================================================================
+  // ЗАГРУЗКА ДАННЫХ ИЗ SHAREDPREFERENCES
+  // ==========================================================================
+
+  Future<void> _loadDataFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final monthKey = _monthlyKey();
+
+      await prefs.reload();
+
+      // Читаем данные БЕЗ префикса flutter. (сервис должен писать так же)
+      final newToday = prefs.getInt('today_steps') ?? 0;
+      final newWeekly = prefs.getInt('weekly_steps') ?? 0;
+      final newMonthly = prefs.getInt(monthKey) ?? 0;
+      final newTotal = prefs.getInt('total_steps') ?? 0;
+      final newActive = prefs.getInt('active_minutes') ?? 0;
+
+      // Проверяем, изменились ли данные
+      if (newToday != _previousTodaySteps ||
+          newTotal != _previousTotalSteps ||
+          newActive != _activeMinutes) {
+
+        final stepsDiff = newToday - _previousTodaySteps;
+
+        setState(() {
+          _todaySteps = newToday;
+          _weeklySteps = newWeekly;
+          _monthlySteps = newMonthly;
+          _totalSteps = newTotal;
+          _activeMinutes = newActive;
+
+          // Обновляем историю активности
+          final savedFeed = prefs.getString('activity_feed');
+          if (savedFeed != null && savedFeed.isNotEmpty) {
+            _activityFeed = savedFeed.split('\n').take(50).toList();
+          }
+        });
+
+        // Анимируем, если есть новые шаги
+        if (stepsDiff > 0) {
+          _animateNumber();
+          _checkMilestones();
+
+          if (_todaySteps > _bestDay) {
+            _bestDay = _todaySteps;
+            _bestDayDate = DateTime.now().toString().substring(0, 10);
+            _saveMeta();
+          }
+
+          // Обновляем историю по дням
+          final today = DateTime.now().weekday - 1;
+          _dailyHistory[today] = _todaySteps;
+          _saveDailyHistory();
+
+          _resetInactivityTimer();
+        }
+
+        // Обновляем предыдущие значения
+        _previousTodaySteps = newToday;
+        _previousTotalSteps = newTotal;
+
+        print('📊 UI обновлён: сегодня=$newToday, всего=$newTotal');
+      }
+    } catch (e) {
+      print('❌ Ошибка опроса данных: $e');
+    }
+  }
+
+  // ==========================================================================
+  // ПЕРВИЧНАЯ ЗАГРУЗКА
+  // ==========================================================================
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final monthKey = _monthlyKey();
+
+    setState(() {
+      _todaySteps = prefs.getInt('today_steps') ?? 0;
+      _weeklySteps = prefs.getInt('weekly_steps') ?? 0;
+      _monthlySteps = prefs.getInt(monthKey) ?? 0;
+      _totalSteps = prefs.getInt('total_steps') ?? 0;
+      _dailyHistory = List.generate(7, (i) => prefs.getInt('day_$i') ?? 0);
+      _bestDay = prefs.getInt('best_day') ?? 0;
+      _bestDayDate = prefs.getString('best_day_date') ?? '';
+      _activeMinutes = prefs.getInt('active_minutes') ?? 0;
+
+      final savedFeed = prefs.getString('activity_feed');
+      if (savedFeed != null && savedFeed.isNotEmpty) {
+        _activityFeed = savedFeed.split('\n').take(50).toList();
+      } else {
+        _activityFeed = [];
+      }
+
+      _numberAnimController.value = 1.0;
+    });
+
+    print("📊 Загружены данные: сегодня=$_todaySteps, всего=$_totalSteps");
+  }
+
+  Future<void> _loadLast10DaysStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload(); // 👈 Добавить эту строку
+
+    final List<DayStats> stats = [];
+
+    for (int i = 0; i < 10; i++) {
+      final date = DateTime.now().subtract(Duration(days: i));
+      final dateKey = 'stats_${date.year}_${date.month}_${date.day}';
+      final steps = prefs.getInt(dateKey) ?? 0;
+      final minutes = prefs.getInt('${dateKey}_minutes') ?? 0;
+
+      print('📊 Статистика ${date.day}.${date.month}: $steps шагов, $minutes мин');
+
+      stats.add(DayStats(date: date, steps: steps, activeMinutes: minutes));
+    }
+
+    setState(() {
+      _last10DaysStats = stats;
+    });
+  }
+
+  // ==========================================================================
+  // СОХРАНЕНИЕ МЕТА-ДАННЫХ
+  // ==========================================================================
+
+  Future<void> _saveMeta() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('best_day', _bestDay);
+    await prefs.setString('best_day_date', _bestDayDate);
+  }
+
+  Future<void> _saveDailyHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (int i = 0; i < 7; i++) {
+      await prefs.setInt('day_$i', _dailyHistory[i]);
+    }
+  }
+
+  // ==========================================================================
+  // ПОЛУНОЧНЫЙ СБРОС
+  // ==========================================================================
+
+  void _scheduleMidnightReset() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    final durationUntilMidnight = midnight.difference(now);
+
+    _midnightTimer = Timer(durationUntilMidnight, () {
+      _resetDailyCounters();
+      _scheduleMidnightReset();
+    });
+  }
+
+  void _resetDailyCounters() async {
+    // Сервис сам сохранит вчерашнюю статистику и сбросит счётчики в SharedPreferences
+    // Здесь только обновляем UI
+    setState(() {
+      _todaySteps = 0;
+      _activeMinutes = 0;
+    });
+
+    // Обновляем статистику за 10 дней
+    await _loadLast10DaysStats();
+
+    print('🔄 UI сброшен для нового дня');
+  }
+
+  String _monthlyKey() {
+    final now = DateTime.now();
+    return 'monthly_${now.year}_${now.month}';
+  }
+
+  // ==========================================================================
+  // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+  // ==========================================================================
+
+  String _formatTimeOfDay(DateTime dt) {
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+
+    if (hours > 0) {
+      return '${hours}ч ${minutes}мин';
+    } else if (minutes > 0) {
+      return '${minutes}мин ${secs}сек';
+    } else {
+      return '${secs}сек';
+    }
+  }
+
+  void _checkMilestones() {
+    const milestones = [1000, 2000, 5000, 10000, 15000, 20000, 30000];
+    for (final m in milestones) {
+      if (_todaySteps >= m && (_todaySteps - m) < 50) {
+        _showMilestoneSnackbar(m);
+      }
+    }
+  }
+
+  void _showMilestoneSnackbar(int milestone) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🎉 Достигли $milestone шагов!'),
+        backgroundColor: const Color(0xFF4CAF50),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _animateNumber() {
+    _numberAnimController.reset();
+    _numberAnimController.forward();
+  }
+
+  // ==========================================================================
+  // НАПОМИНАНИЯ
+  // ==========================================================================
+
+  void _startInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer.periodic(const Duration(minutes: 30), (_) {
+      if (!_isWalking && _todaySteps < _dailyGoal && mounted) {
+        _showInactivityNotification();
+      }
+    });
+  }
+
+  void _resetInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _startInactivityTimer();
+  }
+
+  void _showInactivityNotification() {
+    if (!mounted) return;
+    final remaining = _dailyGoal - _todaySteps;
+    if (remaining > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Осталось $remaining шагов до цели! Прогуляйтесь! 🚶'),
+          backgroundColor: const Color(0xFFFF6B6B),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
+  // ==========================================================================
+  // ДИАЛОГ СТАТИСТИКИ ЗА 10 ДНЕЙ
+  // ==========================================================================
+
+  void _showStatsDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade600,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Статистика за 10 дней',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: _last10DaysStats.length,
+                    itemBuilder: (ctx, index) {
+                      final stat = _last10DaysStats[index];
+                      final isToday = index == 0;
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isToday
+                              ? Colors.orange.withOpacity(0.15)
+                              : const Color(0xFF0F0F1A),
+                          borderRadius: BorderRadius.circular(12),
+                          border: isToday
+                              ? Border.all(color: Colors.orange, width: 1)
+                              : null,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 60,
+                              alignment: Alignment.center,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _formatDayName(stat.date),
+                                    style: TextStyle(
+                                      color: isToday ? Colors.orange : Colors.white70,
+                                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${stat.date.day}',
+                                    style: TextStyle(
+                                      color: isToday ? Colors.orange : Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.directions_walk, size: 16, color: Colors.orange),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${stat.steps} шагов',
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.timer, size: 16, color: Colors.orange),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${stat.activeMinutes} мин активности',
+                                        style: const TextStyle(color: Colors.white70),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (stat.steps > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '${(stat.steps / _dailyGoal * 100).toInt()}%',
+                                  style: const TextStyle(color: Colors.green, fontSize: 12),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatDayName(DateTime date) {
+    final now = DateTime.now();
+    if (date.day == now.day && date.month == now.month && date.year == now.year) {
+      return 'СЕГОДНЯ';
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (date.day == yesterday.day && date.month == yesterday.month) {
+      return 'ВЧЕРА';
+    }
+    const weekdays = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+    return weekdays[date.weekday - 1];
+  }
+
+  // ==========================================================================
+  // ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ
+  // ==========================================================================
+
   double get _walkedKm => (_totalSteps * _stepLength) / 1000.0;
-  double get _progress => (_walkedKm / _totalDistance).clamp(0.0, 1.0);
+  double get _todayKm => (_todaySteps * _stepLength) / 1000.0;
+  double get _weeklyKm => (_weeklySteps * _stepLength) / 1000.0;
+  double get _monthlyKm => (_monthlySteps * _stepLength) / 1000.0;
+  int get _todayKcal => (_todaySteps * 0.04).round();
+  double get _stepProgress => (_todaySteps / _dailyGoal).clamp(0.0, 1.0);
+  double get _kmProgress => (_todayKm / 10).clamp(0.0, 1.0);
+  double get _kcalProgress => (_todayKcal / 400).clamp(0.0, 1.0);
 
-  City get _currentCity {
-    return _cities.lastWhere((c) => c.distanceFromMoscow <= _walkedKm, orElse: () => _cities.first);
+  double get _monthlyProjection {
+    if (_monthlySteps == 0) return 0;
+    final now = DateTime.now();
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final daysPassed = now.day;
+    if (daysPassed == 0) return 0;
+    final avgPerDay = _monthlySteps / daysPassed;
+    return (avgPerDay * daysInMonth * _stepLength) / 1000.0;
   }
 
-  City? get _nextCity {
-    final index = _cities.indexOf(_currentCity);
-    return index < _cities.length - 1 ? _cities[index + 1] : null;
-  }
+  // ==========================================================================
+  // ГОРОДА
+  // ==========================================================================
 
+  City get _currentCity => _cities.lastWhere(
+        (c) => c.distanceFromMoscow <= _walkedKm,
+    orElse: () => _cities.first,
+  );
   final List<City> _cities = _getCities();
+
+  // ==========================================================================
+  // BUILD
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0A0A1A),
+        body: const Center(
+          child: CircularProgressIndicator(color: Color(0xFFFF6B6B)),
+        ),
+      );
+    }
+
     if (_showJourney) return _buildJourneyView();
-    return _buildPedometerView();
+    if (_permissionDenied) return _buildPermissionDenied();
+    return _buildMainView();
   }
 
-  Widget _buildPedometerView() {
+  Widget _buildPermissionDenied() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A1A),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.sensors_off, size: 64, color: Colors.grey.shade600),
+              const SizedBox(height: 16),
+              const Text('Доступ к шагомеру отклонён',
+                  style: TextStyle(color: Colors.white, fontSize: 18)),
+              const SizedBox(height: 8),
+              Text('Разрешите в настройках телефона',
+                  style: TextStyle(color: Colors.grey.shade500)),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () async {
+                  final granted = await _checkAndRequestAllPermissions();
+                  if (granted) {
+                    await _startServiceAndListen();
+                    setState(() => _permissionDenied = false);
+                  }
+                },
+                child: const Text('Попробовать снова'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainView() {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        title: const Text('Шагомер',
+            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Color(0xFFFF6B6B)),
+            onPressed: _showPermissionsInfo,
+          ),
           TextButton.icon(
             onPressed: () => setState(() => _showJourney = true),
             icon: const Icon(Icons.map, color: Color(0xFFFF6B6B)),
-            label: const Text('Путешествие', style: TextStyle(color: Color(0xFFFF6B6B))),
+            label: const Text('Путешествие',
+                style: TextStyle(color: Color(0xFFFF6B6B))),
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _buildStepCounter(),
+          const SizedBox(height: 20),
+          _buildRings(),
+          const SizedBox(height: 24),
+          _buildPeriodCards(),
+          const SizedBox(height: 24),
+          _buildActiveTimeCard(),
+          const SizedBox(height: 24),
+          _buildForecast(),
+          const SizedBox(height: 24),
+          if (_bestDay > 0) ...[
+            _buildRecord(),
+            const SizedBox(height: 24),
+          ],
+          _buildWeeklyChart(),
+          const SizedBox(height: 24),
+          _buildActivityFeed(),
+          const SizedBox(height: 24),
+          if (_todaySteps < _dailyGoal) _buildReminder(),
+        ],
+      ),
+    );
+  }
+
+  void _showPermissionsInfo() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('ℹ️ Информация', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (_, child) {
-                final pulse = _pulseController.value;
-                return Container(
-                  width: 120 + (pulse * 20),
-                  height: 120 + (pulse * 20),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isWalking ? const Color(0xFFFF6B6B).withOpacity(0.15 + pulse * 0.1) : const Color(0xFF2D2D44),
-                    border: Border.all(color: _isWalking ? const Color(0xFFFF6B6B) : const Color(0xFF8888AA), width: 3),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('$_todaySteps', style: TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: _isWalking ? const Color(0xFFFF6B6B) : Colors.white)),
-                      const Text('шагов сегодня', style: TextStyle(color: Color(0xFF8888AA), fontSize: 14)),
-                    ],
-                  ),
-                );
-              },
+            const Text(
+              'Шагомер работает даже при закрытом приложении!\n\n'
+                  'Для этого необходимы разрешения:',
+              style: TextStyle(color: Colors.white70),
             ),
-            const SizedBox(height: 40),
-            _statCard('👣 Всего шагов', '$_totalSteps'),
-            const SizedBox(height: 12),
-            _statCard('📏 Пройдено км', _walkedKm.toStringAsFixed(1)),
-            const SizedBox(height: 12),
-            _statCard('🎯 До Владивостока', '${(_totalDistance - _walkedKm).toStringAsFixed(0)} км'),
-            const SizedBox(height: 30),
-            Text(_isWalking ? '🟢 Вы идёте!' : '⚪ Ожидание шагов...', style: TextStyle(color: _isWalking ? const Color(0xFFFF6B6B) : const Color(0xFF8888AA), fontSize: 18)),
+            const SizedBox(height: 16),
+            _buildPermissionStatusItem(
+              'Физическая активность',
+              'Для подсчёта шагов в фоне',
+              Permission.activityRecognition,
+            ),
+            const SizedBox(height: 8),
+            _buildPermissionStatusItem(
+              'Местоположение',
+              'Для фоновой работы на некоторых устройствах',
+              Permission.locationAlways,
+            ),
+            const SizedBox(height: 8),
+            _buildPermissionStatusItem(
+              'Уведомления',
+              'Для отображения статуса шагомера',
+              Permission.notification,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '⚡ Оптимизация батареи',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              'Отключите в настройках телефона',
+              style: TextStyle(color: Colors.white54, fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Закрыть', style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openAppSettings();
+            },
+            child: const Text('Открыть настройки', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionStatusItem(String name, String description, Permission permission) {
+    return FutureBuilder<PermissionStatus>(
+      future: permission.status,
+      builder: (ctx, snapshot) {
+        final isGranted = snapshot.data?.isGranted ?? false;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2, right: 12),
+              child: Icon(
+                isGranted ? Icons.check_circle : Icons.cancel,
+                color: isGranted ? const Color(0xFF4CAF50) : const Color(0xFFFF6B6B),
+                size: 20,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text(description, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================================================
+  // ВИДЖЕТЫ
+  // ==========================================================================
+
+  Widget _buildStepCounter() {
+    return Center(
+      child: AnimatedBuilder(
+        animation: _numberAnimController,
+        builder: (_, child) {
+          return Column(
+            children: [
+              ShaderMask(
+                shaderCallback: (b) => LinearGradient(
+                  colors: _isWalking
+                      ? [const Color(0xFFFF6B6B), const Color(0xFFFF8E8E)]
+                      : [Colors.white, Colors.white70],
+                ).createShader(b),
+                child: Text(
+                  '$_todaySteps',
+                  style: const TextStyle(
+                    fontSize: 72,
+                    fontWeight: FontWeight.w200,
+                    color: Colors.white,
+                    letterSpacing: -2,
+                  ),
+                ),
+              ),
+              Text('шагов сегодня',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
+              const SizedBox(height: 8),
+              Container(
+                width: 200,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: _stepProgress,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRings() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _ringCard('Шаги', _stepProgress, '$_todaySteps', Icons.directions_walk,
+            const Color(0xFFFF6B6B)),
+        _ringCard('Км', _kmProgress, _todayKm.toStringAsFixed(1),
+            Icons.straighten, const Color(0xFF4A90E2)),
+        _ringCard('Ккал', _kcalProgress, '$_todayKcal',
+            Icons.local_fire_department, const Color(0xFFFF9800)),
+      ],
+    );
+  }
+
+  Widget _ringCard(
+      String label, double progress, String value, IconData icon, Color color) {
+    return AnimatedBuilder(
+      animation: _ringsAnimController,
+      builder: (_, child) {
+        final ap = (progress * _ringsAnimController.value).clamp(0.0, 1.0);
+        return Column(
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: 1, strokeWidth: 6, color: Colors.grey.shade800,
+                  ),
+                  CircularProgressIndicator(
+                    value: ap, strokeWidth: 6, color: color,
+                    backgroundColor: Colors.transparent,
+                  ),
+                  Icon(icon, color: color, size: 24),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(value,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
+            Text(label,
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPeriodCards() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _periodCard('ЗА НЕДЕЛЮ', '$_weeklySteps шагов',
+                  '${_weeklyKm.toStringAsFixed(1)} км', Icons.calendar_view_week,
+                  const Color(0xFF4A90E2)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _periodCard('ЗА МЕСЯЦ', '$_monthlySteps шагов',
+                  '${_monthlyKm.toStringAsFixed(1)} км', Icons.calendar_month,
+                  const Color(0xFF4CAF50)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _periodCardFull('ЗА ВСЁ ВРЕМЯ', '$_totalSteps шагов',
+            '${_walkedKm.toStringAsFixed(1)} км', Icons.trending_up,
+            const Color(0xFFFF9800)),
+      ],
+    );
+  }
+
+  Widget _periodCard(
+      String title, String steps, String km, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 6),
+            Text(title,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1)),
+          ]),
+          const SizedBox(height: 10),
+          Text(steps,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold)),
+          Text(km, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _periodCardFull(
+      String title, String steps, String km, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1)),
+              const SizedBox(height: 4),
+              Text(steps,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
+              Text(km,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveTimeCard() {
+    return GestureDetector(
+      onTap: _showStatsDialog,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            const Color(0xFF4CAF50).withOpacity(0.15),
+            const Color(0xFF1A1A2E)
+          ]),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.timer, color: Color(0xFF4CAF50), size: 28),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('АКТИВНОЕ ВРЕМЯ СЕГОДНЯ',
+                      style: TextStyle(
+                          color: Color(0xFF4CAF50),
+                          fontSize: 11,
+                          letterSpacing: 1)),
+                  const SizedBox(height: 4),
+                  Text('$_activeMinutes мин',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold)),
+                  Text('чистого времени ходьбы',
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildForecast() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          const Color(0xFF4A90E2).withOpacity(0.15),
+          const Color(0xFF1A1A2E)
+        ]),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.trending_up, color: Color(0xFF4A90E2), size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('ПРОГНОЗ НА МЕСЯЦ',
+                    style: TextStyle(
+                        color: Color(0xFF4A90E2),
+                        fontSize: 11,
+                        letterSpacing: 1)),
+                const SizedBox(height: 4),
+                Text(
+                    'Если так пойдёт — ${_monthlyProjection.toStringAsFixed(0)} км',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecord() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          const Color(0xFFFF9800).withOpacity(0.15),
+          const Color(0xFF1A1A2E)
+        ]),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Text('🏆', style: TextStyle(fontSize: 28)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('ЛИЧНЫЙ РЕКОРД',
+                    style: TextStyle(
+                        color: Color(0xFFFF9800),
+                        fontSize: 11,
+                        letterSpacing: 1)),
+                const SizedBox(height: 4),
+                Text('$_bestDay шагов ($_bestDayDate)',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyChart() {
+    final dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    final today = DateTime.now().weekday - 1;
+    final maxSteps = max(_dailyHistory.reduce((a, b) => a > b ? a : b), 1).toDouble();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.bar_chart, color: Color(0xFFFF6B6B), size: 18),
+            const SizedBox(width: 8),
+            const Text('ЗА НЕДЕЛЮ',
+                style: TextStyle(
+                    color: Color(0xFFFF6B6B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1)),
+            const Spacer(),
+            Text('$_weeklySteps шагов',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ]),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 120,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (i) {
+                final steps = _dailyHistory[i];
+                final h = maxSteps > 0
+                    ? (steps / maxSteps * 90).clamp(4.0, 90.0)
+                    : 4.0;
+                final isToday = i == today;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          steps > 0
+                              ? (steps > 999
+                              ? '${(steps / 1000).toStringAsFixed(1)}k'
+                              : '$steps')
+                              : '',
+                          style: TextStyle(
+                            color: isToday
+                                ? const Color(0xFFFF6B6B)
+                                : Colors.grey.shade500,
+                            fontSize: 9,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Flexible(
+                          child: Container(
+                            width: double.infinity,
+                            height: h,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: isToday
+                                    ? [
+                                  const Color(0xFFFF6B6B),
+                                  const Color(0xFFFF6B6B).withOpacity(0.4)
+                                ]
+                                    : [
+                                  const Color(0xFFFF6B6B).withOpacity(0.4),
+                                  const Color(0xFFFF6B6B).withOpacity(0.15)
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          dayNames[i],
+                          style: TextStyle(
+                            color: isToday
+                                ? Colors.white
+                                : Colors.grey.shade500,
+                            fontSize: 10,
+                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityFeed() {
+    // Группируем записи по дням
+    final Map<String, List<String>> groupedByDay = {};
+
+    for (final entry in _activityFeed) {
+      // Извлекаем дату из записи (формат: "05.06 12:34 - текст")
+      String dayKey = 'Ранее';
+      if (entry.length >= 5 && entry.contains('.')) {
+        dayKey = entry.substring(0, 5); // "05.06"
+      }
+      groupedByDay.putIfAbsent(dayKey, () => []).add(entry);
+    }
+
+    // Сортируем дни (сначала новые)
+    final sortedDays = groupedByDay.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _FullActivityScreen(feed: _activityFeed),
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.timeline, color: Color(0xFF4CAF50), size: 18),
+                  const SizedBox(width: 8),
+                  const Text('АКТИВНОСТЬ',
+                      style: TextStyle(
+                          color: Color(0xFF4CAF50),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1)),
+                  const Spacer(),
+                  const Icon(Icons.open_in_full, color: Color(0xFF4CAF50), size: 16),
+                ]),
+                if (_activityFeed.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  // Показываем последние 3 дня с записями
+                  ...sortedDays.take(3).map((day) {
+                    final entries = groupedByDay[day]!;
+                    final isToday = day == _getTodayDateString();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isToday ? const Color(0xFF4CAF50) : Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isToday ? 'СЕГОДНЯ' : day,
+                                style: TextStyle(
+                                  color: isToday ? const Color(0xFF4CAF50) : Colors.orange,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${entries.length} зап.',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...entries.take(2).map((entry) {
+                          // Убираем дату из начала записи для компактности
+                          final cleanEntry = entry.length > 17 ? entry.substring(17) : entry;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4, left: 16),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.substring(6, 11), // "12:34"
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    cleanEntry,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  }),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text('Нет активности за сегодня',
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getTodayDateString() {
+    final now = DateTime.now();
+    return '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildReminder() {
+    final remaining = _dailyGoal - _todaySteps;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          const Color(0xFFFF6B6B).withOpacity(0.15),
+          const Color(0xFF1A1A2E)
+        ]),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFF6B6B).withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active,
+              color: Color(0xFFFF6B6B), size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+                'Осталось $remaining шагов до цели! Прогуляйтесь! 🚶',
+                style: const TextStyle(color: Colors.white, fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // ПУТЕШЕСТВИЕ
+  // ==========================================================================
+
   Widget _buildJourneyView() {
-    final nextCity = _nextCity;
-    final progressToNext = nextCity != null ? ((_walkedKm - _currentCity.distanceFromMoscow) / (nextCity.distanceFromMoscow - _currentCity.distanceFromMoscow)).clamp(0.0, 1.0) : 1.0;
+    final nextIndex = _cities.indexOf(_currentCity) + 1;
+    final nextCity = nextIndex < _cities.length ? _cities[nextIndex] : null;
+    final progressToNext = nextCity != null
+        ? ((_walkedKm - _currentCity.distanceFromMoscow) /
+        (nextCity.distanceFromMoscow - _currentCity.distanceFromMoscow))
+        .clamp(0.0, 1.0)
+        : 1.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Color(0xFFFF6B6B)), onPressed: () => setState(() => _showJourney = false)),
-        title: const Text('Путь к Владивостоку', style: TextStyle(color: Colors.white)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFFFF6B6B)),
+          onPressed: () => setState(() => _showJourney = false),
+        ),
+        title: const Text('Путь к Владивостоку',
+            style: TextStyle(color: Colors.white)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildProgressCard(),
+          _journeyProgressCard(),
           const SizedBox(height: 16),
           _buildCityCard(_currentCity, isCurrent: true),
           if (nextCity != null) ...[
@@ -168,53 +1575,107 @@ class _PedometerScreenState extends State<PedometerScreen> with SingleTickerProv
             _buildNextCityCard(nextCity, progressToNext),
           ],
           const SizedBox(height: 16),
-          _buildTimeline(),
+          _journeyTimeline(),
           const SizedBox(height: 24),
-          const Text('«Дорога в тысячу миль начинается с одного шага» — Лао-Цзы', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF8888AA), fontStyle: FontStyle.italic)),
+          const Text(
+            '«Дорога в тысячу миль начинается с одного шага»',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: Color(0xFF8888AA), fontStyle: FontStyle.italic),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildProgressCard() {
+  Widget _journeyProgressCard() {
+    final p = (_walkedKm / _totalDistance).clamp(0.0, 1.0);
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        children: [
-          Text('${(_progress * 100).toStringAsFixed(3)}%', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Color(0xFFFF6B6B))),
-          const SizedBox(height: 12),
-          ClipRRect(borderRadius: BorderRadius.circular(5), child: LinearProgressIndicator(value: _progress, minHeight: 10, backgroundColor: const Color(0xFF2D2D44), color: const Color(0xFFFF6B6B))),
-          const SizedBox(height: 20),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _miniStat('👣', '$_totalSteps шагов'),
-            _miniStat('📏', '${_walkedKm.toStringAsFixed(1)} км'),
-            _miniStat('🎯', '${(_totalDistance - _walkedKm).toStringAsFixed(0)} км'),
-          ]),
-        ],
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(24),
       ),
+      child: Column(children: [
+        Text('${(p * 100).toStringAsFixed(3)}%',
+            style: const TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFFF6B6B))),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: LinearProgressIndicator(
+            value: p,
+            minHeight: 10,
+            backgroundColor: const Color(0xFF2D2D44),
+            color: const Color(0xFFFF6B6B),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          _miniStat('👣', '$_totalSteps'),
+          _miniStat('📏', '${_walkedKm.toStringAsFixed(1)} км'),
+          _miniStat('🎯', '${(_totalDistance - _walkedKm).toStringAsFixed(0)} км'),
+        ]),
+      ]),
     );
   }
 
   Widget _buildCityCard(City city, {bool isCurrent = false}) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: isCurrent ? const Color(0xFF16213E) : const Color(0xFF0F0F1A), borderRadius: BorderRadius.circular(24), border: isCurrent ? Border.all(color: const Color(0xFFFF6B6B).withOpacity(0.3)) : null),
+      decoration: BoxDecoration(
+        color: isCurrent ? const Color(0xFF16213E) : const Color(0xFF0F0F1A),
+        borderRadius: BorderRadius.circular(24),
+        border: isCurrent
+            ? Border.all(color: const Color(0xFFFF6B6B).withOpacity(0.3))
+            : null,
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFFFF6B6B).withOpacity(0.15), shape: BoxShape.circle), child: const Icon(Icons.location_on, color: Color(0xFFFF6B6B), size: 24)),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF6B6B).withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.location_on,
+                color: Color(0xFFFF6B6B), size: 24),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(isCurrent ? '📍 ТЕКУЩАЯ ОСТАНОВКА' : city.name, style: TextStyle(color: isCurrent ? const Color(0xFFFF6B6B) : Colors.white, fontSize: isCurrent ? 11 : 20, fontWeight: isCurrent ? FontWeight.normal : FontWeight.bold)),
-            if (isCurrent) Text(city.name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-            Text('${city.distanceFromMoscow} км от Москвы', style: TextStyle(color: isCurrent ? const Color(0xFFFF6B6B) : const Color(0xFF8888AA), fontSize: 13)),
-          ])),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(isCurrent ? '📍 ТЕКУЩАЯ' : city.name,
+                  style: TextStyle(
+                      color: isCurrent ? const Color(0xFFFF6B6B) : Colors.white,
+                      fontSize: isCurrent ? 11 : 20,
+                      fontWeight: isCurrent ? FontWeight.normal : FontWeight.bold)),
+              if (isCurrent)
+                Text(city.name,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold)),
+              Text('${city.distanceFromMoscow} км',
+                  style: TextStyle(
+                      color: isCurrent
+                          ? const Color(0xFFFF6B6B)
+                          : const Color(0xFF8888AA),
+                      fontSize: 13)),
+            ]),
+          ),
         ]),
         const SizedBox(height: 12),
         _factRow(city.fact),
         _factRow(city.funFact1),
         _factRow(city.funFact2),
-        if (city.cuisine.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('🍽️ ${city.cuisine}', style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 13))),
+        if (city.cuisine.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('🍽️ ${city.cuisine}',
+                style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
+          ),
       ]),
     );
   }
@@ -222,67 +1683,103 @@ class _PedometerScreenState extends State<PedometerScreen> with SingleTickerProv
   Widget _buildNextCityCard(City city, double progress) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFF0F0F1A), borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0F1A),
+        borderRadius: BorderRadius.circular(24),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Text('🎯 СЛЕДУЮЩАЯ', style: TextStyle(color: Color(0xFF8888AA), fontSize: 11)), const Spacer(), Text('${(progress * 100).toStringAsFixed(1)}%', style: const TextStyle(color: Color(0xFFFF6B6B), fontWeight: FontWeight.bold))]),
+        Row(children: [
+          const Text('🎯 СЛЕДУЮЩАЯ',
+              style: TextStyle(color: Color(0xFF8888AA), fontSize: 11)),
+          const Spacer(),
+          Text('${(progress * 100).toStringAsFixed(1)}%',
+              style: const TextStyle(
+                  color: Color(0xFFFF6B6B), fontWeight: FontWeight.bold)),
+        ]),
         const SizedBox(height: 8),
-        Text(city.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-        Text('${city.distanceFromMoscow} км от Москвы', style: const TextStyle(color: Color(0xFF8888AA), fontSize: 13)),
+        Text(city.name,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold)),
+        Text('${city.distanceFromMoscow} км',
+            style: const TextStyle(color: Color(0xFF8888AA), fontSize: 13)),
         const SizedBox(height: 12),
-        ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(value: progress, minHeight: 6, backgroundColor: const Color(0xFF2D2D44), color: const Color(0xFFFF6B6B))),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 6,
+            backgroundColor: const Color(0xFF2D2D44),
+            color: const Color(0xFFFF6B6B),
+          ),
+        ),
       ]),
     );
   }
 
-  Widget _buildTimeline() {
+  Widget _journeyTimeline() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(left: 8, bottom: 12),
         child: Text('🗺️ МАРШРУТ • ${_cities.length} ГОРОДОВ',
-            style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12, letterSpacing: 2)),
+            style: const TextStyle(
+                color: Color(0xFFFF6B6B), fontSize: 12, letterSpacing: 2)),
       ),
       ..._cities.map((city) {
         final isReached = city.distanceFromMoscow <= _walkedKm;
-        final isLast = _cities.last == city;
         return InkWell(
           onTap: () => _showCityInfo(city),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 40, child: Column(children: [
+            SizedBox(width: 30, child: Column(children: [
               Container(
-                  width: city.isMajor ? 24 : 16,
-                  height: city.isMajor ? 24 : 16,
-                  decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isReached ? const Color(0xFFFF6B6B) : const Color(0xFF2D2D44)),
-                  child: isReached && city.isMajor
-                      ? const Icon(Icons.check, color: Colors.white, size: 14)
-                      : null),
-              if (!isLast)
+                width: city.isMajor ? 20 : 14,
+                height: city.isMajor ? 20 : 14,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isReached
+                      ? const Color(0xFFFF6B6B)
+                      : const Color(0xFF2D2D44),
+                ),
+                child: isReached && city.isMajor
+                    ? const Icon(Icons.check, color: Colors.white, size: 12)
+                    : null,
+              ),
+              if (city != _cities.last)
                 Container(
-                    width: 2,
-                    height: 40,
-                    color: isReached
-                        ? const Color(0xFFFF6B6B).withOpacity(0.5)
-                        : const Color(0xFF2D2D44)),
+                  width: 2,
+                  height: 35,
+                  color: isReached
+                      ? const Color(0xFFFF6B6B).withOpacity(0.5)
+                      : const Color(0xFF2D2D44),
+                ),
             ])),
             Expanded(
-                child: Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: isReached
-                            ? const Color(0xFFFF6B6B).withOpacity(0.12)
-                            : const Color(0xFF16213E),
-                        borderRadius: BorderRadius.circular(14)),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isReached
+                      ? const Color(0xFFFF6B6B).withOpacity(0.12)
+                      : const Color(0xFF16213E),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                       Text(city.name,
                           style: TextStyle(
-                              color: isReached ? const Color(0xFFFF6B6B) : Colors.white,
-                              fontWeight: isReached ? FontWeight.bold : FontWeight.normal,
-                              fontSize: city.isMajor ? 15 : 13)),
+                            color: isReached
+                                ? const Color(0xFFFF6B6B)
+                                : Colors.white,
+                            fontSize: city.isMajor ? 14 : 12,
+                          )),
                       Text('${city.distanceFromMoscow} км',
-                          style: const TextStyle(color: Color(0xFF8888AA), fontSize: 11)),
-                    ]))),
+                          style: const TextStyle(
+                              color: Color(0xFF8888AA), fontSize: 10)),
+                    ]),
+              ),
+            ),
           ]),
         );
       }),
@@ -294,16 +1791,42 @@ class _PedometerScreenState extends State<PedometerScreen> with SingleTickerProv
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A1A),
-        title: Row(children: [Text(city.name, style: const TextStyle(color: Color(0xFFFF6B6B), fontWeight: FontWeight.bold)), const SizedBox(width: 8), Text('(${city.distanceFromMoscow} км)', style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 14))]),
+        title: Row(children: [
+          Text(city.name,
+              style: const TextStyle(
+                  color: Color(0xFFFF6B6B), fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Text('(${city.distanceFromMoscow} км)',
+              style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 14)),
+        ]),
         content: SingleChildScrollView(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            _infoSection('📊 ОСНОВНАЯ ИНФОРМАЦИЯ', ['👥 Население: ${city.population}', '🗺️ Площадь: ${city.area}', '📅 Основан: ${city.founded}']),
-            _infoSection('📜 ИСТОРИЯ', [city.fact]),
-            _infoSection('✨ ИНТЕРЕСНЫЕ ФАКТЫ', [city.funFact1, city.funFact2, city.funFact3, city.funFact4]),
-            if (city.cuisine.isNotEmpty) _infoSection('🍽️ КУХНЯ', [city.cuisine]),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _infoSection('📊 ОСНОВНАЯ', [
+                '👥 ${city.population}',
+                '🗺️ ${city.area}',
+                '📅 ${city.founded}',
+              ]),
+              _infoSection('📜 ИСТОРИЯ', [city.fact]),
+              _infoSection('✨ ФАКТЫ', [
+                city.funFact1,
+                city.funFact2,
+                city.funFact3,
+                city.funFact4,
+              ]),
+              if (city.cuisine.isNotEmpty) _infoSection('🍽️', [city.cuisine]),
+            ],
+          ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Закрыть', style: TextStyle(color: Color(0xFFFF6B6B))))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Закрыть',
+                style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+        ],
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
@@ -313,25 +1836,44 @@ class _PedometerScreenState extends State<PedometerScreen> with SingleTickerProv
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFF16213E), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16213E),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 11)),
+        Text(title,
+            style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 11)),
         const SizedBox(height: 8),
-        ...lines.map((l) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(l, style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)))),
+        ...lines.map((l) => Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(l,
+              style: const TextStyle(
+                  color: Color(0xFFAAAAAA), fontSize: 13)),
+        )),
       ]),
     );
   }
 
-  Widget _statCard(String title, String value) {
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16), decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(16)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(color: Color(0xFF8888AA), fontSize: 15)), Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))]));
-  }
-
   Widget _miniStat(String emoji, String value) {
-    return Column(children: [Text(emoji, style: const TextStyle(fontSize: 18)), const SizedBox(height: 4), Text(value, style: const TextStyle(color: Colors.white, fontSize: 12))]);
+    return Column(children: [
+      Text(emoji, style: const TextStyle(fontSize: 18)),
+      const SizedBox(height: 4),
+      Text(value, style: const TextStyle(color: Colors.white, fontSize: 13)),
+    ]);
   }
 
   Widget _factRow(String text) {
-    return Padding(padding: const EdgeInsets.only(top: 6), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('✨ ', style: TextStyle(color: Color(0xFFFF6B6B), fontSize: 13)), Expanded(child: Text(text, style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)))]));
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('✨ ',
+            style: TextStyle(color: Color(0xFFFF6B6B), fontSize: 13)),
+        Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    color: Color(0xFFAAAAAA), fontSize: 13))),
+      ]),
+    );
   }
 
   static List<City> _getCities() {
@@ -388,5 +1930,270 @@ class City {
   final String cuisine;
   final bool isMajor;
 
-  City(this.name, this.distanceFromMoscow, this.population, this.area, this.founded, this.fact, this.funFact1, this.funFact2, this.funFact3, this.funFact4, this.cuisine, this.isMajor);
+  City(
+      this.name,
+      this.distanceFromMoscow,
+      this.population,
+      this.area,
+      this.founded,
+      this.fact,
+      this.funFact1,
+      this.funFact2,
+      this.funFact3,
+      this.funFact4,
+      this.cuisine,
+      this.isMajor,
+      );
+}
+
+class DayStats {
+  final DateTime date;
+  final int steps;
+  final int activeMinutes;
+
+  DayStats({required this.date, required this.steps, required this.activeMinutes});
+}
+
+class _FullActivityScreen extends StatelessWidget {
+  final List<String> feed;
+  const _FullActivityScreen({required this.feed});
+
+  @override
+  Widget build(BuildContext context) {
+    // Группируем записи по дням
+    final Map<String, List<String>> groupedByDay = {};
+
+    for (final entry in feed) {
+      String dayKey = 'Ранее';
+      if (entry.length >= 5 && entry.contains('.')) {
+        dayKey = entry.substring(0, 5); // "05.06"
+      }
+      groupedByDay.putIfAbsent(dayKey, () => []).add(entry);
+    }
+
+    // Сортируем дни (сначала новые)
+    final sortedDays = groupedByDay.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A1A),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('История активности',
+            style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list, color: Color(0xFF4CAF50)),
+            onPressed: () {
+              // Можно добавить фильтрацию в будущем
+            },
+          ),
+        ],
+      ),
+      body: feed.isEmpty
+          ? const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Нет записей',
+                style: TextStyle(color: Colors.grey, fontSize: 18)),
+            SizedBox(height: 8),
+            Text('Начните ходить, чтобы увидеть историю',
+                style: TextStyle(color: Colors.grey, fontSize: 14)),
+          ],
+        ),
+      )
+          : ListView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: sortedDays.length,
+        itemBuilder: (_, dayIndex) {
+          final day = sortedDays[dayIndex];
+          final entries = groupedByDay[day]!;
+
+          // Определяем, является ли день сегодняшним
+          final now = DateTime.now();
+          final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}';
+          final isToday = day == todayStr;
+
+          // Считаем общее количество шагов за день
+          int daySteps = 0;
+          for (final entry in entries) {
+            if (entry.contains('Шагов:')) {
+              final stepsStr = entry.split('Шагов:').last.trim();
+              final steps = int.tryParse(stepsStr) ?? 0;
+              daySteps += steps;
+            }
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Заголовок дня
+              Container(
+                margin: const EdgeInsets.only(top: 16, bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isToday
+                      ? const Color(0xFF4CAF50).withOpacity(0.15)
+                      : const Color(0xFF1A1A2E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: isToday
+                      ? Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3))
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isToday
+                            ? const Color(0xFF4CAF50).withOpacity(0.2)
+                            : Colors.grey.withOpacity(0.2),
+                      ),
+                      child: Icon(
+                        isToday ? Icons.today : Icons.date_range,
+                        color: isToday ? const Color(0xFF4CAF50) : Colors.grey,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isToday ? 'СЕГОДНЯ' : _formatFullDate(day),
+                            style: TextStyle(
+                              color: isToday ? const Color(0xFF4CAF50) : Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${entries.length} записей${daySteps > 0 ? ' • $daySteps шагов' : ''}',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (daySteps > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$daySteps шагов',
+                          style: const TextStyle(
+                            color: Color(0xFF4CAF50),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Записи за день
+              ...entries.map((entry) {
+                final time = entry.length >= 11 ? entry.substring(6, 11) : '';
+                final text = entry.length > 17 ? entry.substring(17) : entry;
+
+                // Определяем тип записи для цвета
+                Color iconColor = Colors.grey;
+                IconData icon = Icons.circle;
+                if (entry.contains('Начало')) {
+                  iconColor = const Color(0xFF4CAF50);
+                  icon = Icons.play_arrow;
+                } else if (entry.contains('Конец')) {
+                  iconColor = const Color(0xFFFF6B6B);
+                  icon = Icons.stop;
+                } else if (entry.contains('Достигли')) {
+                  iconColor = const Color(0xFFFF9800);
+                  icon = Icons.emoji_events;
+                }
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A2E),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            time,
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Icon(
+                            icon,
+                            color: iconColor,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          text,
+                          style: TextStyle(
+                            color: Colors.grey.shade300,
+                            fontSize: 13,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatFullDate(String dayMonth) {
+    // Преобразует "05.06" в "5 июня"
+    final parts = dayMonth.split('.');
+    if (parts.length != 2) return dayMonth;
+
+    final day = int.tryParse(parts[0]) ?? 0;
+    final month = int.tryParse(parts[1]) ?? 0;
+
+    const months = [
+      '', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    ];
+
+    if (month > 0 && month < 13) {
+      return '$day ${months[month]}';
+    }
+    return dayMonth;
+  }
 }

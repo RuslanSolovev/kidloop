@@ -23,7 +23,8 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
   int _retryCount = 0;
   String? _loadError;
 
-  static const String forumApiUrl = 'https://functions.yandexcloud.net/d4en6mi363fq4o5js5ee';
+  static const String forumApiUrl =
+      'https://functions.yandexcloud.net/d4en6mi363fq4o5js5ee';
 
   @override
   bool get wantKeepAlive => true;
@@ -32,7 +33,8 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
   void initState() {
     super.initState();
     _init();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadForums());
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) => _loadForums());
   }
 
   @override
@@ -45,21 +47,18 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
     final prefs = await SharedPreferences.getInstance();
     _currentUserId = prefs.getString('user_id');
     _currentUserName = prefs.getString('user_name') ?? 'Пользователь';
-    print("🟢 ForumsTab: userId=$_currentUserId, userName=$_currentUserName");
     await _loadForums();
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadForums() async {
     try {
-      print("🔄 ForumsTab: loading forums...");
       final response = await http.post(
         Uri.parse(forumApiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "list-forums"}),
       ).timeout(const Duration(seconds: 10));
 
-      print("📦 ForumsTab: status=${response.statusCode}, body=${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}");
       final data = jsonDecode(response.body);
       if (data['ok'] == true && mounted) {
         setState(() {
@@ -67,27 +66,24 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
           _retryCount = 0;
           _loadError = null;
         });
-        print("✅ ForumsTab: loaded ${_forums.length} forums");
       } else {
-        print("⚠️ ForumsTab: server returned ok=false or null data");
         _retryLoad();
       }
     } catch (e) {
-      print("🔴 ForumsTab error: $e");
       _retryLoad();
     }
   }
 
   void _retryLoad() {
     _retryCount++;
-    print("🔄 ForumsTab: retry $_retryCount/5");
     if (_retryCount <= 5 && mounted) {
       if (_retryCount >= 3) {
         setState(() => _loadError = 'Проблемы с загрузкой. Пробуем снова...');
       }
       Future.delayed(const Duration(seconds: 2), _loadForums);
     } else if (_retryCount > 5 && mounted) {
-      setState(() => _loadError = 'Не удалось загрузить форум. Потяните чтобы обновить.');
+      setState(() =>
+      _loadError = 'Не удалось загрузить форум. Потяните чтобы обновить.');
     }
   }
 
@@ -102,14 +98,23 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Тема')),
+            TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: 'Тема')),
             const SizedBox(height: 8),
-            TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Описание'), maxLines: 3),
+            TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'Описание'),
+                maxLines: 3),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Создать')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Создать')),
         ],
       ),
     );
@@ -117,7 +122,6 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
     if (ok != true || !mounted) return;
 
     try {
-      print("🟢 ForumsTab: creating forum...");
       await http.post(
         Uri.parse(forumApiUrl),
         headers: {'Content-Type': 'application/json'},
@@ -131,23 +135,22 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
       ).timeout(const Duration(seconds: 10));
       _retryCount = 0;
       _loadForums();
-    } catch (e) {
-      print("🔴 ForumsTab: create forum error: $e");
-    }
+    } catch (e) {}
   }
 
   void _deleteForum(String forumId) async {
     try {
-      print("🟢 ForumsTab: deleting forum $forumId");
       await http.post(
         Uri.parse(forumApiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "delete-forum", "forum_id": forumId, "user_id": _currentUserId}),
+        body: jsonEncode({
+          "action": "delete-forum",
+          "forum_id": forumId,
+          "user_id": _currentUserId
+        }),
       ).timeout(const Duration(seconds: 10));
       _loadForums();
-    } catch (e) {
-      print("🔴 ForumsTab: delete forum error: $e");
-    }
+    } catch (e) {}
   }
 
   String _formatTime(String? iso) {
@@ -165,123 +168,193 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    if (_loading) return const Center(child: CircularProgressIndicator(color: Colors.orange));
+    if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_forums.isEmpty && _loadError != null) {
-      return Center(
-        child: GestureDetector(
-          onTap: () {
-            setState(() {
-              _retryCount = 0;
-              _loadError = null;
-            });
-            _loadForums();
-          },
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.wifi_off, size: 48, color: Colors.grey),
-              const SizedBox(height: 12),
-              Text(_loadError!, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 8),
-              const Text('Нажмите чтобы повторить', style: TextStyle(color: Colors.orange, fontSize: 13)),
-            ],
-          ),
-        ),
-      );
+      return _buildErrorView();
     }
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         heroTag: 'create_forum',
         onPressed: _createForum,
-        backgroundColor: Colors.orange,
+        backgroundColor: colorScheme.primary,
         child: const Icon(Icons.add),
       ),
       body: _forums.isEmpty
-          ? const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.forum_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Нет обсуждений', style: TextStyle(fontSize: 16, color: Colors.grey)),
-            SizedBox(height: 4),
-            Text('Создайте первое обсуждение!', style: TextStyle(fontSize: 13, color: Colors.grey)),
-          ],
-        ),
-      )
+          ? _buildEmptyView()
           : RefreshIndicator(
         onRefresh: () async {
-          print("🔄 ForumsTab: pull to refresh");
           _retryCount = 0;
           _loadError = null;
           await _loadForums();
         },
         child: ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: _forums.length,
           itemBuilder: (context, index) {
             final f = _forums[index];
-            final forumId = f['forum_id'] ?? '';
-            final title = f['title'] ?? '';
-            final desc = f['description'] ?? '';
-            final creatorName = f['creator_name'] ?? '';
-            final participantCount = f['participant_count'] ?? 0;
-            final lastMsg = f['last_message'] ?? '';
-            final lastTime = f['last_time'];
-            final isCreator = f['creator_id'] == _currentUserId;
+            return _ForumCard(
+              forum: f,
+              currentUserId: _currentUserId!,
+              onDelete: _deleteForum,
+              formatTime: _formatTime,
+            );
+          },
+        ),
+      ),
+    );
+  }
 
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.orange.shade100,
-                  child: Text('${participantCount}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+  Widget _buildErrorView() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _retryCount = 0;
+            _loadError = null;
+          });
+          _loadForums();
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off, size: 64, color: colorScheme.error),
+            const SizedBox(height: 16),
+            Text(_loadError!, style: TextStyle(color: colorScheme.error)),
+            const SizedBox(height: 8),
+            Text('Нажмите чтобы повторить',
+                style: TextStyle(color: colorScheme.primary, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.forum_outlined, size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          const Text('Нет обсуждений',
+              style: TextStyle(fontSize: 18, color: Colors.grey)),
+          const SizedBox(height: 8),
+          const Text('Создайте первое обсуждение!',
+              style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForumCard extends StatelessWidget {
+  final Map<String, dynamic> forum;
+  final String currentUserId;
+  final Function(String) onDelete;
+  final String Function(String?) formatTime;
+
+  const _ForumCard({
+    required this.forum,
+    required this.currentUserId,
+    required this.onDelete,
+    required this.formatTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final forumId = forum['forum_id'] ?? '';
+    final title = forum['title'] ?? '';
+    final desc = forum['description'] ?? '';
+    final creatorName = forum['creator_name'] ?? '';
+    final participantCount = forum['participant_count'] ?? 0;
+    final lastMsg = forum['last_message'] ?? '';
+    final lastTime = forum['last_time'];
+    final isCreator = forum['creator_id'] == currentUserId;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Card(
+        elevation: 2,
+        shadowColor: Colors.black26,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ForumScreen(
+                  forumId: forumId,
+                  forumTitle: title,
                 ),
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('$creatorName${desc.isNotEmpty ? " • $desc" : ""}',
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (lastMsg.isNotEmpty)
-                      Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (lastTime != null)
-                      Text(_formatTime(lastTime),
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                    if (isCreator)
-                      PopupMenuButton(
-                        itemBuilder: (ctx) => [
-                          PopupMenuItem(
-                            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
-                            onTap: () => _deleteForum(forumId),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ForumScreen(
-                        forumId: forumId,
-                        forumTitle: title,
-                      ),
-                    ),
-                  );
-                },
               ),
             );
           },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: colorScheme.tertiaryContainer,
+                  child: Text('$participantCount',
+                      style: TextStyle(
+                          color: colorScheme.onTertiaryContainer,
+                          fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$creatorName${desc.isNotEmpty ? " • $desc" : ""}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: colorScheme.onSurface.withOpacity(0.6)),
+                      ),
+                      if (lastMsg.isNotEmpty)
+                        Text(lastMsg,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurface.withOpacity(0.5))),
+                    ],
+                  ),
+                ),
+                if (lastTime != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(formatTime(lastTime),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurface.withOpacity(0.5))),
+                  ),
+                if (isCreator)
+                  PopupMenuButton(
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                        child: const Text('Удалить',
+                            style: TextStyle(color: Colors.red)),
+                        onTap: () => onDelete(forumId),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

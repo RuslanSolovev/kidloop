@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 import '../../../core/trades_provider.dart';
 import '../../../core/trade_offer.dart';
@@ -37,12 +35,20 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            icon: Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
             title: const Text('Ошибка'),
-            content: Text(error == 'insufficient_balance'
-                ? 'У вас недостаточно SV для принятия.'
-                : 'Не удалось принять предложение.'),
+            content: Text(
+              error == 'insufficient_balance'
+                  ? 'У вас недостаточно SV для принятия.'
+                  : 'Не удалось принять предложение.',
+              textAlign: TextAlign.center,
+            ),
             actions: [
-              ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
             ],
           ),
         );
@@ -50,18 +56,335 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
     }
   }
 
-  Color _statusColor(String status) {
+  bool _isToUser(TradeOffer offer) => offer.toUserId == _currentUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final offers = context.watch<TradesProvider>().offers;
+    final provider = context.read<TradesProvider>();
+
+    return Scaffold(
+      body: offers.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.swap_horiz_rounded,
+              size: 80,
+              color: theme.colorScheme.outlineVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Пока нет предложений обмена',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.colorScheme.outlineVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Здесь будут появляться предложения обмена',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outlineVariant,
+              ),
+            ),
+          ],
+        ),
+      )
+          : CustomScrollView(
+        slivers: [
+          SliverAppBar.medium(
+            title: const Text('Предложения обмена'),
+            centerTitle: false,
+            pinned: true,
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                  final offer = offers[index];
+                  return _buildOfferCard(offer, provider, theme);
+                },
+                childCount: offers.length,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfferCard(TradeOffer offer, TradesProvider provider, ThemeData theme) {
+    final isTo = _isToUser(offer);
+    final statusColor = _getStatusColor(offer.status, theme);
+    final canTap = offer.status != 'pending' && offer.status != 'rejected';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        elevation: 0,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: statusColor.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        color: theme.colorScheme.surfaceContainerLow,
+        child: InkWell(
+          onTap: canTap
+              ? () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TradeDiscussionScreen(offer: offer),
+              ),
+            );
+          }
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Статус и тип
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_getStatusIcon(offer.status), size: 14, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            _getStatusText(offer.status),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    if (canTap)
+                      Icon(Icons.chevron_right, color: theme.colorScheme.outlineVariant),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Предметы обмена
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Предлагают',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            offer.fromItemTitle,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.swap_horiz_rounded,
+                          color: theme.colorScheme.primary,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Взамен на',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            offer.toItemTitle,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // Доплата
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: offer.svDifference != 0
+                        ? Colors.amber.withOpacity(0.1)
+                        : Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        offer.svDifference != 0 ? Icons.savings : Icons.balance,
+                        size: 16,
+                        color: offer.svDifference != 0 ? Colors.amber.shade700 : Colors.green.shade700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        offer.svDifference > 0
+                            ? 'Доплата: +${offer.svDifference} SV'
+                            : offer.svDifference < 0
+                            ? 'Доплата: ${offer.svDifference} SV'
+                            : 'Равный обмен',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: offer.svDifference != 0
+                              ? Colors.amber.shade700
+                              : Colors.green.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Кнопки для pending
+                if (offer.status == 'pending' && isTo) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _showRejectDialog(offer, provider),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.red.withOpacity(0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Отклонить'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => _acceptOffer(offer),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Принять'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // Индикатор для отклонённых
+                if (offer.status == 'rejected')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.block, size: 16, color: Colors.red.shade300),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Предложение отклонено',
+                          style: TextStyle(color: Colors.red.shade300, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRejectDialog(TradeOffer offer, TradesProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Отклонить предложение?'),
+        content: const Text('Вы уверены, что хотите отклонить это предложение обмена?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.updateStatus(offer.id, 'rejected');
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Отклонить'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getStatusIcon(String status) {
     switch (status) {
-      case 'accepted': return Colors.blue;
-      case 'shipped': return Colors.purple;
-      case 'completed': return Colors.green;
-      case 'rejected': return Colors.red;
-      case 'cancelled': return Colors.red;
-      default: return Colors.orange;
+      case 'accepted': return Icons.check_circle_outline;
+      case 'shipped': return Icons.local_shipping;
+      case 'completed': return Icons.verified;
+      case 'rejected': return Icons.cancel;
+      case 'cancelled': return Icons.cancel;
+      default: return Icons.hourglass_empty;
     }
   }
 
-  String _statusText(String status) {
+  String _getStatusText(String status) {
     switch (status) {
       case 'accepted': return 'Принято';
       case 'shipped': return 'В процессе';
@@ -72,97 +395,14 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
     }
   }
 
-  bool _isToUser(TradeOffer offer) => offer.toUserId == _currentUserId;
-
-  @override
-  Widget build(BuildContext context) {
-    final offers = context.watch<TradesProvider>().offers;
-    final provider = context.read<TradesProvider>();
-
-    return Scaffold(
-
-      body: offers.isEmpty
-          ? const Center(child: Text('Пока нет предложений обмена'))
-          : ListView.builder(
-        itemCount: offers.length,
-        itemBuilder: (context, index) {
-          final offer = offers[index];
-          final isTo = _isToUser(offer);
-
-          return Card(
-            margin: const EdgeInsets.all(12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {
-                if (offer.status != 'pending' && offer.status != 'rejected') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => TradeDiscussionScreen(offer: offer)),
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text('Предлагают: ${offer.fromItemTitle}',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        ),
-                        if (offer.status != 'pending' && offer.status != 'rejected')
-                          const Icon(Icons.chevron_right, color: Colors.grey),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Взамен на: ${offer.toItemTitle}'),
-                    const SizedBox(height: 8),
-                    if (offer.svDifference > 0)
-                      Text('Доплата отправителю: +${offer.svDifference} SV',
-                          style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
-                    else if (offer.svDifference < 0)
-                      Text('Доплата получателю: +${offer.svDifference.abs()} SV',
-                          style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))
-                    else
-                      const Text('Равный обмен', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: _statusColor(offer.status), borderRadius: BorderRadius.circular(20)),
-                      child: Text(_statusText(offer.status),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                    if (offer.status == 'pending' && isTo)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => provider.updateStatus(offer.id, 'rejected'),
-                                child: const Text('Отклонить'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () => _acceptOffer(offer),
-                                child: const Text('Принять'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+  Color _getStatusColor(String status, ThemeData theme) {
+    switch (status) {
+      case 'accepted': return Colors.blue;
+      case 'shipped': return Colors.purple;
+      case 'completed': return Colors.green;
+      case 'rejected': return Colors.red;
+      case 'cancelled': return Colors.red;
+      default: return Colors.orange;
+    }
   }
 }

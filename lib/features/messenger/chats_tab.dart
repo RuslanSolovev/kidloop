@@ -23,7 +23,8 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
   int _retryCount = 0;
   String? _loadError;
 
-  static const String chatApiUrl = 'https://functions.yandexcloud.net/d4es79s8locoa8ul3pe3';
+  static const String chatApiUrl =
+      'https://functions.yandexcloud.net/d4es79s8locoa8ul3pe3';
 
   @override
   bool get wantKeepAlive => true;
@@ -44,26 +45,19 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _currentUserId = prefs.getString('user_id');
-    print("🟢 ChatsTab: userId=$_currentUserId");
     await _loadChats();
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadChats() async {
-    if (_currentUserId == null) {
-      print("🔴 ChatsTab: userId is null, skip loading");
-      return;
-    }
-
+    if (_currentUserId == null) return;
     try {
-      print("🔄 ChatsTab: loading chats...");
       final response = await http.post(
         Uri.parse(chatApiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "list-chats", "user_id": _currentUserId}),
       ).timeout(const Duration(seconds: 10));
 
-      print("📦 ChatsTab: status=${response.statusCode}, body=${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}");
       final data = jsonDecode(response.body);
       if (data['ok'] == true && mounted) {
         setState(() {
@@ -71,20 +65,16 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
           _retryCount = 0;
           _loadError = null;
         });
-        print("✅ ChatsTab: loaded ${_chats.length} chats");
       } else {
-        print("⚠️ ChatsTab: server returned ok=false or null data");
         _retryLoad();
       }
     } catch (e) {
-      print("🔴 ChatsTab error: $e");
       _retryLoad();
     }
   }
 
   void _retryLoad() {
     _retryCount++;
-    print("🔄 ChatsTab: retry $_retryCount/5");
     if (_retryCount <= 5 && mounted) {
       if (_retryCount >= 3) {
         setState(() => _loadError = 'Проблемы с загрузкой. Пробуем снова...');
@@ -95,8 +85,12 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
     }
   }
 
-  void _openChat(String chatId, String otherUserId, String otherName) {
-    print("💬 ChatsTab: opening chat $chatId with $otherName");
+  void _openChat(Map<String, dynamic> chat) {
+    final chatId = chat['chat_id'] ?? '';
+    final otherUserId = chat['other_user_id'] ?? '';
+    final otherName = chat['other_name'] ?? 'Пользователь';
+    final otherAvatar = chat['other_avatar'] ?? '';
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -104,6 +98,7 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
           chatId: chatId,
           otherUserId: otherUserId,
           otherName: otherName,
+          otherAvatar: otherAvatar,
         ),
       ),
     );
@@ -125,81 +120,169 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    if (_loading) return const Center(child: CircularProgressIndicator(color: Colors.orange));
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     if (_chats.isEmpty && _loadError != null) {
-      return Center(
-        child: GestureDetector(
-          onTap: () {
-            setState(() {
-              _retryCount = 0;
-              _loadError = null;
-            });
-            _loadChats();
-          },
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.wifi_off, size: 48, color: Colors.grey),
-              const SizedBox(height: 12),
-              Text(_loadError!, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 8),
-              const Text('Нажмите чтобы повторить', style: TextStyle(color: Colors.orange, fontSize: 13)),
-            ],
-          ),
-        ),
-      );
+      return _buildErrorView();
     }
 
     if (_chats.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Нет чатов', style: TextStyle(fontSize: 16, color: Colors.grey)),
-            SizedBox(height: 4),
-            Text('Добавьте друзей, чтобы начать общение',
-                style: TextStyle(fontSize: 13, color: Colors.grey)),
-          ],
-        ),
-      );
+      return _buildEmptyView();
     }
 
     return RefreshIndicator(
       onRefresh: () async {
-        print("🔄 ChatsTab: pull to refresh");
         _retryCount = 0;
         _loadError = null;
         await _loadChats();
       },
       child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _chats.length,
         itemBuilder: (context, index) {
           final chat = _chats[index];
-          final name = chat['other_name'] ?? 'Пользователь';
-          final avatar = chat['other_avatar'] ?? '';
-          final lastMsg = chat['last_message'] ?? '';
-          final lastTime = chat['last_time'];
-
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
-              child: avatar.isEmpty
-                  ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase())
-                  : null,
-            ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(lastMsg.isNotEmpty ? lastMsg : 'Нет сообщений',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey.shade600)),
-            trailing: Text(_formatTime(lastTime),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            onTap: () => _openChat(chat['chat_id'] ?? '', chat['other_user_id'] ?? '', name),
+          return _ChatCard(
+            chat: chat,
+            currentUserId: _currentUserId!,
+            onTap: () => _openChat(chat),
+            formatTime: _formatTime,
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _retryCount = 0;
+            _loadError = null;
+          });
+          _loadChats();
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off, size: 64, color: colorScheme.error),
+            const SizedBox(height: 16),
+            Text(_loadError!, style: TextStyle(color: colorScheme.error)),
+            const SizedBox(height: 8),
+            Text('Нажмите чтобы повторить',
+                style: TextStyle(color: colorScheme.primary, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.chat_bubble_outline,
+              size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          const Text('Нет чатов',
+              style: TextStyle(fontSize: 18, color: Colors.grey)),
+          const SizedBox(height: 8),
+          const Text('Добавьте друзей, чтобы начать общение',
+              style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Карточка чата ---
+class _ChatCard extends StatelessWidget {
+  final Map<String, dynamic> chat;
+  final String currentUserId;
+  final VoidCallback onTap;
+  final String Function(String?) formatTime;
+
+  const _ChatCard({
+    required this.chat,
+    required this.currentUserId,
+    required this.onTap,
+    required this.formatTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final name = chat['other_name'] ?? 'Пользователь';
+    final avatar = chat['other_avatar'] ?? '';
+    final lastMsg = chat['last_message'] ?? '';
+    final lastTime = chat['last_time'];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Card(
+        elevation: 2,
+        shadowColor: Colors.black26,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Hero(
+                  tag: 'avatar_${chat['other_user_id']}',
+                  child: CircleAvatar(
+                    radius: 24,
+                    backgroundImage: avatar.isNotEmpty
+                        ? CachedNetworkImageProvider(avatar)
+                        : null,
+                    backgroundColor: avatar.isEmpty
+                        ? colorScheme.primaryContainer
+                        : null,
+                    child: avatar.isEmpty
+                        ? Text(name[0].toUpperCase(),
+                        style: TextStyle(
+                            color: colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold))
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(
+                        lastMsg.isNotEmpty ? lastMsg : 'Нет сообщений',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: colorScheme.onSurface.withOpacity(0.6)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (lastTime != null)
+                  Text(formatTime(lastTime),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface.withOpacity(0.5))),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

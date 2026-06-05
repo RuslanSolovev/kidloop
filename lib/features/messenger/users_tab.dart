@@ -46,7 +46,9 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && _hasMore) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200 &&
+        _hasMore) {
       _loadUsers();
     }
   }
@@ -82,8 +84,6 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
           _offset += newUsers.length;
           _retryCount = 0;
         });
-      } else {
-        _retryLoadUsers();
       }
     } catch (e) {
       _retryLoadUsers();
@@ -120,7 +120,8 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
       ).timeout(const Duration(seconds: 8));
       final data = jsonDecode(response.body);
       if (data['ok'] == true && mounted) {
-        setState(() => _pendingRequests = (data['requests'] as List).cast<Map<String, dynamic>>());
+        setState(() =>
+        _pendingRequests = (data['requests'] as List).cast<Map<String, dynamic>>());
       }
     } catch (e) {}
   }
@@ -132,10 +133,12 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
       await http.post(
         Uri.parse(userApiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "send-friend-request", "user_id": _currentUserId, "friend_id": friendId}),
+        body: jsonEncode(
+            {"action": "send-friend-request", "user_id": _currentUserId, "friend_id": friendId}),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Заявка отправлена')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Заявка отправлена')));
       }
     } catch (e) {}
   }
@@ -145,7 +148,8 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
       await http.post(
         Uri.parse(userApiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "remove-friend", "user_id": _currentUserId, "friend_id": friendId}),
+        body: jsonEncode(
+            {"action": "remove-friend", "user_id": _currentUserId, "friend_id": friendId}),
       );
       _loadFriends();
       if (mounted) setState(() {});
@@ -157,7 +161,8 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
       await http.post(
         Uri.parse(userApiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "accept-friend", "user_id": _currentUserId, "friend_id": friendId}),
+        body: jsonEncode(
+            {"action": "accept-friend", "user_id": _currentUserId, "friend_id": friendId}),
       );
       _loadFriends();
       _loadPendingRequests();
@@ -165,7 +170,7 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
     } catch (e) {}
   }
 
-  void _openChat(String otherUserId, String otherName) async {
+  void _openChat(String otherUserId, String otherName, String otherAvatar) async {
     try {
       final response = await http.post(
         Uri.parse(personalChatApiUrl),
@@ -185,6 +190,7 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
               chatId: data['chat_id'] ?? '',
               otherUserId: otherUserId,
               otherName: otherName,
+              otherAvatar: otherAvatar,
             ),
           ),
         );
@@ -193,7 +199,8 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
   }
 
   void _openProfile(String userId) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: userId)));
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: userId)));
   }
 
   void _onSearchChanged(String query) {
@@ -210,6 +217,7 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     if (_loading) return const Center(child: CircularProgressIndicator());
 
@@ -231,98 +239,203 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
                 decoration: InputDecoration(
                   hintText: 'Поиск пользователей...',
                   prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none),
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: colorScheme.surfaceVariant,
                 ),
                 onChanged: _onSearchChanged,
               ),
             ),
           ),
-
           if (_pendingRequests.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Text('Заявки в друзья (${_pendingRequests.length})',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  'Заявки в друзья (${_pendingRequests.length})',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                      fontSize: 16),
+                ),
               ),
             ),
           if (_pendingRequests.isNotEmpty)
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                    (ctx, i) => _userTile(_pendingRequests[i], isPending: true),
+                    (ctx, i) => _UserCard(
+                  user: _pendingRequests[i],
+                  isPending: true,
+                  onAccept: _acceptRequest,
+                  onOpenProfile: _openProfile,
+                  onOpenChat: (id, name, avatar) => _openChat(id, name, avatar),
+                ),
                 childCount: _pendingRequests.length,
               ),
             ),
-
           if (_friends.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Text('Друзья (${_friends.length})',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade700,
+                        fontSize: 16)),
               ),
             ),
           if (_friends.isNotEmpty)
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                    (ctx, i) => _userTile(_friends[i], isFriend: true),
+                    (ctx, i) => _UserCard(
+                  user: _friends[i],
+                  isFriend: true,
+                  onRemoveFriend: _removeFriend,
+                  onOpenProfile: _openProfile,
+                  onOpenChat: (id, name, avatar) => _openChat(id, name, avatar),
+                ),
                 childCount: _friends.length,
               ),
             ),
-
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Text('Все пользователи', style: const TextStyle(fontWeight: FontWeight.bold)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text('Все пользователи',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: colorScheme.onSurface)),
             ),
           ),
           SliverList(
             delegate: SliverChildBuilderDelegate(
-                  (ctx, i) => _userTile(_users[i]),
+                  (ctx, i) => _UserCard(
+                user: _users[i],
+                isFriend: _isFriend(_users[i]['user_id'] ?? ''),
+                onSendRequest: _sendFriendRequest,
+                onOpenProfile: _openProfile,
+                onOpenChat: (id, name, avatar) => _openChat(id, name, avatar),
+              ),
               childCount: _users.length,
             ),
           ),
-
           if (_hasMore)
             const SliverToBoxAdapter(
-              child: Center(child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
-              )),
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
             ),
         ],
       ),
     );
   }
+}
 
-  Widget _userTile(Map<String, dynamic> user, {bool isFriend = false, bool isPending = false}) {
+class _UserCard extends StatelessWidget {
+  final Map<String, dynamic> user;
+  final bool isFriend;
+  final bool isPending;
+  final Function(String)? onAccept;
+  final Function(String)? onRemoveFriend;
+  final Function(String)? onSendRequest;
+  final Function(String) onOpenProfile;
+  final Function(String, String, String) onOpenChat;
+
+  const _UserCard({
+    required this.user,
+    this.isFriend = false,
+    this.isPending = false,
+    this.onAccept,
+    this.onRemoveFriend,
+    this.onSendRequest,
+    required this.onOpenProfile,
+    required this.onOpenChat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final userId = user['user_id'] ?? '';
-    final name = user['name'] ?? '';
+    final name = user['name'] ?? 'Пользователь';
     final avatarUrl = user['avatar_url'] ?? '';
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: avatarUrl.isNotEmpty ? CachedNetworkImageProvider(avatarUrl) : null,
-        child: avatarUrl.isEmpty ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase()) : null,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => onOpenProfile(userId),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundImage: avatarUrl.isNotEmpty
+                      ? CachedNetworkImageProvider(avatarUrl)
+                      : null,
+                  backgroundColor: avatarUrl.isEmpty
+                      ? colorScheme.primaryContainer
+                      : null,
+                  child: avatarUrl.isEmpty
+                      ? Text(name[0].toUpperCase(),
+                      style: TextStyle(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold))
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(name,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w500)),
+                ),
+                if (isPending)
+                  ElevatedButton.icon(
+                    onPressed: () => onAccept?.call(userId),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Принять'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  )
+                else if (isFriend)
+                  PopupMenuButton(
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                          child: const Text('Написать'),
+                          onTap: () => onOpenChat(userId, name, avatarUrl)),
+                      PopupMenuItem(
+                          child: const Text('Профиль'),
+                          onTap: () => onOpenProfile(userId)),
+                      PopupMenuItem(
+                          child: const Text('Удалить из друзей',
+                              style: TextStyle(color: Colors.red)),
+                          onTap: () => onRemoveFriend?.call(userId)),
+                    ],
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: () => onSendRequest?.call(userId),
+                    child: const Text('Добавить'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
-      title: Text(name.isNotEmpty ? name : 'Пользователь'),
-      onTap: () => _openProfile(userId),
-      trailing: isPending
-          ? TextButton(onPressed: () => _acceptRequest(userId), child: const Text('Принять'))
-          : isFriend
-          ? PopupMenuButton(
-        itemBuilder: (ctx) => [
-          PopupMenuItem(child: const Text('Написать'), onTap: () => _openChat(userId, name)),
-          PopupMenuItem(child: const Text('Профиль'), onTap: () => _openProfile(userId)),
-          PopupMenuItem(child: const Text('Удалить', style: TextStyle(color: Colors.red)),
-              onTap: () => _removeFriend(userId)),
-        ],
-      )
-          : _isFriend(userId)
-          ? null
-          : ElevatedButton(onPressed: () => _sendFriendRequest(userId), child: const Text('Добавить')),
     );
   }
 }

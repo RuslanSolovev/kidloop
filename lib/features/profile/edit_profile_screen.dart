@@ -155,105 +155,179 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Редактировать профиль')),
+      appBar: AppBar(
+        title: const Text('Редактировать профиль'),
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Аватар
+            // Аватар с кнопкой изменения
             GestureDetector(
               onTap: _pickAvatar,
-              child: CircleAvatar(
-                radius: 60,
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-                child: _avatarUrl.isEmpty
-                    ? const Icon(Icons.camera_alt, size: 40, color: Colors.grey)
-                    : null,
+              child: Hero(
+                tag: 'profile_avatar',
+                child: CircleAvatar(
+                  radius: 64,
+                  backgroundColor: colorScheme.surfaceVariant,
+                  backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
+                  child: _avatarUrl.isEmpty
+                      ? Icon(Icons.camera_alt, size: 48, color: colorScheme.primary)
+                      : null,
+                ),
               ),
             ),
             const SizedBox(height: 12),
-            Text('Нажми, чтобы изменить фото',
-                style: TextStyle(color: Colors.grey.shade600)),
-            const SizedBox(height: 24),
+            Text(
+              'Нажмите, чтобы изменить фото',
+              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 32),
 
-            TextField(
+            // Поля ввода с современными InputDecoration
+            _buildTextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Имя',
-                border: OutlineInputBorder(),
-              ),
+              label: 'Имя',
+              icon: Icons.person,
+              theme: theme,
             ),
             const SizedBox(height: 16),
 
-            TextField(
+            _buildTextField(
               controller: cityController,
-              decoration: const InputDecoration(
-                labelText: 'Город',
-                border: OutlineInputBorder(),
-              ),
+              label: 'Город',
+              icon: Icons.location_on,
+              theme: theme,
             ),
             const SizedBox(height: 16),
 
-            TextField(
+            _buildTextField(
               controller: bioController,
+              label: 'О себе',
+              icon: Icons.info_outline,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'О себе',
-                border: OutlineInputBorder(),
-              ),
+              theme: theme,
             ),
             const SizedBox(height: 16),
 
-            TextField(
+            _buildTextField(
               controller: ageController,
+              label: 'Возраст',
+              icon: Icons.cake,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Возраст',
-                border: OutlineInputBorder(),
-              ),
+              theme: theme,
             ),
             const SizedBox(height: 16),
 
-            TextField(
+            _buildTextField(
               controller: telegramController,
-              decoration: const InputDecoration(
-                labelText: 'Telegram',
-                border: OutlineInputBorder(),
-              ),
+              label: 'Telegram',
+              icon: Icons.telegram,
+              theme: theme,
             ),
             const SizedBox(height: 16),
 
-            DropdownButtonFormField<String>(
-              value: selectedCategory,
-              items: categories.map((category) {
-                return DropdownMenuItem(value: category, child: Text(category));
-              }).toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => selectedCategory = value);
-              },
-              decoration: const InputDecoration(
-                labelText: 'Любимая категория',
-                border: OutlineInputBorder(),
-              ),
+            // Выбор категории в виде чипсов
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Любимая категория', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: categories.map((cat) => ChoiceChip(
+                label: Text(cat),
+                selected: selectedCategory == cat,
+                onSelected: (val) {
+                  setState(() => selectedCategory = cat);
+                },
+                selectedColor: colorScheme.primaryContainer,
+                labelStyle: TextStyle(
+                  color: selectedCategory == cat ? colorScheme.onPrimaryContainer : null,
+                ),
+              )).toList(),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 32),
 
+            // Кнопка сохранения с градиентом
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: ElevatedButton(
-                onPressed: isSaving ? null : save,
-                child: isSaving
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Сохранить', style: TextStyle(fontSize: 16)),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)],
+                  ),
+                ),
+                child: ElevatedButton(
+                  onPressed: isSaving ? null : save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.save, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('Сохранить',
+                          style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Вспомогательный метод для стилизации полей ввода
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    required ThemeData theme,
+  }) {
+    final colorScheme = theme.colorScheme;
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: colorScheme.primary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+        ),
+        filled: true,
+        fillColor: colorScheme.surface,
       ),
     );
   }

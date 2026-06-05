@@ -148,9 +148,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final successRate = trades.isEmpty ? 0 : (completedTrades / trades.length * 100).round();
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Профиль'),
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -160,162 +165,219 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // HEADER
+            // HEADER - карточка профиля с градиентом
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.blue.shade400, Colors.blue.shade700],
+                  colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  )
+                ],
               ),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    backgroundImage: profile.avatarUrl.isNotEmpty ? NetworkImage(profile.avatarUrl) : null,
-                    child: profile.avatarUrl.isEmpty
-                        ? const Icon(Icons.person, size: 55, color: Colors.blue)
-                        : null,
+                  // Аватар с обводкой
+                  Hero(
+                    tag: 'profile_avatar',
+                    child: CircleAvatar(
+                      radius: 52,
+                      backgroundColor: Colors.white,
+                      backgroundImage: profile.avatarUrl.isNotEmpty ? NetworkImage(profile.avatarUrl) : null,
+                      child: profile.avatarUrl.isEmpty
+                          ? Icon(Icons.person, size: 60, color: colorScheme.primary)
+                          : null,
+                    ),
                   ),
                   const SizedBox(height: 14),
-                  Text(profile.name,
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text(
+                    profile.name,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.location_on, color: Colors.white, size: 18),
+                      const Icon(Icons.location_on, color: Colors.white70, size: 20),
                       const SizedBox(width: 4),
-                      Text(profile.city, style: const TextStyle(color: Colors.white70)),
+                      Text(profile.city, style: const TextStyle(color: Colors.white70, fontSize: 16)),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 18),
 
-                  // SV BALANCE
+                  // SV баланс
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.amber.shade400,
                       borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(color: Colors.amber.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))
+                      ],
                     ),
                     child: _loadingBalance
                         ? const SizedBox(
-                        height: 20, width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
                         : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.stars, color: Colors.white, size: 24),
+                        const Icon(Icons.stars, color: Colors.white, size: 28),
                         const SizedBox(width: 8),
-                        Text('$_svBalance SV',
-                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                        Text(
+                          '$_svBalance SV',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+                  // Уровень
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(20)),
-                    child: Text('LEVEL $level',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'УРОВЕНЬ $level',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1),
+                    ),
                   ),
-                  const SizedBox(height: 18),
-                  LinearProgressIndicator(value: completion, minHeight: 10, borderRadius: BorderRadius.circular(10)),
-                  const SizedBox(height: 8),
-                  Text('Заполненность профиля ${(completion * 100).round()}%',
-                      style: const TextStyle(color: Colors.white)),
+
+                  const SizedBox(height: 20),
+                  // Прогресс заполненности
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Заполненность профиля', style: TextStyle(color: Colors.white.withOpacity(0.9))),
+                          Text('${(completion * 100).round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          value: completion,
+                          minHeight: 10,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // EDIT BUTTON
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            // Кнопки действий
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.edit,
+                    label: 'Редактировать',
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
+                    },
+                    gradient: LinearGradient(colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)]),
+                  ),
                 ),
-                icon: const Icon(Icons.edit),
-                label: const Text('Редактировать профиль', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
-                },
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // LOGOUT BUTTON
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  side: const BorderSide(color: Colors.red),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.logout,
+                    label: 'Выйти',
+                    onPressed: _logout,
+                    gradient: LinearGradient(colors: [Colors.red.shade400, Colors.red.shade600]),
+                  ),
                 ),
-                icon: const Icon(Icons.logout),
-                label: const Text('Выйти из аккаунта', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: _logout,
-              ),
+              ],
             ),
 
             const SizedBox(height: 24),
 
-            // INFO
+            // Карточка информации
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(blurRadius: 8, color: Colors.black.withOpacity(0.05))],
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  )
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Информация', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Информация', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  _InfoTile(icon: Icons.cake, label: 'Возраст', value: '${profile.age}'),
+                  _InfoTile(icon: Icons.category, label: 'Любимая категория', value: profile.favoriteCategory),
+                  _InfoTile(
+                    icon: Icons.telegram,
+                    label: 'Telegram',
+                    value: profile.telegram.isEmpty ? 'Не указан' : profile.telegram,
+                  ),
                   const SizedBox(height: 16),
-                  _infoRow(Icons.cake, 'Возраст', '${profile.age}'),
-                  _infoRow(Icons.category, 'Любимая категория', profile.favoriteCategory),
-                  _infoRow(Icons.telegram, 'Telegram', profile.telegram.isEmpty ? 'Не указан' : profile.telegram),
-                  const SizedBox(height: 16),
-                  const Text('О себе', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('О себе', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Text(profile.bio.isEmpty ? 'Нет описания' : profile.bio),
+                  Text(
+                    profile.bio.isEmpty ? 'Нет описания' : profile.bio,
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
                 ],
               ),
             ),
 
             const SizedBox(height: 24),
 
-            // STATS
+            // Статистика в стильных карточках
             Row(
               children: [
-                Expanded(child: _StatCard(title: 'Мои вещи', value: '$myItems', icon: Icons.inventory)),
+                Expanded(child: _StatCard(title: 'Мои вещи', value: '$myItems', icon: Icons.inventory, color: Colors.blue)),
                 const SizedBox(width: 12),
-                Expanded(child: _StatCard(title: 'Обмены', value: '${trades.length}', icon: Icons.swap_horiz)),
+                Expanded(child: _StatCard(title: 'Обмены', value: '${trades.length}', icon: Icons.swap_horiz, color: Colors.orange)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _StatCard(title: 'Успешно', value: '$completedTrades', icon: Icons.check_circle)),
+                Expanded(child: _StatCard(title: 'Успешно', value: '$completedTrades', icon: Icons.check_circle, color: Colors.green)),
                 const SizedBox(width: 12),
-                Expanded(child: _StatCard(title: 'Рейтинг', value: '$successRate%', icon: Icons.star)),
+                Expanded(child: _StatCard(title: 'Рейтинг', value: '$successRate%', icon: Icons.star, color: Colors.amber)),
               ],
             ),
           ],
@@ -323,45 +385,130 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+}
 
-  Widget _infoRow(IconData icon, String title, String value) {
+// Виджет информационной строки
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoTile({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(icon, color: Colors.blue),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: colorScheme.primary, size: 20),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Text('$title: $value')),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: DefaultTextStyle.of(context).style,
+                children: [
+                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
+// Карточка статистики
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-
-  const _StatCard({required this.title, required this.value, required this.icon});
+  final Color color;
+  const _StatCard({required this.title, required this.value, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(blurRadius: 8, color: Colors.black.withOpacity(0.05))],
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          )
+        ],
       ),
       child: Column(
         children: [
-          Icon(icon, size: 30, color: Colors.blue),
-          const SizedBox(height: 10),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 28, color: color),
+          ),
+          const SizedBox(height: 12),
+          Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(title),
+          Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
         ],
+      ),
+    );
+  }
+}
+
+// Кнопка действия
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final Gradient gradient;
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    required this.gradient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 52,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: gradient,
+        ),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
       ),
     );
   }

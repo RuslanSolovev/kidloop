@@ -29,7 +29,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       _loadProfile(),
       _loadStats(),
     ]);
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadProfile() async {
@@ -43,14 +43,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       if (data['ok'] == true && data['profile'] != null) {
         setState(() => _profile = data['profile']);
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadStats() async {
     try {
-      // Загружаем вещи пользователя
       final itemsRes = await http.post(
         Uri.parse('https://functions.yandexcloud.net/d4ei9an1aushareidmjc'),
         headers: {'Content-Type': 'application/json'},
@@ -61,7 +58,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         setState(() => _itemsCount = (itemsData['items'] as List).length);
       }
 
-      // Загружаем обмены пользователя
       final offersRes = await http.post(
         Uri.parse('https://functions.yandexcloud.net/d4e77rr4t3hlvjo7n77b'),
         headers: {'Content-Type': 'application/json'},
@@ -75,13 +71,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           _completedTrades = offers.where((o) => o['status'] == 'completed').length;
         });
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('Профиль')),
@@ -106,18 +103,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final successRate = _tradesCount > 0 ? (_completedTrades / _tradesCount * 100).round() : 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text(name)),
+      appBar: AppBar(
+        title: Text(name),
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // HEADER
+            // Шапка профиля
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.blue.shade400, Colors.blue.shade700],
+                  colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.6)],
                 ),
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -128,21 +129,38 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                     backgroundColor: Colors.white,
                     backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                     child: avatarUrl.isEmpty
-                        ? const Icon(Icons.person, size: 60, color: Colors.blue)
+                        ? Icon(Icons.person, size: 60, color: colorScheme.primary)
                         : null,
                   ),
                   const SizedBox(height: 14),
-                  Text(name,
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text(
+                    name,
+                    style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                   if (city.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.location_on, color: Colors.white, size: 18),
+                        const Icon(Icons.location_on, color: Colors.white70, size: 20),
                         const SizedBox(width: 4),
-                        Text(city, style: const TextStyle(color: Colors.white70)),
+                        Text(city, style: const TextStyle(color: Colors.white70, fontSize: 16)),
                       ],
+                    ),
+                  ],
+                  if (telegram.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Здесь можно открыть ссылку на Telegram
+                      },
+                      icon: const Icon(Icons.telegram),
+                      label: const Text('Написать'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: colorScheme.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ],
                 ],
@@ -151,46 +169,52 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
             const SizedBox(height: 24),
 
-            // STATS
+            // Статистика
             Row(
               children: [
-                Expanded(child: _StatCard(title: 'Вещей', value: '$_itemsCount', icon: Icons.inventory)),
+                Expanded(child: _StatCard(title: 'Вещей', value: '$_itemsCount', icon: Icons.inventory, color: Colors.blue)),
                 const SizedBox(width: 12),
-                Expanded(child: _StatCard(title: 'Обменов', value: '$_tradesCount', icon: Icons.swap_horiz)),
+                Expanded(child: _StatCard(title: 'Обменов', value: '$_tradesCount', icon: Icons.swap_horiz, color: Colors.orange)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _StatCard(title: 'Успешно', value: '$_completedTrades', icon: Icons.check_circle)),
+                Expanded(child: _StatCard(title: 'Успешно', value: '$_completedTrades', icon: Icons.check_circle, color: Colors.green)),
                 const SizedBox(width: 12),
-                Expanded(child: _StatCard(title: 'Рейтинг', value: '$successRate%', icon: Icons.star)),
+                Expanded(child: _StatCard(title: 'Рейтинг', value: '$successRate%', icon: Icons.star, color: Colors.amber)),
               ],
             ),
 
             const SizedBox(height: 24),
 
-            // INFO
+            // Информация
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(blurRadius: 8, color: Colors.black.withOpacity(0.05))],
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  )
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Информация', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  if (age > 0) _infoRow(Icons.cake, 'Возраст', '$age'),
-                  if (telegram.isNotEmpty) _infoRow(Icons.telegram, 'Telegram', telegram),
+                  Text('Информация', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  if (age > 0) _InfoTile(icon: Icons.cake, label: 'Возраст', value: '$age'),
+                  if (telegram.isNotEmpty) _InfoTile(icon: Icons.telegram, label: 'Telegram', value: telegram),
                   if (bio.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text('О себе', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    Text('О себе', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 6),
-                    Text(bio, style: TextStyle(color: Colors.grey.shade700)),
+                    Text(bio, style: TextStyle(color: colorScheme.onSurfaceVariant)),
                   ],
                   if (age == 0 && telegram.isEmpty && bio.isEmpty)
                     const Text('Пользователь пока не заполнил информацию',
@@ -203,44 +227,85 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       ),
     );
   }
+}
 
-  Widget _infoRow(IconData icon, String title, String value) {
+// Информационная строка для публичного профиля
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoTile({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(icon, color: Colors.blue),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: colorScheme.primary, size: 20),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Text('$title: $value')),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: DefaultTextStyle.of(context).style,
+                children: [
+                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
+// Карточка статистики (аналогично личному профилю)
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-
-  const _StatCard({required this.title, required this.value, required this.icon});
+  final Color color;
+  const _StatCard({required this.title, required this.value, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(blurRadius: 8, color: Colors.black.withOpacity(0.05))],
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          )
+        ],
       ),
       child: Column(
         children: [
-          Icon(icon, size: 30, color: Colors.blue),
-          const SizedBox(height: 10),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 28, color: color),
+          ),
+          const SizedBox(height: 12),
+          Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(title),
+          Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
         ],
       ),
     );
