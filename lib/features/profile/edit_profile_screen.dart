@@ -33,6 +33,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     'Самокат',
     'Книги',
     'Одежда',
+    'Коляска',
+    'Мебель',
+    'Техника',
+    'Развивашки',
+    'Спорт',
+    'Творчество',
+    'Пазлы',
+    'Конструктор',
+    'Куклы',
+    'Машинки',
+    'Настолки',
+    'Велосипед',
+    'Электроника',
+    'Детская посуда',
+    'Постель',
+    'Обувь',
+    'Школьное',
+    'Музыкальное',
+    'Игровая приставка',
+    'Надувное',
+  ];
+
+  final locations = [
+    'Москва', 'Санкт-Петербург', 'Щёлково', 'Фрязино', 'Новосибирск',
+    'Екатеринбург', 'Казань', 'Нижний Новгород', 'Челябинск', 'Самара',
+    'Омск', 'Ростов-на-Дону', 'Уфа', 'Красноярск', 'Воронеж',
+    'Пермь', 'Волгоград', 'Краснодар', 'Саратов', 'Тюмень',
+    'Тольятти', 'Ижевск', 'Барнаул', 'Иркутск', 'Хабаровск',
+    'Ярославль', 'Владивосток', 'Махачкала', 'Томск', 'Оренбург',
+    'Кемерово', 'Новокузнецк', 'Рига', 'Юрмала', 'Даугавпилс',
+    'Лиепая', 'Вентспилс', 'Елгава', 'Резекне', 'Таллин',
   ];
 
   @override
@@ -168,7 +199,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Аватар с кнопкой изменения
+            // Аватар
             GestureDetector(
               onTap: _pickAvatar,
               child: Hero(
@@ -190,59 +221,58 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 32),
 
-            // Поля ввода с современными InputDecoration
-            _buildTextField(
-              controller: nameController,
-              label: 'Имя',
-              icon: Icons.person,
-              theme: theme,
-            ),
+            // Имя
+            _buildTextField(controller: nameController, label: 'Имя', icon: Icons.person, theme: theme),
             const SizedBox(height: 16),
 
-            _buildTextField(
-              controller: cityController,
-              label: 'Город',
-              icon: Icons.location_on,
-              theme: theme,
-            ),
-            const SizedBox(height: 16),
-
-            _buildTextField(
-              controller: bioController,
-              label: 'О себе',
-              icon: Icons.info_outline,
-              maxLines: 3,
-              theme: theme,
-            ),
-            const SizedBox(height: 16),
-
-            _buildTextField(
-              controller: ageController,
-              label: 'Возраст',
-              icon: Icons.cake,
-              keyboardType: TextInputType.number,
-              theme: theme,
-            ),
-            const SizedBox(height: 16),
-
-            _buildTextField(
-              controller: telegramController,
-              label: 'Telegram',
-              icon: Icons.telegram,
-              theme: theme,
-            ),
-            const SizedBox(height: 16),
-
-            // Выбор категории в виде чипсов
+            // Город - выпадающий список
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Любимая категория', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: Text('Город', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colorScheme.outline),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: locations.contains(cityController.text) ? cityController.text : locations.first,
+                decoration: const InputDecoration(border: InputBorder.none),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.orange),
+                items: locations.map((loc) => DropdownMenuItem(value: loc, child: Text(loc))).toList(),
+                onChanged: (val) {
+                  if (val != null) cityController.text = val;
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // О себе
+            _buildTextField(controller: bioController, label: 'О себе', icon: Icons.info_outline, maxLines: 3, theme: theme),
+            const SizedBox(height: 16),
+
+            // Возраст
+            _buildTextField(controller: ageController, label: 'Возраст', icon: Icons.cake, keyboardType: TextInputType.number, theme: theme),
+            const SizedBox(height: 16),
+
+            // Telegram
+            _buildTextField(controller: telegramController, label: 'Telegram', icon: Icons.telegram, theme: theme),
+            const SizedBox(height: 16),
+
+            // Любимая категория
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Любимая категория', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
             ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: categories.map((cat) => ChoiceChip(
-                label: Text(cat),
+                label: Text(cat, style: const TextStyle(fontSize: 12)),
                 selected: selectedCategory == cat,
                 onSelected: (val) {
                   setState(() => selectedCategory = cat);
@@ -251,12 +281,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 labelStyle: TextStyle(
                   color: selectedCategory == cat ? colorScheme.onPrimaryContainer : null,
                 ),
+                visualDensity: VisualDensity.compact,
               )).toList(),
             ),
 
             const SizedBox(height: 32),
 
-            // Кнопка сохранения с градиентом
+            // Кнопка сохранения
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -275,21 +306,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: isSaving
-                      ? const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
+                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.save, color: Colors.white),
                       SizedBox(width: 8),
-                      Text('Сохранить',
-                          style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('Сохранить', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -301,7 +324,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Вспомогательный метод для стилизации полей ввода
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -318,14 +340,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: colorScheme.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.outline),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.primary, width: 2),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colorScheme.outline)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colorScheme.primary, width: 2)),
         filled: true,
         fillColor: colorScheme.surface,
       ),

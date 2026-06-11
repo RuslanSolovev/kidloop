@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ChatMessage {
   final String messageId;
   final String offerId;
   final String senderId;
   final String senderName;
+  final String senderAvatar;
   final String text;
   final String replyToId;
   final String replyToText;
   final String replyToName;
+  final String replyToAvatar;
   final bool isEdited;
   final String createdAt;
 
@@ -21,11 +24,13 @@ class ChatMessage {
     required this.messageId,
     required this.offerId,
     required this.senderId,
-    required this.senderName,
+    this.senderName = '',
+    this.senderAvatar = '',
     required this.text,
     this.replyToId = '',
     this.replyToText = '',
     this.replyToName = '',
+    this.replyToAvatar = '',
     this.isEdited = false,
     this.createdAt = '',
   });
@@ -44,24 +49,25 @@ class _ChatWidgetState extends State<ChatWidget> {
   final List<ChatMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _messageListKey = GlobalKey();
   String? _currentUserId;
   String? _currentUserName;
+  String? _currentUserAvatar;
   Timer? _pollTimer;
   String? _replyToId;
   String? _replyToText;
   String? _replyToName;
+  String? _replyToAvatar;
   String? _editingId;
   bool _isLoading = true;
 
-  static const String apiUrl = 'https://functions.yandexcloud.net/d4empovmpsth9ljl5s56';
+  static const String apiUrl = 'https://functions.yandexcloud.net/d4e40k9g2avoblb1of29';
 
   @override
   void initState() {
     super.initState();
     _loadUser();
     _loadMessages();
-    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _loadMessages());
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _loadMessages());
   }
 
   @override
@@ -77,6 +83,7 @@ class _ChatWidgetState extends State<ChatWidget> {
     setState(() {
       _currentUserId = prefs.getString('user_id');
       _currentUserName = prefs.getString('user_name') ?? 'Пользователь';
+      _currentUserAvatar = prefs.getString('avatar_url') ?? '';
     });
   }
 
@@ -85,19 +92,22 @@ class _ChatWidgetState extends State<ChatWidget> {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "list", "offer_id": widget.offerId}),
-      );
+        body: jsonEncode({"action": "get-messages", "chat_id": widget.offerId}),
+      ).timeout(const Duration(seconds: 5));
+
       final data = jsonDecode(response.body);
-      if (data['ok'] == true) {
-        final msgs = (data['messages'] as List).map((m) => ChatMessage(
+      if (data['ok'] == true && mounted) {
+        final msgs = (data['messages'] as List? ?? []).map((m) => ChatMessage(
           messageId: m['message_id'] ?? '',
-          offerId: m['offer_id'] ?? '',
+          offerId: widget.offerId,
           senderId: m['sender_id'] ?? '',
           senderName: m['sender_name'] ?? '',
+          senderAvatar: m['sender_avatar'] ?? '',
           text: m['text'] ?? '',
-          replyToId: m['reply_to_id'] ?? '',
-          replyToText: m['reply_to_text'] ?? '',
-          replyToName: m['reply_to_name'] ?? '',
+          replyToId: m['reply_to_message']?['message_id'] ?? '',
+          replyToText: m['reply_to_message']?['text'] ?? '',
+          replyToName: m['reply_to_message']?['sender_name'] ?? '',
+          replyToAvatar: m['reply_to_message']?['sender_avatar'] ?? '',
           isEdited: m['is_edited'] ?? false,
           createdAt: m['created_at'] ?? '',
         )).toList();
@@ -120,40 +130,62 @@ class _ChatWidgetState extends State<ChatWidget> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
-    final msg = {
-      "action": "send",
-      "offer_id": widget.offerId,
+    final body = <String, dynamic>{
+      "action": "send-message",
+      "chat_id": widget.offerId,
       "sender_id": _currentUserId,
-      "sender_name": _currentUserName,
       "text": text,
     };
 
     if (_replyToId != null) {
-      msg["reply_to_id"] = _replyToId!;
-      msg["reply_to_text"] = _replyToText!;
-      msg["reply_to_name"] = _replyToName!;
+      body["reply_to"] = _replyToId;
     }
 
     _textController.clear();
     _cancelReply();
     _cancelEdit();
 
-    await http.post(Uri.parse(apiUrl), headers: {'Content-Type': 'application/json'}, body: jsonEncode(msg));
-    _loadMessages();
+    try {
+      await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 5));
+      _loadMessages();
+    } catch (e) {}
   }
 
   Future<void> _deleteMessage(String messageId) async {
-    await http.post(Uri.parse(apiUrl), headers: {'Content-Type': 'application/json'}, body: jsonEncode({
-      "action": "delete", "message_id": messageId, "sender_id": _currentUserId,
-    }));
-    _loadMessages();
+    try {
+      await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "action": "delete-message",
+          "message_id": messageId,
+          "user_id": _currentUserId,
+          "chat_id": widget.offerId,
+        }),
+      ).timeout(const Duration(seconds: 5));
+      _loadMessages();
+    } catch (e) {}
   }
 
   Future<void> _editMessage(String messageId, String newText) async {
-    await http.post(Uri.parse(apiUrl), headers: {'Content-Type': 'application/json'}, body: jsonEncode({
-      "action": "edit", "message_id": messageId, "sender_id": _currentUserId, "text": newText,
-    }));
-    _loadMessages();
+    try {
+      await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "action": "edit-message",
+          "message_id": messageId,
+          "sender_id": _currentUserId,
+          "text": newText,
+          "chat_id": widget.offerId,
+        }),
+      ).timeout(const Duration(seconds: 5));
+      _loadMessages();
+    } catch (e) {}
   }
 
   void _startReply(ChatMessage msg) {
@@ -161,6 +193,7 @@ class _ChatWidgetState extends State<ChatWidget> {
       _replyToId = msg.messageId;
       _replyToText = msg.text;
       _replyToName = msg.senderName;
+      _replyToAvatar = msg.senderAvatar;
       _editingId = null;
     });
     FocusScope.of(context).requestFocus();
@@ -187,7 +220,7 @@ class _ChatWidgetState extends State<ChatWidget> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (_scrollController.hasClients && _messages.isNotEmpty) {
         _scrollController.animateTo(
           0,
           duration: const Duration(milliseconds: 300),
@@ -197,33 +230,45 @@ class _ChatWidgetState extends State<ChatWidget> {
     });
   }
 
-  String _getInitials(String name) {
-    if (name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  Widget _buildAvatar(String? url, String name, {double radius = 16}) {
+    if (url != null && url.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.grey.shade200,
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: url,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => _buildInitial(name, radius),
+            errorWidget: (_, __, ___) => _buildInitial(name, radius),
+          ),
+        ),
+      );
     }
-    return parts[0][0].toUpperCase();
+    return _buildInitial(name, radius);
   }
 
-  Color _getAvatarColor(String id) {
+  Widget _buildInitial(String name, double radius) {
     final colors = [
-      Colors.deepPurple,
-      Colors.teal,
-      Colors.orange,
-      Colors.pink,
-      Colors.indigo,
-      Colors.green,
-      Colors.red,
-      Colors.blue,
+      Colors.deepPurple, Colors.teal, Colors.orange, Colors.pink,
+      Colors.indigo, Colors.green, Colors.red, Colors.blue,
     ];
-    return colors[id.hashCode.abs() % colors.length];
+    final color = colors[name.hashCode.abs() % colors.length];
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: color,
+      child: Text(
+        (name.isNotEmpty ? name[0] : '?').toUpperCase(),
+        style: TextStyle(color: Colors.white, fontSize: radius * 0.85, fontWeight: FontWeight.bold),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isMine = (String senderId) => senderId == _currentUserId;
 
     return Container(
       decoration: BoxDecoration(
@@ -245,23 +290,10 @@ class _ChatWidgetState extends State<ChatWidget> {
               children: [
                 Icon(Icons.chat_bubble_outline, color: theme.colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  'Обсуждение',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text('Обсуждение', style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w600)),
                 if (_isLoading) ...[
                   const Spacer(),
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary)),
                 ],
               ],
             ),
@@ -270,100 +302,63 @@ class _ChatWidgetState extends State<ChatWidget> {
           // Список сообщений
           Expanded(
             child: _isLoading
-                ? Center(
-              child: CircularProgressIndicator(color: theme.colorScheme.primary),
-            )
+                ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary))
                 : _messages.isEmpty
                 ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 48,
-                    color: theme.colorScheme.outlineVariant,
-                  ),
+                  Icon(Icons.chat_bubble_outline, size: 48, color: theme.colorScheme.outlineVariant),
                   const SizedBox(height: 8),
-                  Text(
-                    'Начните обсуждение',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                  ),
+                  Text('Начните обсуждение', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.outlineVariant)),
                 ],
               ),
             )
                 : ListView.builder(
-              key: _messageListKey,
               controller: _scrollController,
               reverse: true,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[_messages.length - 1 - index];
-                final mine = isMine(msg.senderId);
+                final mine = msg.senderId == _currentUserId;
                 final showAvatar = index == _messages.length - 1 ||
                     _messages[_messages.length - 1 - index - 1].senderId != msg.senderId;
 
                 return Padding(
-                  padding: EdgeInsets.only(
-                    top: showAvatar && index != _messages.length - 1 ? 8 : 2,
-                    bottom: 2,
-                  ),
+                  padding: EdgeInsets.only(top: showAvatar ? 8 : 2, bottom: 2),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
                     children: [
                       if (!mine && showAvatar) ...[
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: _getAvatarColor(msg.senderId),
-                          child: Text(
-                            _getInitials(msg.senderName),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        _buildAvatar(msg.senderAvatar, msg.senderName, radius: 14),
                         const SizedBox(width: 8),
                       ] else if (!mine) ...[
-                        const SizedBox(width: 40),
+                        const SizedBox(width: 36),
                       ],
                       Flexible(
                         child: GestureDetector(
                           onLongPress: () => _showMessageMenu(context, msg, mine),
                           child: Container(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.7,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               gradient: mine
                                   ? LinearGradient(
-                                colors: [
-                                  theme.colorScheme.primaryContainer,
-                                  theme.colorScheme.primaryContainer.withOpacity(0.7),
-                                ],
+                                colors: [Colors.orange.shade300, Colors.deepOrange.shade300],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               )
                                   : null,
-                              color: mine ? null : theme.colorScheme.surfaceContainerHighest,
+                              color: mine ? null : Colors.white,
                               borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(18),
-                                topRight: const Radius.circular(18),
-                                bottomLeft: Radius.circular(mine ? 18 : 4),
-                                bottomRight: Radius.circular(mine ? 4 : 18),
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(mine ? 16 : 4),
+                                bottomRight: Radius.circular(mine ? 4 : 16),
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,64 +366,27 @@ class _ChatWidgetState extends State<ChatWidget> {
                                 if (!mine && showAvatar)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text(
-                                      msg.senderName,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: _getAvatarColor(msg.senderId),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                    child: Text(msg.senderName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
                                   ),
                                 if (msg.replyToId.isNotEmpty)
                                   Container(
                                     margin: const EdgeInsets.only(bottom: 6),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: mine
-                                          ? Colors.white.withOpacity(0.3)
-                                          : Colors.black.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: mine
-                                              ? Colors.white.withOpacity(0.8)
-                                              : theme.colorScheme.primary,
-                                          width: 3,
-                                        ),
-                                      ),
+                                      color: mine ? Colors.white.withOpacity(0.2) : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border(left: BorderSide(color: mine ? Colors.white : Colors.orange, width: 2)),
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          msg.replyToName,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: mine ? Colors.white70 : theme.colorScheme.primary,
-                                          ),
-                                        ),
-                                        Text(
-                                          msg.replyToText,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: mine ? Colors.white60 : Colors.grey.shade600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
+                                    child: Text(
+                                      msg.replyToText,
+                                      style: TextStyle(fontSize: 12, color: mine ? Colors.white70 : Colors.grey.shade600),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 Text(
                                   msg.text,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: mine
-                                        ? theme.colorScheme.onPrimaryContainer
-                                        : theme.colorScheme.onSurface,
-                                    height: 1.3,
-                                  ),
+                                  style: TextStyle(fontSize: 14, color: mine ? Colors.white : Colors.black87, height: 1.3),
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
@@ -437,32 +395,15 @@ class _ChatWidgetState extends State<ChatWidget> {
                                   children: [
                                     Text(
                                       _formatTime(msg.createdAt),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: mine
-                                            ? theme.colorScheme.onPrimaryContainer.withOpacity(0.6)
-                                            : Colors.grey.shade500,
-                                      ),
+                                      style: TextStyle(fontSize: 10, color: mine ? Colors.white60 : Colors.grey.shade500),
                                     ),
                                     if (mine) ...[
                                       const SizedBox(width: 4),
-                                      Icon(
-                                        Icons.done_all,
-                                        size: 14,
-                                        color: theme.colorScheme.onPrimaryContainer.withOpacity(0.6),
-                                      ),
+                                      Icon(Icons.done_all, size: 12, color: mine ? Colors.white60 : Colors.grey),
                                     ],
                                     if (msg.isEdited) ...[
                                       const SizedBox(width: 4),
-                                      Text(
-                                        'изм.',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: mine
-                                              ? theme.colorScheme.onPrimaryContainer.withOpacity(0.6)
-                                              : Colors.grey.shade500,
-                                        ),
-                                      ),
+                                      Text('изм.', style: TextStyle(fontSize: 10, color: mine ? Colors.white60 : Colors.grey.shade500)),
                                     ],
                                   ],
                                 ),
@@ -473,18 +414,7 @@ class _ChatWidgetState extends State<ChatWidget> {
                       ),
                       if (mine && showAvatar) ...[
                         const SizedBox(width: 8),
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: _getAvatarColor(msg.senderId),
-                          child: Text(
-                            _getInitials(msg.senderName),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        _buildAvatar(_currentUserAvatar, _currentUserName ?? 'Вы', radius: 14),
                       ],
                     ],
                   ),
@@ -495,91 +425,54 @@ class _ChatWidgetState extends State<ChatWidget> {
 
           // Полоса ответа
           if (_replyToId != null)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-                border: Border(
-                  top: BorderSide(color: theme.colorScheme.primary.withOpacity(0.3)),
-                ),
+                color: Colors.orange.withOpacity(0.1),
+                border: Border(top: BorderSide(color: Colors.orange.withOpacity(0.3))),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.reply, color: theme.colorScheme.primary, size: 20),
-                  const SizedBox(width: 10),
+                  const Icon(Icons.reply, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Ответ $_replyToName',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                        Text(
-                          _replyToText ?? '',
-                          style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        Text('Ответ $_replyToName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.orange)),
+                        Text(_replyToText ?? '', style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.close, size: 18, color: theme.colorScheme.primary),
-                    onPressed: _cancelReply,
-                    splashRadius: 18,
-                  ),
+                  IconButton(icon: const Icon(Icons.close, size: 16), onPressed: _cancelReply, splashRadius: 16),
                 ],
               ),
             ),
 
           // Полоса редактирования
           if (_editingId != null)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
-                border: Border(
-                  top: BorderSide(color: Colors.amber.withOpacity(0.3)),
-                ),
+                color: Colors.blue.withOpacity(0.1),
+                border: Border(top: BorderSide(color: Colors.blue.withOpacity(0.3))),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.edit, color: Colors.amber.shade700, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Редактирование сообщения',
-                      style: TextStyle(fontSize: 12, color: Colors.amber.shade700),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _cancelEdit,
-                    child: Text('Отмена', style: TextStyle(color: Colors.amber.shade700)),
-                  ),
+                  const Icon(Icons.edit, color: Colors.blue, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('Редактирование', style: TextStyle(fontSize: 11, color: Colors.blue))),
+                  TextButton(onPressed: _cancelEdit, child: const Text('Отмена', style: TextStyle(fontSize: 11))),
                 ],
               ),
             ),
 
           // Поле ввода
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerLow,
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -590,55 +483,33 @@ class _ChatWidgetState extends State<ChatWidget> {
                     textCapitalization: TextCapitalization.sentences,
                     maxLines: 4,
                     minLines: 1,
-                    onSubmitted: (_) => _handleSend(),
-                    style: theme.textTheme.bodyLarge,
+                    style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: _editingId != null ? 'Редактировать...' : 'Напишите сообщение...',
-                      hintStyle: TextStyle(color: theme.colorScheme.outlineVariant),
+                      hintText: _editingId != null ? 'Редактировать...' : 'Сообщение...',
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.primary.withOpacity(0.5),
-                          width: 1.5,
-                        ),
-                      ),
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        theme.colorScheme.primary,
-                        theme.colorScheme.tertiary,
-                      ],
+                GestureDetector(
+                  onTap: () {
+                    if (_editingId != null) {
+                      _editMessage(_editingId!, _textController.text.trim());
+                    } else {
+                      _sendMessage();
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      _editingId != null ? Icons.check : Icons.send_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    onPressed: _handleSend,
-                    splashRadius: 22,
+                    child: Icon(_editingId != null ? Icons.check : Icons.send_rounded, color: Colors.white, size: 20),
                   ),
                 ),
               ],
@@ -649,88 +520,36 @@ class _ChatWidgetState extends State<ChatWidget> {
     );
   }
 
-  void _handleSend() {
-    if (_editingId != null) {
-      final text = _textController.text.trim();
-      if (text.isNotEmpty) {
-        _editMessage(_editingId!, text);
-      }
-    } else {
-      _sendMessage();
-    }
-  }
-
   void _showMessageMenu(BuildContext context, ChatMessage msg, bool mine) {
-    final theme = Theme.of(context);
-
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 32,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              Container(width: 32, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
-              if (mine) ...[
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.edit, color: theme.colorScheme.primary, size: 20),
-                  ),
-                  title: const Text('Редактировать'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _startEdit(msg);
-                  },
-                ),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                  ),
-                  title: const Text('Удалить', style: TextStyle(color: Colors.red)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showDeleteConfirmDialog(msg.messageId);
-                  },
-                ),
-              ],
               if (!mine)
                 ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.tertiaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.reply, color: theme.colorScheme.tertiary, size: 20),
-                  ),
+                  leading: const Icon(Icons.reply, color: Colors.orange),
                   title: const Text('Ответить'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _startReply(msg);
-                  },
+                  onTap: () { Navigator.pop(ctx); _startReply(msg); },
                 ),
+              if (mine) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit, color: Colors.blue),
+                  title: const Text('Редактировать'),
+                  onTap: () { Navigator.pop(ctx); _startEdit(msg); },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text('Удалить', style: TextStyle(color: Colors.red)),
+                  onTap: () { Navigator.pop(ctx); _showDeleteConfirmDialog(msg.messageId); },
+                ),
+              ],
               const SizedBox(height: 8),
             ],
           ),
@@ -743,19 +562,13 @@ class _ChatWidgetState extends State<ChatWidget> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Удалить сообщение?'),
         content: const Text('Это действие нельзя отменить.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
           FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _deleteMessage(messageId);
-            },
+            onPressed: () { Navigator.pop(ctx); _deleteMessage(messageId); },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Удалить'),
           ),
@@ -769,16 +582,10 @@ class _ChatWidgetState extends State<ChatWidget> {
     try {
       final dt = DateTime.parse(iso);
       final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final msgDate = DateTime(dt.year, dt.month, dt.day);
-
-      if (msgDate == today) {
+      if (dt.day == now.day && dt.month == now.month && dt.year == now.year) {
         return DateFormat('HH:mm').format(dt);
-      } else if (msgDate == today.subtract(const Duration(days: 1))) {
-        return 'Вчера ${DateFormat('HH:mm').format(dt)}';
-      } else {
-        return DateFormat('dd.MM HH:mm').format(dt);
       }
+      return DateFormat('dd.MM HH:mm').format(dt);
     } catch (_) {
       return '';
     }

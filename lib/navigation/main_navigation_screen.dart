@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <-- Добавлено для SystemNavigator.pop()
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -27,6 +28,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   String? _avatarUrl;
   bool _isLoading = true;
   bool _isDarkMode = false;
+
+  // <-- Добавлено: Храним время последнего нажатия кнопки "Назад"
+  DateTime? _lastBackPressTime;
 
   final screens = const [
     HomeScreen(),
@@ -142,6 +146,41 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
+  // 🔥 НОВЫЙ МЕТОД: Обертка для перехвата кнопки "Назад"
+  Widget _wrapInPopScope(Widget child) {
+    return Builder(
+      builder: (context) {
+        return PopScope(
+          canPop: false, // Запрещаем стандартное закрытие экрана
+          onPopInvoked: (didPop) {
+            if (didPop) return; // Если экран всё-таки закрылся, ничего не делаем
+
+            final now = DateTime.now();
+            const twoSeconds = Duration(seconds: 2);
+
+            // Если нажали впервые или прошло больше 2 секунд с прошлого нажатия
+            if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) >= twoSeconds) {
+              _lastBackPressTime = now; // Запоминаем время нажатия
+
+              // Показываем снекбар (Builder нужен именно для корректного context)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Нажмите ещё раз, чтобы выйти'),
+                  duration: Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            } else {
+              // Если нажали второй раз в течение 2 секунд — закрываем приложение
+              SystemNavigator.pop();
+            }
+          },
+          child: child,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Тема приложения
@@ -149,7 +188,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final backgroundColor = _isDarkMode ? const Color(0xFF0A0A1A) : Colors.white;
     final cardColor = _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
     final textColor = _isDarkMode ? Colors.white : Colors.black87;
-    final subtitleColor = _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
 
     if (_isLoading) {
       return MaterialApp(
@@ -159,7 +197,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           useMaterial3: true,
           colorSchemeSeed: Colors.orange,
         ),
-        home: Scaffold(
+        // 🔥 Оборачиваем Scaffold в PopScope
+        home: _wrapInPopScope(Scaffold(
           backgroundColor: backgroundColor,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
@@ -207,7 +246,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ],
             ),
           ),
-        ),
+        )),
       );
     }
 
@@ -233,7 +272,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           unselectedItemColor: _isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400,
         ),
       ),
-      home: Scaffold(
+      // 🔥 Оборачиваем Scaffold в PopScope
+      home: _wrapInPopScope(Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(
           leading: Padding(
@@ -308,7 +348,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             BottomNavigationBarItem(icon: Icon(Icons.directions_walk), label: 'Шагомер'),
           ],
         ),
-      ),
+      )),
     );
   }
 

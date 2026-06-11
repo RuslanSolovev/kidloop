@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // <-- импорт
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../item_details/item_details_screen.dart';
 import '../../core/items_provider.dart';
@@ -23,28 +23,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Небольшая задержка перед первой загрузкой
     Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        _loadItems();
-      }
+      if (mounted) _loadItems();
     });
   }
 
   Future<void> _loadItems() async {
     if (_isRefreshing) return;
-
-    setState(() {
-      _isRefreshing = true;
-    });
+    setState(() => _isRefreshing = true);
 
     try {
-      print("🔄 HomeScreen: loading items...");
       await context.read<ItemsProvider>().loadItems().timeout(
         const Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception("Таймаут загрузки");
-        },
       );
       if (mounted) {
         setState(() {
@@ -53,19 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
           _isRefreshing = false;
         });
       }
-      print("✅ HomeScreen: items loaded successfully");
     } catch (e) {
-      print("🔴 HomeScreen: load error: $e");
-      setState(() {
-        _isRefreshing = false;
-      });
+      if (mounted) setState(() => _isRefreshing = false);
       _retryLoad();
     }
   }
 
   void _retryLoad() {
     _retryCount++;
-    print("🔄 HomeScreen: retry $_retryCount/5");
     if (_retryCount <= 5 && mounted) {
       if (_retryCount >= 2) {
         setState(() => _loadError = 'Проблемы с загрузкой. Пробуем снова...');
@@ -77,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onRefresh() async {
-    print("🔄 HomeScreen: pull to refresh");
     _retryCount = 0;
     _loadError = null;
     await _loadItems();
@@ -91,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Column(
       children: [
-        // Сегмент-контрол
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: SizedBox(
@@ -102,79 +85,49 @@ class _HomeScreenState extends State<HomeScreen> {
                 ButtonSegment(value: true, label: Text('Мои вещи'), icon: Icon(Icons.inventory)),
               ],
               selected: {_showMyItems},
-              onSelectionChanged: (selected) {
-                setState(() => _showMyItems = selected.first);
-              },
+              onSelectionChanged: (selected) => setState(() => _showMyItems = selected.first),
               style: ButtonStyle(
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return Colors.orange;
-                  }
-                  return Colors.grey.shade200;
+                  return states.contains(WidgetState.selected) ? Colors.orange : Colors.grey.shade200;
                 }),
                 foregroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return Colors.white;
-                  }
-                  return Colors.black;
+                  return states.contains(WidgetState.selected) ? Colors.white : Colors.black;
                 }),
               ),
             ),
           ),
         ),
-
-        // Список вещей
-        Expanded(
-          child: _buildBody(provider, items),
-        ),
+        Expanded(child: _buildBody(provider, items)),
       ],
     );
   }
 
   Widget _buildBody(ItemsProvider provider, List<Item> items) {
-    // Ошибка загрузки
     if (_loadError != null && items.isEmpty && !provider.isLoading && !_isRefreshing) {
       return Center(
-        child: GestureDetector(
-          onTap: () {
-            setState(() {
-              _retryCount = 0;
-              _loadError = null;
-            });
-            _loadItems();
-          },
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.wifi_off, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  _loadError!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Text(
-                  'Повторить',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.wifi_off, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () {
+                setState(() { _retryCount = 0; _loadError = null; });
+                _loadItems();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+              child: const Text('Повторить'),
+            ),
+          ],
         ),
       );
     }
 
-    // Загрузка (только если нет ошибки)
     if ((provider.isLoading || _isRefreshing) && items.isEmpty && _loadError == null) {
       return const Center(
         child: Column(
@@ -188,7 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Пусто
     if (items.isEmpty && _loadError == null && !provider.isLoading) {
       return Center(
         child: Column(
@@ -197,33 +149,15 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
-              _showMyItems
-                  ? 'У тебя пока нет вещей.\nНажми + чтобы добавить!'
-                  : 'Пока нет вещей.\nНажми + чтобы добавить',
+              _showMyItems ? 'У тебя пока нет вещей.\nНажми + чтобы добавить!' : 'Пока нет вещей.\nНажми + чтобы добавить',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                // TODO: переход на экран добавления
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Добавить вещь'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
             ),
           ],
         ),
       );
     }
 
-    // Список вещей
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: Colors.orange,
@@ -234,151 +168,165 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.only(bottom: 16),
         itemBuilder: (context, index) {
           final item = items[index];
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ItemDetailsScreen(item: item),
-                ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Изображение
-                  ClipRRect(
-                    borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-                    child: Stack(
-                      children: [
-                        // Используем CachedNetworkImage для кэширования
-                        item.imagePath.startsWith('http')
-                            ? CachedNetworkImage(
-                          imageUrl: item.imagePath,
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            height: 200,
-                            color: Colors.grey.shade200,
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) =>
-                              Container(
-                                height: 200,
-                                color: Colors.grey.shade200,
-                                child: const Center(
-                                  child: Icon(Icons.broken_image,
-                                      size: 50, color: Colors.grey),
-                                ),
-                              ),
-                        )
-                            : Image.asset(
-                          item.imagePath,
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                                height: 200,
-                                color: Colors.grey.shade200,
-                                child: const Center(
-                                  child: Icon(Icons.image_not_supported,
-                                      size: 50, color: Colors.grey),
-                                ),
-                              ),
-                        ),
-                        // Бейдж статуса
-                        if (item.status != 'available')
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: item.status == 'reserved'
-                                    ? Colors.orange
-                                    : Colors.red,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                item.status == 'reserved'
-                                    ? 'ЗАБРОНИРОВАНО'
-                                    : 'ОБМЕНЯНО',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Текстовая часть
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.description,
-                          style: TextStyle(color: Colors.grey.shade700),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            _buildTag(item.category, Colors.orange),
-                            const SizedBox(width: 8),
-                            _buildTag(item.condition, Colors.green),
-                            const Spacer(),
-                            _buildSvBadge(item.sv),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return _buildItemCard(context, item);
         },
       ),
     );
   }
 
-  // Вспомогательные виджеты для тегов
+  Widget _buildItemCard(BuildContext context, Item item) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item)),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: Colors.grey.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ИЗОБРАЖЕНИЕ
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: SizedBox(
+                height: 200,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: item.imagePath,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 300),
+                      fadeOutDuration: const Duration(milliseconds: 300),
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey.shade100,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.orange, strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey.shade100,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.image_not_supported, size: 40, color: Colors.grey.shade400),
+                            const SizedBox(height: 8),
+                            Text(
+                              item.title,
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                      imageBuilder: (context, imageProvider) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              image: imageProvider,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    // Бейдж статуса
+                    if (item.status != 'available')
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: item.status == 'reserved' ? Colors.orange : Colors.red,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            item.status == 'reserved' ? 'ЗАБРОНИРОВАНО' : 'ОБМЕНЯНО',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            // Текстовая часть
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Название
+                  Text(
+                    item.title,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  // Описание
+                  Text(
+                    item.description,
+                    style: TextStyle(color: Colors.grey.shade700),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  // 🔥 Теги: категория + состояние + SV
+                  Row(
+                    children: [
+                      _buildTag(item.category, Colors.orange),
+                      const SizedBox(width: 8),
+                      _buildTag(item.condition, Colors.green),
+                      const Spacer(),
+                      _buildSvBadge(item.sv),
+                    ],
+                  ),
+                  // 🔥 ГОРОД - отдельной строкой ниже
+                  if (item.location.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(Icons.location_on_outlined, size: 14, color: Colors.blue.shade400),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            item.location,
+                            style: TextStyle(
+                              color: Colors.blue.shade600,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTag(String text, Color color) {
+    if (text.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -387,8 +335,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(
-            color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -397,14 +346,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-            colors: [Colors.orange.shade400, Colors.deepOrange]),
+        gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange]),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         '$sv SV',
-        style: const TextStyle(
-            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
   }

@@ -1,3 +1,4 @@
+// messenger_screen.dart
 import 'package:flutter/material.dart';
 import 'users_tab.dart';
 import 'chats_tab.dart';
@@ -10,14 +11,16 @@ class MessengerScreen extends StatefulWidget {
   State<MessengerScreen> createState() => _MessengerScreenState();
 }
 
-class _MessengerScreenState extends State<MessengerScreen>
-    with SingleTickerProviderStateMixin {
+class _MessengerScreenState extends State<MessengerScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -28,40 +31,76 @@ class _MessengerScreenState extends State<MessengerScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Column(
       children: [
         Container(
           decoration: BoxDecoration(
-            color: colorScheme.surface,
+            color: Theme.of(context).scaffoldBackgroundColor,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
+                blurRadius: 10,
                 offset: const Offset(0, 2),
-              )
+              ),
             ],
           ),
           child: TabBar(
             controller: _tabController,
-            labelColor: colorScheme.primary,
+            labelColor: Colors.orange,
             unselectedLabelColor: Colors.grey,
-            indicatorColor: colorScheme.primary,
+            indicatorColor: Colors.orange,
             indicatorWeight: 3,
-            indicatorSize: TabBarIndicatorSize.label,
-            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            tabs: const [
-              Tab(icon: Icon(Icons.chat_bubble_rounded), text: 'Чаты'),
-              Tab(icon: Icon(Icons.forum_rounded), text: 'Форум'),
-              Tab(icon: Icon(Icons.people_rounded), text: 'Люди'),
+            labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            tabs: [
+              Tab(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _tabController.index == 0
+                        ? Colors.orange.withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.chat_bubble_rounded, size: 24),
+                ),
+                text: 'Чаты',
+              ),
+              Tab(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _tabController.index == 1
+                        ? Colors.orange.withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.forum_rounded, size: 24),
+                ),
+                text: 'Форум',
+              ),
+              Tab(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _tabController.index == 2
+                        ? Colors.orange.withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.people_rounded, size: 24),
+                ),
+                text: 'Пользователи',
+              ),
             ],
+            onTap: (index) {
+              setState(() {});
+            },
           ),
         ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: const [
+            children: [
               ChatsTab(),
               ForumsTab(),
               UsersTab(),

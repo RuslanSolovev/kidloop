@@ -74,9 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (confirm == true) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_id');
-      await prefs.remove('user_profile');
-      await prefs.remove('user_name');
+      await prefs.clear(); // 🔥 Очищаем всё
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(

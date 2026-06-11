@@ -1,3 +1,4 @@
+// chats_tab.dart - ИСПРАВЛЕННЫЙ _openChat (передаём аватар)
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -15,16 +16,17 @@ class ChatsTab extends StatefulWidget {
   State<ChatsTab> createState() => _ChatsTabState();
 }
 
-class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin {
+class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   List<Map<String, dynamic>> _chats = [];
   bool _loading = true;
+  bool _initialLoad = true;
   String? _currentUserId;
   Timer? _refreshTimer;
   int _retryCount = 0;
   String? _loadError;
 
-  static const String chatApiUrl =
-      'https://functions.yandexcloud.net/d4es79s8locoa8ul3pe3';
+  static const String chatApiUrl = 'https://functions.yandexcloud.net/d4e40k9g2avoblb1of29';
+  static const String _cacheKey = 'chats_cache';
 
   @override
   bool get wantKeepAlive => true;
@@ -32,31 +34,80 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadChats());
+    _startRefreshTimer();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadChats();
+      _startRefreshTimer();
+    } else if (state == AppLifecycleState.paused) {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _loadChats());
   }
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _currentUserId = prefs.getString('user_id');
+
+    await _loadCachedChats();
     await _loadChats();
-    if (mounted) setState(() => _loading = false);
+
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _initialLoad = false;
+      });
+    }
+  }
+
+  Future<void> _loadCachedChats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cacheKey);
+      if (cached != null) {
+        final data = jsonDecode(cached) as List;
+        if (mounted && _chats.isEmpty) {
+          setState(() {
+            _chats = data.cast<Map<String, dynamic>>();
+            _loading = false;
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  Future<void> _cacheChats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, jsonEncode(_chats));
+    } catch (e) {}
   }
 
   Future<void> _loadChats() async {
     if (_currentUserId == null) return;
+
     try {
       final response = await http.post(
         Uri.parse(chatApiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "list-chats", "user_id": _currentUserId}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 8));
 
       final data = jsonDecode(response.body);
       if (data['ok'] == true && mounted) {
@@ -64,27 +115,37 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
           _chats = (data['chats'] as List).cast<Map<String, dynamic>>();
           _retryCount = 0;
           _loadError = null;
+          _loading = false;
         });
+        await _cacheChats();
       } else {
-        _retryLoad();
+        _handleLoadError();
       }
     } catch (e) {
-      _retryLoad();
+      _handleLoadError();
     }
   }
 
-  void _retryLoad() {
+  void _handleLoadError() {
     _retryCount++;
+    if (_chats.isEmpty && mounted) {
+      setState(() {
+        _loading = false;
+        if (_retryCount >= 3) {
+          _loadError = 'Не удалось загрузить чаты';
+        }
+      });
+    }
+
     if (_retryCount <= 5 && mounted) {
-      if (_retryCount >= 3) {
-        setState(() => _loadError = 'Проблемы с загрузкой. Пробуем снова...');
-      }
-      Future.delayed(const Duration(seconds: 2), _loadChats);
-    } else if (_retryCount > 5 && mounted) {
-      setState(() => _loadError = 'Не удалось загрузить чаты. Потяните чтобы обновить.');
+      final delay = Duration(seconds: 2 * _retryCount);
+      Future.delayed(delay, () {
+        if (mounted) _loadChats();
+      });
     }
   }
 
+  // 🔥 ПЕРЕДАЁМ АВАТАР В ЧАТ
   void _openChat(Map<String, dynamic> chat) {
     final chatId = chat['chat_id'] ?? '';
     final otherUserId = chat['other_user_id'] ?? '';
@@ -93,45 +154,43 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => ChatScreen(
           chatId: chatId,
           otherUserId: otherUserId,
           otherName: otherName,
-          otherAvatar: otherAvatar,
+          otherAvatar: otherAvatar, // 🔥 Передаём аватар
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
       ),
     );
-  }
-
-  String _formatTime(String? iso) {
-    if (iso == null || iso.isEmpty) return '';
-    try {
-      final dt = DateTime.parse(iso);
-      final now = DateTime.now();
-      if (dt.day == now.day) return DateFormat('HH:mm').format(dt);
-      if (dt.year == now.year) return DateFormat('dd.MM').format(dt);
-      return DateFormat('dd.MM.yy').format(dt);
-    } catch (_) {
-      return '';
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final colorScheme = Theme.of(context).colorScheme;
 
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_loading && _chats.isEmpty) {
+      return _buildLoadingSkeleton();
     }
 
     if (_chats.isEmpty && _loadError != null) {
-      return _buildErrorView();
+      return _buildErrorState();
     }
 
     if (_chats.isEmpty) {
-      return _buildEmptyView();
+      return _buildEmptyState();
     }
 
     return RefreshIndicator(
@@ -140,150 +199,135 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
         _loadError = null;
         await _loadChats();
       },
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _chats.length,
-        itemBuilder: (context, index) {
-          final chat = _chats[index];
-          return _ChatCard(
-            chat: chat,
-            currentUserId: _currentUserId!,
-            onTap: () => _openChat(chat),
-            formatTime: _formatTime,
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildErrorView() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _retryCount = 0;
-            _loadError = null;
-          });
-          _loadChats();
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.wifi_off, size: 64, color: colorScheme.error),
-            const SizedBox(height: 16),
-            Text(_loadError!, style: TextStyle(color: colorScheme.error)),
-            const SizedBox(height: 8),
-            Text('Нажмите чтобы повторить',
-                style: TextStyle(color: colorScheme.primary, fontSize: 13)),
-          ],
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: ListView.builder(
+          key: ValueKey(_chats.length),
+          padding: const EdgeInsets.only(top: 8),
+          itemCount: _chats.length,
+          itemBuilder: (context, index) {
+            return _buildChatTile(_chats[index], index);
+          },
         ),
       ),
     );
   }
 
-  Widget _buildEmptyView() {
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8),
+      itemCount: 8,
+      itemBuilder: (context, index) {
+        return ListTile(
+          leading: CircleAvatar(backgroundColor: Colors.grey.shade200),
+          title: Container(height: 16, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8))),
+          subtitle: Container(height: 12, margin: const EdgeInsets.only(top: 4), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6))),
+        );
+      },
+    );
+  }
+
+  Widget _buildErrorState() {
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline,
-              size: 80, color: Colors.grey.shade400),
+          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withOpacity(0.1)), child: const Icon(Icons.error_outline_rounded, size: 48, color: Colors.orange)),
           const SizedBox(height: 16),
-          const Text('Нет чатов',
-              style: TextStyle(fontSize: 18, color: Colors.grey)),
-          const SizedBox(height: 8),
-          const Text('Добавьте друзей, чтобы начать общение',
-              style: TextStyle(color: Colors.grey)),
+          Text(_loadError!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() { _loading = true; _loadError = null; _retryCount = 0; });
+              _loadChats();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Повторить'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+          ),
         ],
       ),
     );
   }
-}
 
-// --- Карточка чата ---
-class _ChatCard extends StatelessWidget {
-  final Map<String, dynamic> chat;
-  final String currentUserId;
-  final VoidCallback onTap;
-  final String Function(String?) formatTime;
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withOpacity(0.1)), child: const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.orange)),
+          const SizedBox(height: 16),
+          const Text('Нет чатов', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          const Text('Добавьте друзей, чтобы начать общение', style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
 
-  const _ChatCard({
-    required this.chat,
-    required this.currentUserId,
-    required this.onTap,
-    required this.formatTime,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildChatTile(Map<String, dynamic> chat, int index) {
     final name = chat['other_name'] ?? 'Пользователь';
     final avatar = chat['other_avatar'] ?? '';
     final lastMsg = chat['last_message'] ?? '';
     final lastTime = chat['last_time'];
+    final unreadCount = chat['unread_count'] ?? 0;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 300 + (index * 100)),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(50 * (1 - value), 0),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
       child: Card(
-        elevation: 2,
-        shadowColor: Colors.black26,
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Hero(
-                  tag: 'avatar_${chat['other_user_id']}',
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundImage: avatar.isNotEmpty
-                        ? CachedNetworkImageProvider(avatar)
-                        : null,
-                    backgroundColor: avatar.isEmpty
-                        ? colorScheme.primaryContainer
-                        : null,
-                    child: avatar.isEmpty
-                        ? Text(name[0].toUpperCase(),
-                        style: TextStyle(
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold))
-                        : null,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.orange.shade100,
+                backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                child: avatar.isEmpty
+                    ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 20))
+                    : null,
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 0, bottom: 0,
+                  child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                    child: Text(unreadCount > 99 ? '99+' : unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 16)),
-                      const SizedBox(height: 4),
-                      Text(
-                        lastMsg.isNotEmpty ? lastMsg : 'Нет сообщений',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: colorScheme.onSurface.withOpacity(0.6)),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (lastTime != null)
-                  Text(formatTime(lastTime),
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurface.withOpacity(0.5))),
-              ],
-            ),
+            ],
           ),
+          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Row(children: [
+            Expanded(child: Text(lastMsg.isNotEmpty ? lastMsg : 'Нет сообщений', maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: unreadCount > 0 ? Colors.black87 : Colors.grey.shade600, fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal))),
+          ]),
+          trailing: Text(_formatTime(lastTime), style: TextStyle(fontSize: 12, color: unreadCount > 0 ? Colors.orange : Colors.grey, fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal)),
+          onTap: () => _openChat(chat), // 🔥 Передаём весь объект чата
         ),
       ),
     );
+  }
+
+  String _formatTime(dynamic iso) {
+    if (iso == null || iso.toString().isEmpty) return '';
+    try {
+      final dt = DateTime.parse(iso.toString());
+      final now = DateTime.now();
+      if (dt.day == now.day && dt.month == now.month && dt.year == now.year) return DateFormat('HH:mm').format(dt);
+      if (dt.year == now.year) return DateFormat('dd MMM', 'ru').format(dt);
+      return DateFormat('dd.MM.yy').format(dt);
+    } catch (_) {
+      return '';
+    }
   }
 }

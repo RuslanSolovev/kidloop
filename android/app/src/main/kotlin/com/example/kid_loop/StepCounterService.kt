@@ -25,8 +25,7 @@ class StepCounterService : Service(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
     private var stepSensor: Sensor? = null
-    private var totalSteps = 0
-    private var lastStepCount = 0
+    private var lastStepCount = -1  // Начинаем с -1 для первого определения
     private var lastStepTime: Long = 0
     private var walkStartTime: Long = 0
     private var currentSessionSeconds = 0
@@ -54,7 +53,6 @@ class StepCounterService : Service(), SensorEventListener {
         createNotificationChannel()
         startForeground(1, createNotification())
 
-        // Используем ТОТ ЖЕ файл, что и Flutter SharedPreferences
         prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
 
         loadState()
@@ -64,20 +62,18 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun loadState() {
-        totalSteps = prefs.getInt("flutter.total_steps", 0)
-        lastStepCount = prefs.getInt("flutter.last_step_count", 0)
+        lastStepCount = prefs.getInt("flutter.last_step_count", -1)
         lastStepTime = prefs.getLong("flutter.last_step_time", 0)
         walkStartTime = prefs.getLong("flutter.walk_start_time", 0)
         currentSessionSeconds = prefs.getInt("flutter.current_session_seconds", 0)
         currentSessionSteps = prefs.getInt("flutter.current_session_steps", 0)
         isInWalkSession = prefs.getBoolean("flutter.is_in_walk_session", false)
 
-        println("📂 Загружено: totalSteps=$totalSteps, lastStepCount=$lastStepCount")
+        println("📂 Загружено: lastStepCount=$lastStepCount")
     }
 
     private fun saveState() {
         prefs.edit().apply {
-            putInt("flutter.total_steps", totalSteps)
             putInt("flutter.last_step_count", lastStepCount)
             putLong("flutter.last_step_time", lastStepTime)
             putLong("flutter.walk_start_time", walkStartTime)
@@ -102,17 +98,37 @@ class StepCounterService : Service(), SensorEventListener {
         val currentSteps = event.values[0].toInt()
         val now = System.currentTimeMillis()
 
-        if (currentSteps <= lastStepCount) return
-
-        val newSteps = currentSteps - lastStepCount
-        if (newSteps <= 0 || newSteps >= 500) {
+        // Первый запуск: запоминаем начальное значение сенсора
+        if (lastStepCount == -1) {
             lastStepCount = currentSteps
+            println("🔄 Инициализация сенсора: lastStepCount=$lastStepCount")
+            saveState()
             return
         }
 
-        println("🚶 +$newSteps шагов (всего: $currentSteps)")
+        // Сброс сенсора (перезагрузка телефона)
+        if (currentSteps < lastStepCount) {
+            println("🔄 Сброс сенсора: было $lastStepCount, стало $currentSteps")
+            lastStepCount = currentSteps
+            saveState()
+            return
+        }
 
-        totalSteps = currentSteps
+        // Нет новых шагов
+        if (currentSteps == lastStepCount) return
+
+        val newSteps = currentSteps - lastStepCount
+
+        // Слишком много шагов за раз - возможно глюк сенсора
+        if (newSteps > 500) {
+            println("⚠️ Слишком много шагов: $newSteps, игнорируем")
+            lastStepCount = currentSteps
+            saveState()
+            return
+        }
+
+        println("🚶 +$newSteps шагов (всего сенсор: $currentSteps)")
+
         lastStepCount = currentSteps
 
         if (!isInWalkSession) {
@@ -160,8 +176,6 @@ class StepCounterService : Service(), SensorEventListener {
         )
 
         addActiveMinutes(activeMinutes)
-
-        // 🔥 СОХРАНЯЕМ СТАТИСТИКУ СРАЗУ ПОСЛЕ ПРОГУЛКИ
         saveDailyStats()
 
         isInWalkSession = false
@@ -173,7 +187,6 @@ class StepCounterService : Service(), SensorEventListener {
         updateNotification("✅ Прогулка завершена")
     }
 
-    // 🔥 НОВЫЙ МЕТОД: Сохранение статистики дня
     private fun saveDailyStats() {
         val calendar = Calendar.getInstance()
         val todayKey = "flutter.stats_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH)+1}_${calendar.get(Calendar.DAY_OF_MONTH)}"
@@ -185,7 +198,7 @@ class StepCounterService : Service(), SensorEventListener {
             .putInt("${todayKey}_minutes", currentMinutes)
             .apply()
 
-        println("📊 Сохранена статистика за сегодня: $todayKey = $currentSteps шагов, $currentMinutes мин")
+        println("📊 Сохранена статистика: $todayKey = $currentSteps шагов, $currentMinutes мин")
     }
 
     private fun updateCounters(newSteps: Int) {
@@ -208,30 +221,39 @@ class StepCounterService : Service(), SensorEventListener {
             println("📅 Сохранены итоги вчера: $yesterdayStr — $yesterdaySteps шагов, $yesterdayActive мин")
         }
 
-        // Сброс дневных счётчиков при новом дне
-        var newTodaySteps = if (lastDate != todayDate) newSteps else prefs.getInt("flutter.today_steps", 0) + newSteps
-        val newWeeklySteps = prefs.getInt("flutter.weekly_steps", 0) + newSteps
+        // 🔥 ИСПРАВЛЕНИЕ: Явно читаем текущий total_steps
+        val currentTotal = prefs.getInt("flutter.total_steps", 0)
+        val currentToday = prefs.getInt("flutter.today_steps", 0)
+        val currentWeekly = prefs.getInt("flutter.weekly_steps", 0)
+
         val monthKey = "flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH)+1}"
-        val newMonthlySteps = prefs.getInt(monthKey, 0) + newSteps
+        val currentMonthly = prefs.getInt(monthKey, 0)
+
+        // Сброс дневных счётчиков при новом дне
+        var newTodaySteps = if (lastDate != todayDate) newSteps else currentToday + newSteps
+        val newWeeklySteps = currentWeekly + newSteps
+        val newMonthlySteps = currentMonthly + newSteps
+        val newTotalSteps = currentTotal + newSteps  // 👈 Явно прибавляем к прочитанному значению
 
         // Сброс active_minutes при новом дне
         if (lastDate != todayDate) {
             prefs.edit().putInt("flutter.active_minutes", 0).apply()
         }
 
+        // Сохраняем ВСЕ значения
         prefs.edit().apply {
             putString("flutter.last_date", todayDate)
             putInt("flutter.today_steps", newTodaySteps)
             putInt("flutter.weekly_steps", newWeeklySteps)
             putInt(monthKey, newMonthlySteps)
-            putInt("flutter.total_steps", prefs.getInt("flutter.total_steps", 0) + newSteps)
+            putInt("flutter.total_steps", newTotalSteps)  // 👈 Сохраняем новое значение
             apply()
         }
 
         // 🔥 СОХРАНЯЕМ ТЕКУЩУЮ СТАТИСТИКУ ПРИ КАЖДОМ ОБНОВЛЕНИИ
         saveDailyStats()
 
-        println("📊 today=$newTodaySteps weekly=$newWeeklySteps month=$newMonthlySteps")
+        println("📊 today=$newTodaySteps weekly=$newWeeklySteps month=$newMonthlySteps total=$newTotalSteps")
         updateNotification("$newTodaySteps шагов сегодня")
     }
 
@@ -282,11 +304,8 @@ class StepCounterService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
         inactivityRunnable?.let { inactivityHandler?.removeCallbacks(it) }
         if (::wakeLock.isInitialized) wakeLock.release()
-
-        // 🔥 СОХРАНЯЕМ СТАТИСТИКУ ПРИ УНИЧТОЖЕНИИ СЕРВИСА
         saveDailyStats()
         saveState()
-
         super.onDestroy()
     }
 

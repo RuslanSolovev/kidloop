@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
 import '../../core/item_model.dart';
@@ -16,8 +17,7 @@ class AddItemScreen extends StatefulWidget {
   State<AddItemScreen> createState() => _AddItemScreenState();
 }
 
-class _AddItemScreenState extends State<AddItemScreen>
-    with SingleTickerProviderStateMixin {
+class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProviderStateMixin {
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
 
@@ -29,14 +29,18 @@ class _AddItemScreenState extends State<AddItemScreen>
   File? _selectedImage;
   String? _uploadedImageUrl;
   bool _isUploading = false;
+  final _formKey = GlobalKey<FormState>();
 
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late AnimationController _svAnimationController;
+  late Animation<double> _svScaleAnimation;
+  late Animation<double> _svGlowAnimation;
 
   final categories = [
     'Игрушки', 'LEGO', 'Самокат', 'Книги', 'Одежда',
     'Коляска', 'Мебель', 'Техника', 'Развивашки', 'Спорт',
     'Творчество', 'Пазлы', 'Конструктор', 'Куклы', 'Машинки',
+    'Настолки', 'Велосипед', 'Электроника', 'Детская посуда', 'Постель',
+    'Обувь', 'Школьное', 'Музыкальное', 'Игровая приставка', 'Надувное',
   ];
   final conditions = ['Новый', 'Отличный', 'Хороший', 'Обычный'];
 
@@ -48,18 +52,22 @@ class _AddItemScreenState extends State<AddItemScreen>
     'Тольятти', 'Ижевск', 'Барнаул', 'Иркутск', 'Хабаровск',
     'Ярославль', 'Владивосток', 'Махачкала', 'Томск', 'Оренбург',
     'Кемерово', 'Новокузнецк', 'Рига', 'Юрмала', 'Даугавпилс',
+    'Лиепая', 'Вентспилс', 'Елгава', 'Резекне', 'Таллин',
   ];
 
   @override
   void initState() {
     super.initState();
     updateSv();
-    _pulseController = AnimationController(
+    _svAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween(begin: 0.95, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    _svScaleAnimation = Tween(begin: 0.98, end: 1.02).animate(
+      CurvedAnimation(parent: _svAnimationController, curve: Curves.easeInOut),
+    );
+    _svGlowAnimation = Tween(begin: 0.3, end: 0.6).animate(
+      CurvedAnimation(parent: _svAnimationController, curve: Curves.easeInOut),
     );
   }
 
@@ -67,16 +75,13 @@ class _AddItemScreenState extends State<AddItemScreen>
   void dispose() {
     titleController.dispose();
     descriptionController.dispose();
-    _pulseController.dispose();
+    _svAnimationController.dispose();
     super.dispose();
   }
 
   void updateSv() {
     setState(() {
-      currentSv = SvCalculator.calculate(
-        category: selectedCategory,
-        condition: selectedCondition,
-      );
+      currentSv = SvCalculator.calculate(category: selectedCategory, condition: selectedCondition);
     });
   }
 
@@ -93,7 +98,6 @@ class _AddItemScreenState extends State<AddItemScreen>
 
   Future<String?> _uploadImage() async {
     if (_selectedImage == null) return null;
-
     setState(() => _isUploading = true);
 
     try {
@@ -103,24 +107,16 @@ class _AddItemScreenState extends State<AddItemScreen>
       final response = await http.post(
         Uri.parse('https://functions.yandexcloud.net/d4e3c2me21eou683ic6d'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "action": "upload",
-          "file_name": "photo.jpg",
-          "file_data": base64,
-        }),
+        body: jsonEncode({"action": "upload", "file_name": "photo.jpg", "file_data": base64}),
       );
 
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
-        setState(() {
-          _uploadedImageUrl = data['file_url'];
-          _isUploading = false;
-        });
+        setState(() { _uploadedImageUrl = data['file_url']; _isUploading = false; });
         return data['file_url'];
-      } else {
-        setState(() => _isUploading = false);
-        return null;
       }
+      setState(() => _isUploading = false);
+      return null;
     } catch (e) {
       setState(() => _isUploading = false);
       return null;
@@ -128,318 +124,347 @@ class _AddItemScreenState extends State<AddItemScreen>
   }
 
   void saveItem() async {
-    final title = titleController.text.trim();
-    final description = descriptionController.text.trim();
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, добавьте фото'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
 
-    if (title.isEmpty || description.isEmpty) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.orange)),
+    );
 
     final imageUrl = await _uploadImage();
 
+    if (mounted) Navigator.pop(context);
+
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id') ?? 'unknown';
+
     final item = Item(
       itemId: DateTime.now().millisecondsSinceEpoch.toString(),
-      ownerId: 'me',
-      title: title,
-      description: description,
+      ownerId: userId,
+      title: titleController.text.trim(),
+      description: descriptionController.text.trim(),
       sv: currentSv,
       imagePath: imageUrl ?? 'assets/images/bear.jpg',
       location: selectedLocation,
       category: selectedCategory,
       condition: selectedCondition,
       isMine: true,
+      status: 'available',
     );
 
     await context.read<ItemsProvider>().addItem(item);
 
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Объявление опубликовано! 🎉'),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 80,
-            floating: false,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: const Text('Новое объявление',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.orange.shade400, Colors.deepOrange],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+      backgroundColor: const Color(0xFFFFF8F0),
+      appBar: AppBar(
+        title: const Text('Новое объявление', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
+            ),
+            child: const Icon(Icons.arrow_back_rounded, color: Colors.black87),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFF8F0), Color(0xFFFFF0E0), Colors.white],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildModernImagePicker(),
+                      const SizedBox(height: 28),
+
+                      _buildSectionTitle('Название', Icons.edit_rounded),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: titleController,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите название' : null,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          hintText: 'Например: Детский самокат Micro',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.all(16),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      _buildSectionTitle('Описание', Icons.description_rounded),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: descriptionController,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите описание' : null,
+                        maxLines: 3,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          hintText: 'Опишите вещь: размер, цвет, возраст...',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.all(16),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      _buildSectionTitle('Категория', Icons.category_rounded),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 44,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: categories.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final cat = categories[index];
+                            final isSelected = selectedCategory == cat;
+                            return GestureDetector(
+                              onTap: () { setState(() => selectedCategory = cat); updateSv(); },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? Colors.orange : Colors.white,
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(color: isSelected ? Colors.orange : Colors.grey.shade200, width: 1.5),
+                                  boxShadow: isSelected ? [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))] : null,
+                                ),
+                                child: Text(cat, style: TextStyle(color: isSelected ? Colors.white : Colors.grey.shade700, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, fontSize: 14)),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      _buildSectionTitle('Состояние', Icons.verified_rounded),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8, runSpacing: 8,
+                        children: conditions.map((cond) {
+                          final isSelected = selectedCondition == cond;
+                          return GestureDetector(
+                            onTap: () { setState(() => selectedCondition = cond); updateSv(); },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.green.shade50 : Colors.white,
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(color: isSelected ? Colors.green : Colors.grey.shade200, width: 1.5),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isSelected) ...[
+                                    const Icon(Icons.check_circle, size: 18, color: Colors.green),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Text(cond, style: TextStyle(color: isSelected ? Colors.green.shade700 : Colors.grey.shade700, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500)),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+
+                      _buildSectionTitle('Город', Icons.location_on_rounded),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          value: selectedLocation,
+                          decoration: const InputDecoration(border: InputBorder.none),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.orange),
+                          items: locations.map((loc) => DropdownMenuItem(value: loc, child: Text(loc, style: const TextStyle(fontSize: 15)))).toList(),
+                          onChanged: (val) { if (val != null) setState(() => selectedLocation = val); },
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      AnimatedBuilder(
+                        animation: _svAnimationController,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _svScaleAnimation.value,
+                            child: Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange.shade400], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [BoxShadow(color: Colors.orange.withOpacity(_svGlowAnimation.value), blurRadius: 24, offset: const Offset(0, 8))],
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                    const Icon(Icons.auto_awesome, color: Colors.amber, size: 22),
+                                    const SizedBox(width: 8),
+                                    Text('Оценка стоимости', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, fontWeight: FontWeight.w500)),
+                                  ]),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(16)),
+                                    child: Text('$currentSv SV', style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 32),
+
+                      SizedBox(
+                        height: 58,
+                        child: ElevatedButton(
+                          onPressed: saveItem,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                            elevation: 8,
+                            shadowColor: Colors.orange.withOpacity(0.5),
+                          ),
+                          child: const Text('Опубликовать объявление', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Блок фото
-                  _buildImagePicker(),
-                  const SizedBox(height: 24),
-
-                  // Название
-                  TextFormField(
-                    controller: titleController,
-                    decoration: InputDecoration(
-                      labelText: 'Название',
-                      prefixIcon: const Icon(Icons.title),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Описание
-                  TextFormField(
-                    controller: descriptionController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      labelText: 'Описание',
-                      prefixIcon: const Icon(Icons.description),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Категория (чипсы)
-                  Text('Категория', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 40,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: categories.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        final cat = categories[index];
-                        final isSelected = selectedCategory == cat;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() => selectedCategory = cat);
-                            updateSv();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.orange.shade100
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: isSelected ? Colors.orange : Colors.grey.shade300,
-                                width: isSelected ? 2 : 1,
-                              ),
-                            ),
-                            child: Text(
-                              cat,
-                              style: TextStyle(
-                                fontWeight:
-                                isSelected ? FontWeight.bold : FontWeight.normal,
-                                color: isSelected ? Colors.orange.shade900 : Colors.black87,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Состояние (чипсы)
-                  Text('Состояние', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: conditions.map((cond) {
-                      final isSelected = selectedCondition == cond;
-                      return ChoiceChip(
-                        label: Text(cond),
-                        selected: isSelected,
-                        onSelected: (val) {
-                          setState(() => selectedCondition = cond);
-                          updateSv();
-                        },
-                        selectedColor: Colors.green.shade100,
-                        backgroundColor: Colors.grey.shade100,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.green.shade900 : Colors.black87,
-                          fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        side: BorderSide(
-                          color: isSelected ? Colors.green : Colors.grey.shade300,
-                          width: isSelected ? 2 : 1,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Город
-                  DropdownButtonFormField<String>(
-                    value: selectedLocation,
-                    decoration: InputDecoration(
-                      labelText: 'Город',
-                      prefixIcon: const Icon(Icons.location_on),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    items: locations
-                        .map((loc) => DropdownMenuItem(value: loc, child: Text(loc)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => selectedLocation = val);
-                    },
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Блок SV
-                  ScaleTransition(
-                    scale: _pulseAnimation,
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.orange.shade300, Colors.deepOrange.shade300],
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orange.withOpacity(0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Система оценила вещь в',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.auto_awesome, color: Colors.amber),
-                              const SizedBox(width: 8),
-                              Text(
-                                '$currentSv SV',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Кнопка публикации
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: saveItem,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                        shadowColor: Colors.orange.withOpacity(0.5),
-                      ),
-                      child: const Text(
-                        'Опубликовать',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildImagePicker() {
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, size: 18, color: Colors.orange.shade700),
+        ),
+        const SizedBox(width: 10),
+        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+
+  Widget _buildModernImagePicker() {
     return GestureDetector(
-      onTap: _pickImage,
+      onTap: _isUploading ? null : _pickImage,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         height: 220,
-        width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: _selectedImage != null ? Colors.orange : Colors.grey.shade300,
-            width: 2,
-            strokeAlign: BorderSide.strokeAlignInside,
-          ),
-          image: _selectedImage != null
-              ? DecorationImage(
-            image: FileImage(_selectedImage!),
-            fit: BoxFit.cover,
-          )
-              : null,
+          border: Border.all(color: _selectedImage != null ? Colors.orange : Colors.grey.shade200, width: 2),
+          boxShadow: _selectedImage != null ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 4))] : null,
+          image: _selectedImage != null ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover) : null,
         ),
         child: _selectedImage == null
             ? Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.orange.withOpacity(0.1),
-              ),
-              child: const Icon(Icons.add_photo_alternate_outlined,
-                  size: 48, color: Colors.orange),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [Colors.orange.shade100, Colors.orange.shade200])),
+              child: const Icon(Icons.add_photo_alternate_rounded, size: 40, color: Colors.orange),
             ),
-            const SizedBox(height: 12),
-            const Text('Добавить фото',
-                style: TextStyle(color: Colors.orange, fontSize: 16)),
-            if (_isUploading) ...[
-              const SizedBox(height: 12),
-              const SizedBox(
-                width: 200,
-                child: LinearProgressIndicator(color: Colors.orange),
-              ),
-            ],
+            const SizedBox(height: 16),
+            const Text('Нажмите, чтобы добавить фото', style: TextStyle(color: Colors.grey, fontSize: 15)),
+            const SizedBox(height: 6),
+            Text('Первое фото будет обложкой', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
           ],
         )
             : Stack(
           children: [
             if (_uploadedImageUrl != null)
-              const Positioned(
-                right: 8,
-                top: 8,
-                child: Icon(Icons.check_circle, color: Colors.green, size: 32),
-              ),
+              Positioned(top: 12, right: 12, child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.check_rounded, color: Colors.white, size: 20))),
             if (_isUploading)
-              const Center(child: CircularProgressIndicator()),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+                  child: const Column(mainAxisSize: MainAxisSize.min, children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 12),
+                    Text('Загрузка...', style: TextStyle(color: Colors.white)),
+                  ]),
+                ),
+              ),
+            if (!_isUploading)
+              Positioned(
+                bottom: 12, right: 12,
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)]),
+                    child: const Icon(Icons.swap_horiz_rounded, color: Colors.orange, size: 22),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

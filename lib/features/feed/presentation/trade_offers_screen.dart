@@ -24,7 +24,9 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
 
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _currentUserId = prefs.getString('user_id'));
+    if (mounted) {
+      setState(() => _currentUserId = prefs.getString('user_id'));
+    }
   }
 
   Future<void> _acceptOffer(TradeOffer offer) async {
@@ -45,11 +47,19 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
               textAlign: TextAlign.center,
             ),
             actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
+              FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
             ],
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Предложение принято! 🎉'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -65,144 +75,131 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
     final provider = context.read<TradesProvider>();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        title: const Text('Предложения обмена', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: offers.isEmpty
           ? Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.swap_horiz_rounded,
-              size: 80,
-              color: theme.colorScheme.outlineVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Пока нет предложений обмена',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.outlineVariant,
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.08),
+                shape: BoxShape.circle,
               ),
+              child: Icon(Icons.swap_horiz_rounded, size: 56, color: Colors.grey.shade400),
             ),
+            const SizedBox(height: 20),
+            const Text('Пока нет предложений обмена', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black54)),
             const SizedBox(height: 8),
-            Text(
-              'Здесь будут появляться предложения обмена',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outlineVariant,
-              ),
-            ),
+            const Text('Здесь будут появляться предложения\nобмена от других пользователей', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 14)),
           ],
         ),
       )
-          : CustomScrollView(
-        slivers: [
-          SliverAppBar.medium(
-            title: const Text('Предложения обмена'),
-            centerTitle: false,
-            pinned: true,
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                  final offer = offers[index];
-                  return _buildOfferCard(offer, provider, theme);
-                },
-                childCount: offers.length,
-              ),
-            ),
-          ),
-        ],
+          : RefreshIndicator(
+        onRefresh: () => context.read<TradesProvider>().loadOffers(),
+        color: Colors.orange,
+        child: ListView.builder(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+          itemCount: offers.length,
+          itemBuilder: (context, index) {
+            final offer = offers[index];
+            return _buildOfferCard(offer, provider, theme);
+          },
+        ),
       ),
     );
   }
 
   Widget _buildOfferCard(TradeOffer offer, TradesProvider provider, ThemeData theme) {
     final isTo = _isToUser(offer);
-    final statusColor = _getStatusColor(offer.status, theme);
-    final canTap = offer.status != 'pending' && offer.status != 'rejected';
+    final statusColor = _getStatusColor(offer.status);
+    final canTap = offer.status == 'accepted' || offer.status == 'shipped' || offer.status == 'completed';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        elevation: 0,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: statusColor.withOpacity(0.3),
-            width: 1,
+      padding: const EdgeInsets.only(bottom: 14),
+      child: GestureDetector(
+        onTap: canTap
+            ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => TradeDiscussionScreen(offer: offer)))
+            : null,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 14, offset: const Offset(0, 4)),
+            ],
+            border: canTap ? Border.all(color: statusColor.withOpacity(0.3), width: 1.5) : null,
           ),
-        ),
-        color: theme.colorScheme.surfaceContainerLow,
-        child: InkWell(
-          onTap: canTap
-              ? () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => TradeDiscussionScreen(offer: offer),
-              ),
-            );
-          }
-              : null,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Статус и тип
+                // Статус
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(_getStatusIcon(offer.status), size: 14, color: statusColor),
-                          const SizedBox(width: 4),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 6),
                           Text(
                             _getStatusText(offer.status),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                         ],
                       ),
                     ),
                     const Spacer(),
                     if (canTap)
-                      Icon(Icons.chevron_right, color: theme.colorScheme.outlineVariant),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.arrow_forward_rounded, color: Colors.orange, size: 18),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
 
                 // Предметы обмена
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Предлагают',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.outlineVariant,
-                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
+                            child: Text(isTo ? 'Предлагают' : 'Вы предлагаете', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blue.shade600)),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
-                            offer.fromItemTitle,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              height: 1.3,
-                            ),
+                            isTo ? offer.fromItemTitle : offer.toItemTitle,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, height: 1.3),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -210,37 +207,30 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(10),
+                          gradient: LinearGradient(colors: [Colors.orange.shade300, Colors.deepOrange.shade300]),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(
-                          Icons.swap_horiz_rounded,
-                          color: theme.colorScheme.primary,
-                          size: 20,
-                        ),
+                        child: const Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 20),
                       ),
                     ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Взамен на',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.outlineVariant,
-                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: Colors.green.withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
+                            child: Text(isTo ? 'Взамен на' : 'На что меняете', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green.shade600)),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
-                            offer.toItemTitle,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              height: 1.3,
-                            ),
+                            isTo ? offer.toItemTitle : offer.fromItemTitle,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, height: 1.3),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -250,26 +240,32 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 // Доплата
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: offer.svDifference != 0
-                        ? Colors.amber.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
+                    gradient: LinearGradient(
+                      colors: offer.svDifference != 0
+                          ? [Colors.amber.withOpacity(0.1), Colors.orange.withOpacity(0.05)]
+                          : [Colors.green.withOpacity(0.1), Colors.teal.withOpacity(0.05)],
+                    ),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: offer.svDifference != 0 ? Colors.amber.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                    ),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         offer.svDifference != 0 ? Icons.savings : Icons.balance,
-                        size: 16,
+                        size: 18,
                         color: offer.svDifference != 0 ? Colors.amber.shade700 : Colors.green.shade700,
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Text(
                         offer.svDifference > 0
                             ? 'Доплата: +${offer.svDifference} SV'
@@ -278,10 +274,8 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                             : 'Равный обмен',
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: offer.svDifference != 0
-                              ? Colors.amber.shade700
-                              : Colors.green.shade700,
+                          fontWeight: FontWeight.w700,
+                          color: offer.svDifference != 0 ? Colors.amber.shade800 : Colors.green.shade800,
                         ),
                       ),
                     ],
@@ -297,47 +291,96 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                         child: OutlinedButton(
                           onPressed: () => _showRejectDialog(offer, provider),
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.red.withOpacity(0.5)),
+                            side: BorderSide(color: Colors.red.withOpacity(0.4)),
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            backgroundColor: Colors.red.withOpacity(0.03),
                           ),
-                          child: const Text('Отклонить'),
+                          child: const Text('Отклонить', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: FilledButton(
+                        child: ElevatedButton(
                           onPressed: () => _acceptOffer(offer),
-                          style: FilledButton.styleFrom(
+                          style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            elevation: 2,
+                            shadowColor: Colors.green.withOpacity(0.4),
                           ),
-                          child: const Text('Принять'),
+                          child: const Text('Принять', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
                   ),
                 ],
 
-                // Индикатор для отклонённых
+                // Ожидание для отправителя
+                if (offer.status == 'pending' && !isTo)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.hourglass_empty, size: 16, color: Colors.orange),
+                          SizedBox(width: 6),
+                          Text('Ожидание ответа...', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w600, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Отклонено
                 if (offer.status == 'rejected')
                   Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.block, size: 16, color: Colors.red.shade300),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Предложение отклонено',
-                          style: TextStyle(color: Colors.red.shade300, fontSize: 13),
-                        ),
-                      ],
+                    padding: const EdgeInsets.only(top: 14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.block, size: 16, color: Colors.red),
+                          SizedBox(width: 6),
+                          Text('Предложение отклонено', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Завершено
+                if (offer.status == 'completed')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [Colors.green.withOpacity(0.08), Colors.teal.withOpacity(0.04)]),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.celebration, size: 18, color: Colors.green),
+                          SizedBox(width: 6),
+                          Text('Обмен завершён! 🎉', style: TextStyle(color: Colors.green, fontWeight: FontWeight.w700, fontSize: 14)),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -356,10 +399,7 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
         title: const Text('Отклонить предложение?'),
         content: const Text('Вы уверены, что хотите отклонить это предложение обмена?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -395,7 +435,7 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
     }
   }
 
-  Color _getStatusColor(String status, ThemeData theme) {
+  Color _getStatusColor(String status) {
     switch (status) {
       case 'accepted': return Colors.blue;
       case 'shipped': return Colors.purple;

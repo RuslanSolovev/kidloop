@@ -9,10 +9,22 @@ class TradeOffer {
   final int svDifference;
   String status;
   String deliveryMethod;
+
+  // Старые поля (оставляем для обратной совместимости)
   bool fromConfirmed;
   bool toConfirmed;
-  String fromDeliveryMethod;  // что выбрал отправитель
-  String toDeliveryMethod;    // что выбрал получатель
+
+  // Новые поля для 4-шагового подтверждения
+  bool fromShipped;   // Отправитель передал свою вещь
+  bool toReceived;    // Получатель получил вещь отправителя
+  bool toShipped;     // Получатель передал свою вещь
+  bool fromReceived;  // Отправитель получил вещь получателя
+
+  String fromDeliveryMethod;
+  String toDeliveryMethod;
+
+  // Причина отмены
+  String cancelReason;
 
   TradeOffer({
     required this.id,
@@ -27,7 +39,12 @@ class TradeOffer {
     this.deliveryMethod = '',
     this.fromConfirmed = false,
     this.toConfirmed = false,
+    this.fromShipped = false,
+    this.toReceived = false,
+    this.toShipped = false,
+    this.fromReceived = false,
     this.fromDeliveryMethod = '',
     this.toDeliveryMethod = '',
+    this.cancelReason = '',
   });
 }

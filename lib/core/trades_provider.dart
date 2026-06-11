@@ -39,15 +39,22 @@ class TradesProvider extends ChangeNotifier {
             deliveryMethod: o['delivery_method'] ?? '',
             fromConfirmed: o['from_confirmed'] ?? false,
             toConfirmed: o['to_confirmed'] ?? false,
+            fromShipped: o['from_shipped'] ?? false,
+            toReceived: o['to_received'] ?? false,
+            toShipped: o['to_shipped'] ?? false,
+            fromReceived: o['from_received'] ?? false,
             fromDeliveryMethod: o['from_delivery_method'] ?? '',
             toDeliveryMethod: o['to_delivery_method'] ?? '',
+            cancelReason: o['cancel_reason'] ?? '',
           ));
         }
         _offers.clear();
         _offers.addAll(newOffers);
         notifyListeners();
       }
-    } catch (e) {}
+    } catch (e) {
+      print('Error loading offers: $e');
+    }
   }
 
   Future<Map<String, dynamic>> createOffer(TradeOffer offer) async {
@@ -134,12 +141,17 @@ class TradesProvider extends ChangeNotifier {
     } catch (e) {}
   }
 
-  Future<Map<String, dynamic>> cancelOffer(String offerId) async {
+  // 🔥 Обновлённый cancelOffer с причиной
+  Future<Map<String, dynamic>> cancelOffer(String offerId, {String reason = ''}) async {
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "cancel", "offer_id": offerId}),
+        body: jsonEncode({
+          "action": "cancel",
+          "offer_id": offerId,
+          "cancel_reason": reason,
+        }),
       );
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {

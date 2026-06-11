@@ -1,11 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../item_details/item_details_screen.dart';
 import '../../../core/items_provider.dart';
+import '../../../core/item_model.dart';
 
-class FeedScreen extends StatelessWidget {
+class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
+
+  @override
+  State<FeedScreen> createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends State<FeedScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Загружаем при первом открытии
+    Future.delayed(const Duration(milliseconds: 100), () {
+      context.read<ItemsProvider>().loadItems();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,74 +30,72 @@ class FeedScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.medium(
-            title: const Text('KidLoop'),
-            centerTitle: false,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.filter_list_rounded),
-                onPressed: () {
-                  // TODO: Добавить фильтры
-                },
-              ),
-            ],
+      appBar: AppBar(
+        title: const Text('KidLoop', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list_rounded),
+            onPressed: () {
+              // TODO: Фильтры
+            },
           ),
-          if (provider.isLoading && items.isEmpty)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (items.isEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.toys_outlined,
-                      size: 80,
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Пока нет вещей',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Нажмите + чтобы добавить',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
-                  ],
-                ),
+        ],
+      ),
+      body: provider.isLoading && items.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : items.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                    final item = items[index];
-                    return _ItemCard(item: item);
-                  },
-                  childCount: items.length,
-                ),
+              child: Icon(
+                Icons.toys_outlined,
+                size: 60,
+                color: theme.colorScheme.outlineVariant,
               ),
             ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              'Пока нет вещей',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.colorScheme.outlineVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Нажмите + чтобы добавить',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outlineVariant,
+              ),
+            ),
+          ],
+        ),
+      )
+          : RefreshIndicator(
+        onRefresh: () => provider.loadItems(),
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _ItemCard(item: item);
+          },
+        ),
       ),
     );
   }
 }
 
 class _ItemCard extends StatelessWidget {
-  final dynamic item;
+  final Item item;
 
   const _ItemCard({required this.item});
 
@@ -105,7 +119,7 @@ class _ItemCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: theme.colorScheme.shadow.withOpacity(0.08),
+                color: Colors.black.withOpacity(0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 4),
               ),
@@ -114,9 +128,7 @@ class _ItemCard extends StatelessWidget {
           child: Card(
             clipBehavior: Clip.antiAlias,
             elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             color: theme.colorScheme.surfaceContainerLow,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,36 +136,27 @@ class _ItemCard extends StatelessWidget {
                 // Изображение
                 Stack(
                   children: [
-                    Hero(
-                      tag: 'item-${item.id}',
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                        child: item.imagePath.startsWith('http')
-                            ? Image.network(
-                          item.imagePath,
-                          height: 220,
-                          width: double.infinity,
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                      child: SizedBox(
+                        height: 220,
+                        width: double.infinity,
+                        child: CachedNetworkImage(
+                          imageUrl: item.imagePath,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 220,
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              child: Icon(
-                                Icons.toys,
-                                size: 64,
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                            );
-                          },
-                        )
-                            : Image.asset(
-                          item.imagePath,
-                          height: 220,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                          fadeInDuration: const Duration(milliseconds: 300),
+                          placeholder: (_, __) => Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: const Center(child: CircularProgressIndicator()),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: Icon(Icons.toys, size: 64, color: theme.colorScheme.outlineVariant),
+                          ),
                         ),
                       ),
                     ),
+                    // SV бейдж
                     Positioned(
                       top: 12,
                       right: 12,
@@ -161,15 +164,12 @@ class _ItemCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [
-                              theme.colorScheme.primary,
-                              theme.colorScheme.tertiary,
-                            ],
+                            colors: [Colors.orange.shade400, Colors.deepOrange],
                           ),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: theme.colorScheme.primary.withOpacity(0.4),
+                              color: Colors.orange.withOpacity(0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -192,7 +192,8 @@ class _ItemCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (item.category != null && item.category.toString().isNotEmpty)
+                    // Категория
+                    if (item.category.isNotEmpty)
                       Positioned(
                         top: 12,
                         left: 12,
@@ -203,7 +204,7 @@ class _ItemCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            item.category.toString(),
+                            item.category,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -235,33 +236,33 @@ class _ItemCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (item.condition != null && item.condition.toString().isNotEmpty) ...[
+                          if (item.condition.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: _getConditionColor(item.condition.toString(), theme).withOpacity(0.1),
+                                color: _getConditionColor(item.condition).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: _getConditionColor(item.condition.toString(), theme).withOpacity(0.3),
+                                  color: _getConditionColor(item.condition).withOpacity(0.3),
                                 ),
                               ),
                               child: Text(
-                                item.condition.toString(),
+                                item.condition,
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: _getConditionColor(item.condition.toString(), theme),
+                                  color: _getConditionColor(item.condition),
                                 ),
                               ),
                             ),
                           ],
                         ],
                       ),
-                      if (item.description != null && item.description.toString().isNotEmpty) ...[
+                      if (item.description.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
-                          item.description.toString(),
+                          item.description,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             height: 1.4,
@@ -273,15 +274,11 @@ class _ItemCard extends StatelessWidget {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            size: 18,
-                            color: theme.colorScheme.primary,
-                          ),
+                          Icon(Icons.location_on_outlined, size: 18, color: Colors.blue.shade400),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              item.location ?? 'Не указано',
+                              item.location.isNotEmpty ? item.location : 'Не указано',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
@@ -317,16 +314,18 @@ class _ItemCard extends StatelessWidget {
     );
   }
 
-  Color _getConditionColor(String condition, ThemeData theme) {
-    switch (condition.toLowerCase()) {
-      case 'новый':
+  Color _getConditionColor(String condition) {
+    switch (condition) {
+      case 'Новый':
         return Colors.green;
-      case 'отличный':
+      case 'Отличный':
         return Colors.teal;
-      case 'хороший':
+      case 'Хороший':
         return Colors.blue;
+      case 'Обычный':
+        return Colors.grey;
       default:
-        return theme.colorScheme.outlineVariant;
+        return Colors.grey;
     }
   }
 }
