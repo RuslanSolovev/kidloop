@@ -17,6 +17,14 @@ class ItemsProvider extends ChangeNotifier {
 
   final Map<String, Map<String, dynamic>> _profileCache = {};
 
+  // 🔥 Очистка при выходе
+  void clearItems() {
+    _items.clear();
+    _profileCache.clear();
+    _currentUserId = null;
+    notifyListeners();
+  }
+
   Future<void> loadItems() async {
     _isLoading = true;
     notifyListeners();
@@ -24,11 +32,18 @@ class ItemsProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _currentUserId = prefs.getString('user_id') ?? '';
 
+      if (_currentUserId!.isEmpty) {
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "list"}),
-      );
+      ).timeout(const Duration(seconds: 15));
+
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
         _items.clear();
@@ -55,37 +70,30 @@ class ItemsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 🔥 Исправленный getUserProfile
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     if (userId.isEmpty || userId == 'me') return null;
 
-    // Проверяем кэш
     if (_profileCache.containsKey(userId)) {
-      print('Profile cache hit for: $userId');
       return _profileCache[userId];
     }
 
     try {
-      // 🔥 Используем search с query
       final response = await http.post(
         Uri.parse(usersApiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "action": "search",
-          "query": "",  // Пустой - вернёт всех
-          "user_id": "", // Не исключаем никого
+          "query": "",
+          "user_id": "",
           "offset": 0,
           "limit": 100,
         }),
       ).timeout(const Duration(seconds: 8));
 
       final data = jsonDecode(response.body);
-      print('Search response: ${data['ok']}, users count: ${data['users']?.length ?? 0}');
-
       if (data['ok'] == true) {
         final users = data['users'] as List?;
         if (users != null) {
-          // Ищем конкретного пользователя
           for (final user in users) {
             if (user['user_id'] == userId) {
               final profile = {
@@ -93,14 +101,12 @@ class ItemsProvider extends ChangeNotifier {
                 'avatar_url': user['avatar_url'] ?? '',
               };
               _profileCache[userId] = profile;
-              print('Found profile: ${profile['name']}');
               return profile;
             }
           }
         }
       }
 
-      // Если не нашли - пробуем list
       return await _getProfileViaList(userId);
     } catch (e) {
       print('Error in search: $e');
@@ -142,19 +148,16 @@ class ItemsProvider extends ChangeNotifier {
       print('Error in list: $e');
     }
 
-    // Заглушка если совсем не нашли
     return {'name': 'Пользователь', 'avatar_url': ''};
   }
 
   Future<void> addItem(Item item) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id') ?? 'unknown';
-    final userName = prefs.getString('user_name') ?? 'Пользователь';
 
-    // 🔥 СОЗДАЁМ С ПРАВИЛЬНЫМ ownerId
     final correctItem = Item(
       itemId: item.itemId,
-      ownerId: userId,  // 🔥 Реальный ID
+      ownerId: userId,
       title: item.title,
       description: item.description,
       sv: item.sv,
@@ -184,7 +187,7 @@ class ItemsProvider extends ChangeNotifier {
           "category": item.category,
           "condition": item.condition,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
     } catch (e) {
       print('Error adding item: $e');
     }

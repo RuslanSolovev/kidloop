@@ -9,6 +9,7 @@ class TradeOffer {
   final int svDifference;
   String status;
   String deliveryMethod;
+  String whoCancelled;
 
   // Старые поля (оставляем для обратной совместимости)
   bool fromConfirmed;
@@ -46,5 +47,6 @@ class TradeOffer {
     this.fromDeliveryMethod = '',
     this.toDeliveryMethod = '',
     this.cancelReason = '',
+    this.whoCancelled = '',
   });
 }

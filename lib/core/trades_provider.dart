@@ -13,15 +13,30 @@ class TradesProvider extends ChangeNotifier {
 
   static const String apiUrl = 'https://functions.yandexcloud.net/d4e77rr4t3hlvjo7n77b';
 
+  // 🔥 Очистка при выходе
+  void clearOffers() {
+    _offers.clear();
+    notifyListeners();
+  }
+
   Future<void> loadOffers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
+
+      if (userId.isEmpty) {
+        return;
+      }
+
+      _isLoading = true;
+      notifyListeners();
+
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "list", "user_id": userId}),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
+
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
         final newOffers = <TradeOffer>[];
@@ -46,6 +61,7 @@ class TradesProvider extends ChangeNotifier {
             fromDeliveryMethod: o['from_delivery_method'] ?? '',
             toDeliveryMethod: o['to_delivery_method'] ?? '',
             cancelReason: o['cancel_reason'] ?? '',
+            whoCancelled: o['who_cancelled'] ?? '',
           ));
         }
         _offers.clear();
@@ -54,6 +70,9 @@ class TradesProvider extends ChangeNotifier {
       }
     } catch (e) {
       print('Error loading offers: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -72,7 +91,8 @@ class TradesProvider extends ChangeNotifier {
           "to_item_title": offer.toItemTitle,
           "sv_difference": offer.svDifference,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
+
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
         final newOffer = TradeOffer(
@@ -102,7 +122,8 @@ class TradesProvider extends ChangeNotifier {
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "update-status", "offer_id": offerId, "status": status}),
-      );
+      ).timeout(const Duration(seconds: 10));
+
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
         await loadOffers();
@@ -119,31 +140,58 @@ class TradesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
+
       await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "update-delivery", "offer_id": offerId, "user_id": userId, "delivery_method": method}),
-      );
+        body: jsonEncode({
+          "action": "update-delivery",
+          "offer_id": offerId,
+          "user_id": userId,
+          "delivery_method": method,
+        }),
+      ).timeout(const Duration(seconds: 8));
+
       await loadOffers();
-    } catch (e) {}
+    } catch (e) {
+      print('Error updating delivery: $e');
+    }
   }
 
   Future<void> confirmStep(String offerId, String step) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
+
       await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "confirm", "offer_id": offerId, "user_id": userId, "step": step}),
-      );
+        body: jsonEncode({
+          "action": "confirm",
+          "offer_id": offerId,
+          "user_id": userId,
+          "step": step,
+        }),
+      ).timeout(const Duration(seconds: 8));
+
       await loadOffers();
-    } catch (e) {}
+    } catch (e) {
+      print('Error confirming step: $e');
+    }
   }
 
-  // 🔥 Обновлённый cancelOffer с причиной
   Future<Map<String, dynamic>> cancelOffer(String offerId, {String reason = ''}) async {
+    final index = _offers.indexWhere((o) => o.id == offerId);
+    if (index != -1) {
+      _offers[index].status = 'cancelled';
+      _offers[index].cancelReason = reason;
+      notifyListeners();
+    }
+
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
@@ -151,16 +199,28 @@ class TradesProvider extends ChangeNotifier {
           "action": "cancel",
           "offer_id": offerId,
           "cancel_reason": reason,
+          "user_id": userId,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
+
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
         await loadOffers();
         return {"ok": true};
       } else {
+        if (index != -1) {
+          _offers[index].status = 'accepted';
+          _offers[index].cancelReason = '';
+          notifyListeners();
+        }
         return {"ok": false, "error": data['error'] ?? 'unknown'};
       }
     } catch (e) {
+      if (index != -1) {
+        _offers[index].status = 'accepted';
+        _offers[index].cancelReason = '';
+        notifyListeners();
+      }
       return {"ok": false, "error": e.toString()};
     }
   }

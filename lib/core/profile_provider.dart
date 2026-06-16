@@ -1,8 +1,6 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'user_profile.dart';
 
 class ProfileProvider extends ChangeNotifier {
@@ -35,16 +33,14 @@ class ProfileProvider extends ChangeNotifier {
 
   Future<void> loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
-
     final jsonString = prefs.getString('user_profile');
     final savedName = prefs.getString('user_name');
 
-    if (jsonString != null) {
+    if (jsonString != null && jsonString.isNotEmpty) {
       final map = jsonDecode(jsonString);
       _profile = UserProfile.fromMap(map);
     }
 
-    // Если имя есть в отдельном ключе, а в профиле его нет — подставляем
     if (savedName != null && savedName.isNotEmpty && _profile.name == 'Новый пользователь') {
       _profile = UserProfile(
         name: savedName,
@@ -58,6 +54,20 @@ class ProfileProvider extends ChangeNotifier {
       await saveProfile();
     }
 
+    notifyListeners();
+  }
+
+  // 🔥 Очистка профиля при выходе
+  void clearProfile() {
+    _profile = UserProfile(
+      name: 'Новый пользователь',
+      city: 'Рига',
+      bio: '',
+      age: 18,
+      favoriteCategory: 'LEGO',
+      telegram: '',
+      avatarUrl: '',
+    );
     notifyListeners();
   }
 }

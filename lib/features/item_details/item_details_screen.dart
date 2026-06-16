@@ -27,7 +27,6 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
   }
 
   Future<void> _loadOwnerData() async {
-    // 🔥 Если это моя вещь - показываем свои данные
     if (widget.item.isMine) {
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
@@ -45,7 +44,6 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
     try {
       final provider = context.read<ItemsProvider>();
       final ownerData = await provider.getUserProfile(widget.item.ownerId);
-      print('Owner data loaded: $ownerData');
       if (mounted) {
         setState(() {
           _ownerData = ownerData;
@@ -53,7 +51,6 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading owner: $e');
       if (mounted) setState(() => _loadingOwner = false);
     }
   }
@@ -142,11 +139,11 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
                   const SizedBox(height: 30),
 
                   // ВЛАДЕЛЕЦ
-                  if (!item.isMine) ...[
-                    _buildOwnerCard(),
-                    const SizedBox(height: 20),
+                  _buildOwnerCard(),
 
-                    // Кнопка обмена
+                  // 🔥 Кнопка обмена ТОЛЬКО для чужих вещей
+                  if (!item.isMine) ...[
+                    const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
                       height: 56,
@@ -195,22 +192,22 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
       );
     }
 
-    final name = _ownerData?['name'] ?? 'Пользователь';
+    final name = _ownerData?['name'] ?? (widget.item.isMine ? 'Вы' : 'Пользователь');
     final avatarUrl = _ownerData?['avatar_url'] ?? '';
+    final isMine = widget.item.isMine;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: isMine ? Colors.orange.withOpacity(0.3) : Colors.grey.shade200),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Row(
         children: [
-          // 🔥 АВАТАР
           CircleAvatar(
             radius: 28,
             backgroundColor: Colors.orange.shade100,
@@ -227,7 +224,10 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Владелец', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(
+                  isMine ? 'Это ваша вещь' : 'Владелец',
+                  style: TextStyle(color: isMine ? Colors.orange : Colors.grey, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   name,
@@ -236,24 +236,25 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
               ],
             ),
           ),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PublicProfileScreen(userId: widget.item.ownerId),
-                ),
-              );
-            },
-            icon: const Icon(Icons.person, size: 18),
-            label: const Text('Профиль'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.orange,
-              side: const BorderSide(color: Colors.orange),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          if (!isMine)
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PublicProfileScreen(userId: widget.item.ownerId),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.person, size: 18),
+              label: const Text('Профиль'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange,
+                side: const BorderSide(color: Colors.orange),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
             ),
-          ),
         ],
       ),
     );

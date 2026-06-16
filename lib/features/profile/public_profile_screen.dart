@@ -28,13 +28,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   int _receivedAcceptedCount = 0;
 
   int _completedDealsCount = 0;
-  int _totalAcceptedCount = 0;
+  int _acceptedDealsCount = 0;
 
-  // Данные об отменах
   int _totalCancelledCount = 0;
   int _cancelledByUserCount = 0;
   int _cancelledByPartnerCount = 0;
-  Map<String, int> _cancelReasons = {};
+  Map<String, int> _myCancelReasons = {};
+  Map<String, int> _partnerCancelReasons = {};
 
   bool _loading = true;
   String? _currentUserId;
@@ -208,33 +208,66 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       final offersData = jsonDecode(offersRes.body);
       if (offersData['ok'] == true) {
         final offers = offersData['offers'] as List;
+        final userId = widget.userId;
 
-        final sentOffers = offers.where((o) => o['from_user_id'] == widget.userId).toList();
+        // Исходящие (все)
+        final sentOffers = offers.where((o) => o['from_user_id'] == userId).toList();
+
+        // Исходящие принятые (включая те что позже отменились)
         final sentAccepted = sentOffers.where((o) =>
-        o['status'] == 'accepted' || o['status'] == 'shipped' || o['status'] == 'completed'
+        o['status'] == 'accepted' || o['status'] == 'shipped' ||
+            o['status'] == 'completed' || o['status'] == 'cancelled'
         ).toList();
 
-        final receivedOffers = offers.where((o) => o['to_user_id'] == widget.userId).toList();
+        // Входящие (все)
+        final receivedOffers = offers.where((o) => o['to_user_id'] == userId).toList();
+
+        // Входящие принятые (включая те что позже отменились)
         final receivedAccepted = receivedOffers.where((o) =>
-        o['status'] == 'accepted' || o['status'] == 'shipped' || o['status'] == 'completed'
+        o['status'] == 'accepted' || o['status'] == 'shipped' ||
+            o['status'] == 'completed' || o['status'] == 'cancelled'
         ).toList();
 
+        // Завершённые
         final completedDeals = offers.where((o) => o['status'] == 'completed').toList();
-        final totalAccepted = offers.where((o) =>
-        o['status'] == 'accepted' || o['status'] == 'shipped' || o['status'] == 'completed'
+
+        // 🔥 ВСЕ сделки которые были приняты (включая отменённые)
+        final acceptedDeals = offers.where((o) =>
+        o['status'] == 'accepted' || o['status'] == 'shipped' ||
+            o['status'] == 'completed' || o['status'] == 'cancelled'
         ).toList();
 
-        // 🔥 Анализ отмен
+        // Отмены
         final cancelledDeals = offers.where((o) => o['status'] == 'cancelled').toList();
-        final cancelledByUser = cancelledDeals.where((o) => o['from_user_id'] == widget.userId).toList();
-        final cancelledByPartner = cancelledDeals.where((o) => o['to_user_id'] == widget.userId).toList();
 
-        // Подсчёт причин отмен
-        final Map<String, int> reasons = {};
+        int userCancelled = 0;
+        int partnerCancelled = 0;
+        final Map<String, int> myReasons = {};
+        final Map<String, int> partnerReasons = {};
+
+        print('🔍 Всего отмен: ${cancelledDeals.length}');
+
         for (final deal in cancelledDeals) {
-          final reason = deal['cancel_reason'] ?? 'Не указана';
-          reasons[reason] = (reasons[reason] ?? 0) + 1;
+          final whoCancelled = deal['who_cancelled']?.toString() ?? '';
+          final reason = deal['cancel_reason']?.toString().trim() ?? '';
+
+          print('  Отмена: who=$whoCancelled, reason=$reason, userId=$userId');
+
+          if (whoCancelled == userId) {
+            userCancelled++;
+            if (reason.isNotEmpty) {
+              myReasons[reason] = (myReasons[reason] ?? 0) + 1;
+            }
+          } else if (whoCancelled.isNotEmpty) {
+            partnerCancelled++;
+            if (reason.isNotEmpty) {
+              partnerReasons[reason] = (partnerReasons[reason] ?? 0) + 1;
+            }
+          }
         }
+
+        print('📊 Итог: completed=$_completedDealsCount, accepted=${acceptedDeals.length}, cancelled=${cancelledDeals.length}');
+        print('📊 userCancelled=$userCancelled, partnerCancelled=$partnerCancelled');
 
         if (mounted) {
           setState(() {
@@ -243,11 +276,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             _receivedOffersCount = receivedOffers.length;
             _receivedAcceptedCount = receivedAccepted.length;
             _completedDealsCount = completedDeals.length;
-            _totalAcceptedCount = totalAccepted.length;
+            _acceptedDealsCount = acceptedDeals.length;  // 🔥 Все принятые (включая отменённые)
             _totalCancelledCount = cancelledDeals.length;
-            _cancelledByUserCount = cancelledByUser.length;
-            _cancelledByPartnerCount = cancelledByPartner.length;
-            _cancelReasons = reasons;
+            _cancelledByUserCount = userCancelled;
+            _cancelledByPartnerCount = partnerCancelled;
+            _myCancelReasons = myReasons;
+            _partnerCancelReasons = partnerReasons;
           });
         }
       }
@@ -257,8 +291,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   int _calculateRating() {
-    if (_totalAcceptedCount == 0) return 0;
-    return ((_completedDealsCount / _totalAcceptedCount) * 100).round();
+    if (_acceptedDealsCount == 0) return 0;
+    return ((_completedDealsCount / _acceptedDealsCount) * 100).round();
   }
 
   int _sentSuccessRate() {
@@ -486,16 +520,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             const SizedBox(height: 10),
             _buildTradeStatCard(
               title: 'Успешных сделок',
-              total: _totalAcceptedCount,
-              success: _completedDealsCount,
-              rate: _totalAcceptedCount > 0 ? ((_completedDealsCount / _totalAcceptedCount) * 100).round() : 0,
+              total: _completedDealsCount,
+              success: _acceptedDealsCount,
+              rate: _acceptedDealsCount > 0 ? ((_completedDealsCount / _acceptedDealsCount) * 100).round() : 0,
               icon: Icons.verified_rounded,
               color: Colors.green,
-              successLabel: 'завершено',
+              successLabel: 'из $_acceptedDealsCount принятых',
               theme: theme,
             ),
 
-            // 🔥 БЛОК ОТМЕН
             if (_totalCancelledCount > 0) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('🚫 Отмены сделок', theme),
@@ -519,108 +552,107 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок с общим количеством отмен
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.cancel_rounded, color: Colors.red, size: 24),
+          // Заголовок
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [Colors.red.shade400, Colors.red.shade600]),
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Всего отмен: $_totalCancelledCount',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.red),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+              child: const Icon(Icons.cancel_rounded, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Отмены сделок', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+              Text('Всего $_totalCancelledCount', style: TextStyle(color: Colors.red.shade400, fontSize: 13, fontWeight: FontWeight.w600)),
+            ]),
+          ]),
+          const SizedBox(height: 20),
 
-          // Две колонки: Кто отменил
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Колонка "Отменил пользователь"
-              Expanded(
-                child: _buildCancelColumn(
-                  icon: Icons.person_rounded,
-                  label: 'Отменил сам',
-                  count: _cancelledByUserCount,
-                  color: Colors.orange,
-                  theme: theme,
-                ),
-              ),
-              // Стрелка
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 20),
-                child: Icon(Icons.swap_horiz_rounded, color: Colors.grey.shade400, size: 20),
-              ),
-              // Колонка "Отменил партнёр"
-              Expanded(
-                child: _buildCancelColumn(
-                  icon: Icons.people_rounded,
-                  label: 'Отменил партнёр',
-                  count: _cancelledByPartnerCount,
-                  color: Colors.purple,
-                  theme: theme,
-                ),
-              ),
-            ],
-          ),
-
-          // Причины отмен
-          if (_cancelReasons.isNotEmpty) ...[
-            const Divider(height: 24),
-            const Text('Причины отмен:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 10),
-            ..._cancelReasons.entries.map((entry) {
-              final reasonIcon = _getCancelReasonIcon(entry.key);
-              final reasonColor = _getCancelReasonColor(entry.key);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
+          // Две колонки
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: _myCancelReasons.isNotEmpty ? () => _showReasonsDialog('Мои отмены', _myCancelReasons, Colors.orange) : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [Colors.orange.shade50, Colors.orange.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.orange.shade200),
+                    boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2))],
+                  ),
+                  child: Column(children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: reasonColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(reasonIcon, color: reasonColor, size: 16),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 6)]),
+                      child: const Icon(Icons.person_rounded, color: Colors.orange, size: 24),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        entry.key,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                    const SizedBox(height: 10),
+                    Text('$_cancelledByUserCount', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28, color: Colors.orange)),
+                    const Text('Отменил сам', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    if (_myCancelReasons.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.visibility, size: 14, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Text('Причины', style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                        ]),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: reasonColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${entry.value} раз',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: reasonColor),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ]),
                 ),
-              );
-            }),
-          ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: _partnerCancelReasons.isNotEmpty ? () => _showReasonsDialog('Отмены партнёров', _partnerCancelReasons, Colors.purple) : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [Colors.purple.shade50, Colors.purple.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.purple.shade200),
+                    boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2))],
+                  ),
+                  child: Column(children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 6)]),
+                      child: const Icon(Icons.people_rounded, color: Colors.purple, size: 24),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('$_cancelledByPartnerCount', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28, color: Colors.purple)),
+                    const Text('Отменил партнёр', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    if (_partnerCancelReasons.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.visibility, size: 14, color: Colors.purple),
+                          const SizedBox(width: 4),
+                          Text('Причины', style: TextStyle(fontSize: 11, color: Colors.purple.shade700, fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ],
+                  ]),
+                ),
+              ),
+            ),
+          ]),
         ],
       ),
     );
@@ -631,6 +663,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     required String label,
     required int count,
     required Color color,
+    required bool hasDetails,
     required ThemeData theme,
   }) {
     return Container(
@@ -661,7 +694,130 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             '$count',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: color),
           ),
+          if (hasDetails) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.info_outline, size: 12, color: color),
+                  const SizedBox(width: 3),
+                  Text(
+                    'Подробнее',
+                    style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  void _showReasonsDialog(String title, Map<String, int> reasons, Color accentColor) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.warning_amber_rounded, color: accentColor, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  title,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: accentColor),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (reasons.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    'Нет данных о причинах отмен',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                ),
+              )
+            else
+              ...reasons.entries.map((entry) {
+                final reasonIcon = _getCancelReasonIcon(entry.key);
+                final reasonColor = _getCancelReasonColor(entry.key);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: reasonColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(reasonIcon, color: reasonColor, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.key,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
+                            if (entry.value > 1)
+                              Text(
+                                '${entry.value} раза',
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: reasonColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${entry.value}',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: reasonColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Закрыть'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -943,11 +1099,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text('$total', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                    if (total > 0) ...[
+                    if (success > 0) ...[
                       const SizedBox(width: 8),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
-                        child: Text('• $success $successLabel', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                        child: Text(
+                          successLabel,
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        ),
                       ),
                     ],
                   ],
