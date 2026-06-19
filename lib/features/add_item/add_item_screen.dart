@@ -1,3 +1,4 @@
+// add_item_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,8 +27,8 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
   String selectedLocation = 'Рига';
 
   int currentSv = 50;
-  File? _selectedImage;
-  String? _uploadedImageUrl;
+  List<File> _selectedImages = [];
+  List<String> _uploadedImageUrls = [];
   bool _isUploading = false;
   final _formKey = GlobalKey<FormState>();
 
@@ -86,48 +87,70 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
   }
 
   Future<void> _pickImage() async {
+    if (_selectedImages.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Максимум 5 фото'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked != null) {
       setState(() {
-        _selectedImage = File(picked.path);
-        _uploadedImageUrl = null;
+        _selectedImages.add(File(picked.path));
       });
     }
   }
 
-  Future<String?> _uploadImage() async {
-    if (_selectedImage == null) return null;
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
+  Future<List<String>> _uploadImages() async {
+    if (_selectedImages.isEmpty) return [];
+
     setState(() => _isUploading = true);
+    final urls = <String>[];
 
     try {
-      final bytes = await _selectedImage!.readAsBytes();
-      final base64 = base64Encode(bytes);
+      for (final image in _selectedImages) {
+        final bytes = await image.readAsBytes();
+        final base64 = base64Encode(bytes);
 
-      final response = await http.post(
-        Uri.parse('https://functions.yandexcloud.net/d4e3c2me21eou683ic6d'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"action": "upload", "file_name": "photo.jpg", "file_data": base64}),
-      );
+        final response = await http.post(
+          Uri.parse('https://functions.yandexcloud.net/d4e3c2me21eou683ic6d'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            "action": "upload",
+            "file_name": "photo_${DateTime.now().millisecondsSinceEpoch}.jpg",
+            "file_data": base64,
+          }),
+        ).timeout(const Duration(seconds: 15));
 
-      final data = jsonDecode(response.body);
-      if (data['ok'] == true) {
-        setState(() { _uploadedImageUrl = data['file_url']; _isUploading = false; });
-        return data['file_url'];
+        final data = jsonDecode(response.body);
+        if (data['ok'] == true) {
+          urls.add(data['file_url']);
+        }
       }
-      setState(() => _isUploading = false);
-      return null;
     } catch (e) {
-      setState(() => _isUploading = false);
-      return null;
+      debugPrint('Upload error: $e');
     }
+
+    setState(() {
+      _isUploading = false;
+      _uploadedImageUrls = urls;
+    });
+    return urls;
   }
 
   void saveItem() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedImage == null) {
+    if (_selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пожалуйста, добавьте фото'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Добавьте хотя бы одно фото'), backgroundColor: Colors.orange),
       );
       return;
     }
@@ -138,9 +161,18 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
       builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.orange)),
     );
 
-    final imageUrl = await _uploadImage();
+    final imageUrls = await _uploadImages();
 
     if (mounted) Navigator.pop(context);
+
+    if (imageUrls.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка загрузки фото'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
 
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id') ?? 'unknown';
@@ -151,7 +183,8 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
       title: titleController.text.trim(),
       description: descriptionController.text.trim(),
       sv: currentSv,
-      imagePath: imageUrl ?? 'assets/images/bear.jpg',
+      imagePath: imageUrls.isNotEmpty ? imageUrls.first : 'assets/images/bear.jpg',
+      imagePaths: imageUrls,
       location: selectedLocation,
       category: selectedCategory,
       condition: selectedCondition,
@@ -410,64 +443,124 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
   }
 
   Widget _buildModernImagePicker() {
-    return GestureDetector(
-      onTap: _isUploading ? null : _pickImage,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        height: 220,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _selectedImage != null ? Colors.orange : Colors.grey.shade200, width: 2),
-          boxShadow: _selectedImage != null ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 4))] : null,
-          image: _selectedImage != null ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover) : null,
-        ),
-        child: _selectedImage == null
-            ? Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [Colors.orange.shade100, Colors.orange.shade200])),
-              child: const Icon(Icons.add_photo_alternate_rounded, size: 40, color: Colors.orange),
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _isUploading ? null : _pickImage,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: 220,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: _selectedImages.isNotEmpty ? Colors.orange : Colors.grey.shade200,
+                width: 2,
+              ),
+              boxShadow: _selectedImages.isNotEmpty
+                  ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 4))]
+                  : null,
+              image: _selectedImages.isNotEmpty
+                  ? DecorationImage(image: FileImage(_selectedImages.first), fit: BoxFit.cover)
+                  : null,
             ),
-            const SizedBox(height: 16),
-            const Text('Нажмите, чтобы добавить фото', style: TextStyle(color: Colors.grey, fontSize: 15)),
-            const SizedBox(height: 6),
-            Text('Первое фото будет обложкой', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-          ],
-        )
-            : Stack(
-          children: [
-            if (_uploadedImageUrl != null)
-              Positioned(top: 12, right: 12, child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.check_rounded, color: Colors.white, size: 20))),
-            if (_isUploading)
-              Center(
-                child: Container(
+            child: _selectedImages.isEmpty
+                ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
-                  child: const Column(mainAxisSize: MainAxisSize.min, children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 12),
-                    Text('Загрузка...', style: TextStyle(color: Colors.white)),
-                  ]),
-                ),
-              ),
-            if (!_isUploading)
-              Positioned(
-                bottom: 12, right: 12,
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)]),
-                    child: const Icon(Icons.swap_horiz_rounded, color: Colors.orange, size: 22),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(colors: [Colors.orange.shade100, Colors.orange.shade200]),
                   ),
+                  child: const Icon(Icons.add_photo_alternate_rounded, size: 40, color: Colors.orange),
                 ),
-              ),
-          ],
+                const SizedBox(height: 16),
+                const Text('Нажмите, чтобы добавить фото', style: TextStyle(color: Colors.grey, fontSize: 15)),
+                const SizedBox(height: 6),
+                Text('Можно добавить до 5 фото', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+              ],
+            )
+                : Stack(
+              children: [
+                if (_isUploading)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+                      child: const Column(mainAxisSize: MainAxisSize.min, children: [
+                        CircularProgressIndicator(color: Colors.white),
+                        SizedBox(height: 12),
+                        Text('Загрузка...', style: TextStyle(color: Colors.white)),
+                      ]),
+                    ),
+                  ),
+                if (!_isUploading)
+                  Positioned(
+                    bottom: 12, right: 12,
+                    child: GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)]),
+                        child: const Icon(Icons.add_photo_alternate_rounded, color: Colors.orange, size: 22),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (_selectedImages.length > 1) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 70,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _selectedImages.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          _selectedImages[index],
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 2, right: 2,
+                        child: GestureDetector(
+                          onTap: () => _removeImage(index),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
+                            child: const Icon(Icons.close, color: Colors.white, size: 14),
+                          ),
+                        ),
+                      ),
+                      if (index == 0)
+                        Positioned(
+                          bottom: 2, left: 2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
+                            child: const Text('Главное', style: TextStyle(color: Colors.white, fontSize: 8)),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

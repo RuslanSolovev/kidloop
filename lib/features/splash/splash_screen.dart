@@ -19,7 +19,10 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late AnimationController _floatController2;
   late AnimationController _floatController3;
   late AnimationController _floatController4;
+  late AnimationController _floatController5;
+  late AnimationController _floatController6;
   late AnimationController _bgController;
+  late AnimationController _sparkleController;
 
   double _progress = 0.0;
 
@@ -27,58 +30,37 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   void initState() {
     super.initState();
 
-    _logoController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
+    _logoController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
 
-    _progressController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..addListener(() {
-      setState(() {
-        _progress = _progressController.value;
+    _progressController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2800))
+      ..addListener(() {
+        setState(() => _progress = _progressController.value);
       });
-    });
 
-    _floatController1 = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat(reverse: true);
+    _floatController1 = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat(reverse: true);
+    _floatController2 = AnimationController(vsync: this, duration: const Duration(milliseconds: 2800))..repeat(reverse: true);
+    _floatController3 = AnimationController(vsync: this, duration: const Duration(milliseconds: 2100))..repeat(reverse: true);
+    _floatController4 = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))..repeat(reverse: true);
+    _floatController5 = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000))..repeat(reverse: true);
+    _floatController6 = AnimationController(vsync: this, duration: const Duration(milliseconds: 2300))..repeat(reverse: true);
 
-    _floatController2 = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    )..repeat(reverse: true);
+    _bgController = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat(reverse: true);
 
-    _floatController3 = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1900),
-    )..repeat(reverse: true);
-
-    _floatController4 = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2300),
-    )..repeat(reverse: true);
-
-    _bgController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 5),
-    )..repeat(reverse: true);
+    _sparkleController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
 
     _startAnimations();
     _checkAuth();
   }
 
   Future<void> _startAnimations() async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    _logoController.forward();
-    await Future.delayed(const Duration(milliseconds: 500));
-    _progressController.forward();
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) _logoController.forward();
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) _progressController.forward();
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(milliseconds: 3200));
+    await Future.delayed(const Duration(milliseconds: 3500));
 
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
@@ -89,16 +71,18 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         ? const MainNavigationScreen()
         : const LoginScreen();
 
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => target,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 600),
-      ),
-    );
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => target,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut), child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 700),
+        ),
+      );
+    }
   }
 
   @override
@@ -109,7 +93,10 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _floatController2.dispose();
     _floatController3.dispose();
     _floatController4.dispose();
+    _floatController5.dispose();
+    _floatController6.dispose();
     _bgController.dispose();
+    _sparkleController.dispose();
     super.dispose();
   }
 
@@ -125,14 +112,17 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color.lerp(const Color(0xFF0F0C29), const Color(0xFF1E1A4A), _bgController.value)!,
-                  Color.lerp(const Color(0xFF302B63), const Color(0xFF24243E), _bgController.value)!,
-                  Color.lerp(const Color(0xFF24243E), const Color(0xFF0F0C29), _bgController.value)!,
+                  Color.lerp(const Color(0xFF0A0A2E), const Color(0xFF1A1A4E), _bgController.value)!,
+                  Color.lerp(const Color(0xFF1A1A4E), const Color(0xFF2D2B55), _bgController.value)!,
+                  Color.lerp(const Color(0xFF2D2B55), const Color(0xFF0A0A2E), _bgController.value)!,
                 ],
               ),
             ),
             child: Stack(
               children: [
+                // Звёзды на фоне
+                ..._buildStars(),
+
                 // Парящие игрушки
                 _buildFloatingToys(),
 
@@ -141,15 +131,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Spacer(),
+                      const Spacer(flex: 2),
                       _buildLogo(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 28),
                       _buildTitle(),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       _buildSubtitle(),
-                      const Spacer(),
+                      const Spacer(flex: 2),
                       _buildCreativeProgress(),
-                      const SizedBox(height: 50),
+                      const SizedBox(height: 60),
                     ],
                   ),
                 ),
@@ -161,54 +151,55 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
   }
 
+  List<Widget> _buildStars() {
+    final random = math.Random(42);
+    final stars = <Widget>[];
+    for (int i = 0; i < 35; i++) {
+      final x = random.nextDouble();
+      final y = random.nextDouble();
+      final size = random.nextDouble() * 3 + 1;
+      final opacity = random.nextDouble() * 0.6 + 0.2;
+      final delay = random.nextDouble() * 2;
+
+      stars.add(
+        Positioned(
+          left: x * MediaQuery.of(context).size.width,
+          top: y * MediaQuery.of(context).size.height,
+          child: AnimatedBuilder(
+            animation: _sparkleController,
+            builder: (context, child) {
+              final sparkle = math.sin((_sparkleController.value + delay) * 2 * math.pi) * 0.5 + 0.5;
+              return Opacity(
+                opacity: opacity * (0.5 + sparkle * 0.5),
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+    return stars;
+  }
+
   Widget _buildFloatingToys() {
     return Stack(
       children: [
-        // Игрушка 1 – мяч
-        Positioned(
-          top: 120, left: 40,
-          child: _floatingToy(
-            controller: _floatController1,
-            size: 70, shape: BoxShape.circle,
-            gradient: const LinearGradient(colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)]),
-            icon: Icons.sports_basketball,
-            rotateFactor: 0.3,
-          ),
-        ),
-        // Игрушка 2 – кубик
-        Positioned(
-          top: 160, right: 50,
-          child: _floatingToy(
-            controller: _floatController2,
-            size: 65, shape: BoxShape.rectangle,
-            borderRadius: 16,
-            gradient: const LinearGradient(colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)]),
-            icon: Icons.grid_view,
-            rotateFactor: -0.4,
-          ),
-        ),
-        // Игрушка 3 – машинка
-        Positioned(
-          bottom: 220, left: 70,
-          child: _floatingToy(
-            controller: _floatController3,
-            size: 75, shape: BoxShape.circle,
-            gradient: const LinearGradient(colors: [Color(0xFFFFD93D), Color(0xFFFF9A3C)]),
-            icon: Icons.directions_car,
-            rotateFactor: 0.25,
-          ),
-        ),
-        // Игрушка 4 – кукла
-        Positioned(
-          bottom: 180, right: 60,
-          child: _floatingToy(
-            controller: _floatController4,
-            size: 68, shape: BoxShape.circle,
-            gradient: const LinearGradient(colors: [Color(0xFFA8E6CF), Color(0xFF88D8B0)]),
-            icon: Icons.face,
-            rotateFactor: -0.35,
-          ),
-        ),
+        // Мяч
+        Positioned(top: 100, left: 30, child: _floatingToy(controller: _floatController1, size: 65, gradient: const LinearGradient(colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)]), icon: Icons.sports_basketball, rotateFactor: 0.3)),
+        // Кубик LEGO
+        Positioned(top: 140, right: 35, child: _floatingToy(controller: _floatController2, size: 60, gradient: const LinearGradient(colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)]), icon: Icons.grid_view_rounded, rotateFactor: -0.35, borderRadius: 14)),
+        // Машинка
+        Positioned(bottom: 240, left: 55, child: _floatingToy(controller: _floatController3, size: 70, gradient: const LinearGradient(colors: [Color(0xFFFFD93D), Color(0xFFFF9A3C)]), icon: Icons.directions_car, rotateFactor: 0.25)),
+        // Самолётик
+        Positioned(bottom: 200, right: 40, child: _floatingToy(controller: _floatController4, size: 62, gradient: const LinearGradient(colors: [Color(0xFFA8E6CF), Color(0xFF88D8B0)]), icon: Icons.flight, rotateFactor: -0.3)),
+        // Звезда
+        Positioned(top: 300, left: 140, child: _floatingToy(controller: _floatController5, size: 50, gradient: const LinearGradient(colors: [Color(0xFFFFB347), Color(0xFFFFD700)]), icon: Icons.star_rounded, rotateFactor: 0.5)),
+        // Сердце
+        Positioned(top: 350, right: 120, child: _floatingToy(controller: _floatController6, size: 55, gradient: const LinearGradient(colors: [Color(0xFFFF6B9D), Color(0xFFFF3D7F)]), icon: Icons.favorite_rounded, rotateFactor: -0.4)),
       ],
     );
   }
@@ -216,22 +207,21 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   Widget _floatingToy({
     required AnimationController controller,
     required double size,
-    required BoxShape shape,
     required LinearGradient gradient,
     required IconData icon,
-    double borderRadius = 0,
     double rotateFactor = 0,
+    double borderRadius = 0,
   }) {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
         return Transform.translate(
           offset: Offset(
-            math.sin(controller.value * 2 * math.pi) * 20,
-            math.cos(controller.value * 2 * math.pi) * 25,
+            math.sin(controller.value * 2 * math.pi + 1) * 22,
+            math.cos(controller.value * 2 * math.pi + 1) * 28,
           ),
           child: Transform.rotate(
-            angle: controller.value * rotateFactor,
+            angle: controller.value * rotateFactor * 2 * math.pi,
             child: child,
           ),
         );
@@ -241,17 +231,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         height: size,
         decoration: BoxDecoration(
           gradient: gradient,
-          shape: shape,
-          borderRadius: shape == BoxShape.rectangle ? BorderRadius.circular(borderRadius) : null,
+          borderRadius: borderRadius > 0 ? BorderRadius.circular(borderRadius) : null,
+          shape: borderRadius == 0 ? BoxShape.circle : BoxShape.rectangle,
           boxShadow: [
-            BoxShadow(
-              color: gradient.colors.first.withOpacity(0.5),
-              blurRadius: 25,
-              spreadRadius: 4,
-            ),
+            BoxShadow(color: gradient.colors.first.withOpacity(0.55), blurRadius: 30, spreadRadius: 5),
+            BoxShadow(color: Colors.white.withOpacity(0.08), blurRadius: 15, spreadRadius: -3),
           ],
         ),
-        child: Icon(icon, color: Colors.white, size: size * 0.45),
+        child: Icon(icon, color: Colors.white, size: size * 0.42, shadows: const [Shadow(color: Colors.black26, blurRadius: 8)]),
       ),
     );
   }
@@ -260,39 +247,30 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     return AnimatedBuilder(
       animation: _logoController,
       builder: (context, child) {
+        final scale = Curves.elasticOut.transform(_logoController.value.clamp(0.0, 1.0));
         return Transform.scale(
-          scale: Curves.elasticOut.transform(_logoController.value),
-          child: Opacity(
-            opacity: _logoController.value,
-            child: child,
-          ),
+          scale: scale,
+          child: Opacity(opacity: _logoController.value.clamp(0.0, 1.0), child: child),
         );
       },
       child: Container(
-        width: 130,
-        height: 130,
+        width: 140,
+        height: 140,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFFF6B6B), Color(0xFFE94560), Color(0xFFFF8E8E)],
+            colors: [Color(0xFFFF6B6B), Color(0xFFE94560), Color(0xFFFF477E)],
           ),
           boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF6B6B).withOpacity(0.6),
-              blurRadius: 35,
-              spreadRadius: 8,
-            ),
-            BoxShadow(
-              color: Colors.white.withOpacity(0.15),
-              blurRadius: 20,
-              spreadRadius: -5,
-            ),
+            BoxShadow(color: const Color(0xFFFF6B6B).withOpacity(0.7), blurRadius: 40, spreadRadius: 10),
+            BoxShadow(color: const Color(0xFFFF477E).withOpacity(0.4), blurRadius: 60, spreadRadius: 15),
+            BoxShadow(color: Colors.white.withOpacity(0.12), blurRadius: 25, spreadRadius: -8),
           ],
         ),
         child: const Center(
-          child: Icon(Icons.cake, size: 65, color: Colors.white),
+          child: Icon(Icons.toys_rounded, size: 70, color: Colors.white, shadows: [Shadow(color: Colors.black26, blurRadius: 10)]),
         ),
       ),
     );
@@ -303,23 +281,29 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       animation: _logoController,
       builder: (context, child) {
         return Opacity(
-          opacity: _logoController.value,
+          opacity: _logoController.value.clamp(0.0, 1.0),
           child: Transform.translate(
-            offset: Offset(0, 20 * (1 - _logoController.value)),
+            offset: Offset(0, 30 * (1 - _logoController.value.clamp(0.0, 1.0))),
             child: child,
           ),
         );
       },
-      child: const Text(
-        "KidLoop",
-        style: TextStyle(
-          fontSize: 52,
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-          letterSpacing: 3,
-          shadows: [
-            Shadow(color: Color(0xFFFF6B6B), blurRadius: 25),
-          ],
+      child: ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E), Color(0xFFFFD93D)],
+        ).createShader(bounds),
+        child: const Text(
+          "KidLoop",
+          style: TextStyle(
+            fontSize: 56,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: 4,
+            shadows: [
+              Shadow(color: Color(0xFFFF6B6B), blurRadius: 30),
+              Shadow(color: Colors.white24, blurRadius: 10),
+            ],
+          ),
         ),
       ),
     );
@@ -330,16 +314,23 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       animation: _logoController,
       builder: (context, child) {
         return Opacity(
-          opacity: _logoController.value * 0.8,
-          child: child,
+          opacity: (_logoController.value * 0.85).clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 15 * (1 - _logoController.value.clamp(0.0, 1.0))),
+            child: child,
+          ),
         );
       },
-      child: Text(
-        "Делитесь игрушками с любовью 💝",
-        style: TextStyle(
-          fontSize: 16,
-          color: Colors.white.withOpacity(0.7),
-          letterSpacing: 0.8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: const Text(
+          "🧸 Делитесь игрушками с любовью 💝",
+          style: TextStyle(fontSize: 15, color: Colors.white70, letterSpacing: 0.6),
         ),
       ),
     );
@@ -350,62 +341,63 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       animation: _logoController,
       builder: (context, child) {
         return Opacity(
-          opacity: _logoController.value,
+          opacity: _logoController.value.clamp(0.0, 1.0),
           child: child,
         );
       },
       child: Container(
-        width: 260,
+        width: 280,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
         child: Column(
           children: [
             // Прогресс-бар
             Container(
-              height: 10,
+              height: 8,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: _progress,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: _progress,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFFFF6B6B), Color(0xFFFF477E), Color(0xFFFFD93D)]),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [BoxShadow(color: const Color(0xFFFF6B6B).withOpacity(0.6), blurRadius: 14, spreadRadius: 2)],
                     ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6B6B).withOpacity(0.8),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
 
             // Иконки этапов
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildProgressToy(Icons.sports_basketball, 0.0),
-                _buildProgressToy(Icons.grid_view, 0.33),
-                _buildProgressToy(Icons.directions_car, 0.66),
-                _buildProgressToy(Icons.face, 1.0),
+                _buildProgressToy(Icons.inventory_2_rounded, 0.0, 'Вещи'),
+                _buildProgressToy(Icons.swap_horiz_rounded, 0.33, 'Обмен'),
+                _buildProgressToy(Icons.check_circle_rounded, 0.66, 'Сделка'),
+                _buildProgressToy(Icons.celebration_rounded, 1.0, 'Готово'),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
             // Текст статуса
-            Text(
-              _getLoadingText(),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 15,
-                letterSpacing: 0.5,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Text(
+                _getLoadingText(),
+                key: ValueKey(_getLoadingText()),
+                style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 14, letterSpacing: 0.4),
               ),
             ),
           ],
@@ -414,39 +406,46 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildProgressToy(IconData icon, double threshold) {
+  Widget _buildProgressToy(IconData icon, double threshold, String label) {
     final bool isActive = _progress >= threshold;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        gradient: isActive ? const LinearGradient(
-          colors: [Color(0xFFFF6B6B), Color(0xFFE94560)],
-        ) : null,
-        color: isActive ? null : Colors.white.withOpacity(0.15),
-        shape: BoxShape.circle,
-        boxShadow: isActive ? [
-          BoxShadow(
-            color: const Color(0xFFFF6B6B).withOpacity(0.6),
-            blurRadius: 12,
-            spreadRadius: 2,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutBack,
+      child: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: isActive ? const LinearGradient(colors: [Color(0xFFFF6B6B), Color(0xFFE94560)]) : null,
+              color: isActive ? null : Colors.white.withOpacity(0.1),
+              shape: BoxShape.circle,
+              boxShadow: isActive ? [BoxShadow(color: const Color(0xFFFF6B6B).withOpacity(0.5), blurRadius: 14, spreadRadius: 2)] : null,
+              border: !isActive ? Border.all(color: Colors.white.withOpacity(0.15)) : null,
+            ),
+            child: Icon(icon, color: isActive ? Colors.white : Colors.white.withOpacity(0.35), size: 22),
           ),
-        ] : null,
-      ),
-      child: Icon(
-        icon,
-        color: isActive ? Colors.white : Colors.white.withOpacity(0.4),
-        size: 22,
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.white70 : Colors.white.withOpacity(0.3),
+              fontSize: 10,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   String _getLoadingText() {
-    if (_progress < 0.25) return "Подготовка игрушек...";
-    if (_progress < 0.5) return "Сортировка мячиков...";
-    if (_progress < 0.75) return "Полировка кубиков...";
-    if (_progress < 1.0) return "Почти готово...";
-    return "Добро пожаловать!";
+    if (_progress < 0.15) return "🎨 Собираем игрушки...";
+    if (_progress < 0.35) return "🧩 Сортируем LEGO...";
+    if (_progress < 0.55) return "🚗 Проверяем машинки...";
+    if (_progress < 0.75) return "🧸 Упаковываем кукол...";
+    if (_progress < 0.95) return "✨ Почти готово...";
+    return "🎉 Добро пожаловать в KidLoop!";
   }
 }

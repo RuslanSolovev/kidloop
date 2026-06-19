@@ -1,9 +1,11 @@
+// item_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/item_model.dart';
 import '../../../core/items_provider.dart';
 import '../my_items/select_item_to_trade_screen.dart';
 import '../profile/public_profile_screen.dart';
+import '../../widgets/image_gallery_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -68,20 +70,11 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
             flexibleSpace: FlexibleSpaceBar(
               background: Hero(
                 tag: 'item_image_${item.itemId}',
-                child: CachedNetworkImage(
-                  imageUrl: item.imagePath,
-                  fit: BoxFit.cover,
-                  fadeInDuration: const Duration(milliseconds: 300),
-                  placeholder: (_, __) => Container(
-                    color: Colors.grey.shade100,
-                    child: const Center(child: CircularProgressIndicator(color: Colors.orange)),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    color: Colors.grey.shade100,
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported, size: 60, color: Colors.grey),
-                    ),
-                  ),
+                child: ImageGalleryWidget(
+                  imageUrls: item.imagePaths,
+                  height: 300,
+                  borderRadius: 0,
+                  showIndicators: true,
                 ),
               ),
             ),
@@ -92,22 +85,17 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Название и SV
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(item.title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-                      ),
+                      Expanded(child: Text(item.title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
                       const SizedBox(width: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange]),
                           borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 3)),
-                          ],
+                          boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 3))],
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -121,12 +109,8 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Описание
                   Text(item.description, style: TextStyle(fontSize: 16, color: Colors.grey.shade700, height: 1.5)),
                   const SizedBox(height: 20),
-
-                  // Бейджи
                   Wrap(
                     spacing: 8, runSpacing: 8,
                     children: [
@@ -137,11 +121,7 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
                     ],
                   ),
                   const SizedBox(height: 30),
-
-                  // ВЛАДЕЛЕЦ
                   _buildOwnerCard(),
-
-                  // 🔥 Кнопка обмена ТОЛЬКО для чужих вещей
                   if (!item.isMine) ...[
                     const SizedBox(height: 20),
                     SizedBox(
@@ -151,9 +131,7 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => SelectItemToTradeScreen(wantedItem: item),
-                            ),
+                            MaterialPageRoute(builder: (_) => SelectItemToTradeScreen(wantedItem: item)),
                           );
                         },
                         icon: const Icon(Icons.swap_horiz),
@@ -181,14 +159,8 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
     if (_loadingOwner) {
       return Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: const Center(
-          child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange)),
-        ),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+        child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))),
       );
     }
 
@@ -202,9 +174,7 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: isMine ? Colors.orange.withOpacity(0.3) : Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: [
@@ -213,10 +183,7 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
             backgroundColor: Colors.orange.shade100,
             backgroundImage: avatarUrl.isNotEmpty ? CachedNetworkImageProvider(avatarUrl) : null,
             child: avatarUrl.isEmpty
-                ? Text(
-              (name.isNotEmpty ? name[0] : '?').toUpperCase(),
-              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22),
-            )
+                ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22))
                 : null,
           ),
           const SizedBox(width: 16),
@@ -224,36 +191,18 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isMine ? 'Это ваша вещь' : 'Владелец',
-                  style: TextStyle(color: isMine ? Colors.orange : Colors.grey, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
+                Text(isMine ? 'Это ваша вещь' : 'Владелец', style: TextStyle(color: isMine ? Colors.orange : Colors.grey, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text(
-                  name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
           if (!isMine)
             OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PublicProfileScreen(userId: widget.item.ownerId),
-                  ),
-                );
-              },
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: widget.item.ownerId))),
               icon: const Icon(Icons.person, size: 18),
               label: const Text('Профиль'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.orange,
-                side: const BorderSide(color: Colors.orange),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.orange, side: const BorderSide(color: Colors.orange), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
             ),
         ],
       ),
@@ -263,19 +212,12 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
   Widget _buildBadge({required IconData icon, required String label, required Color color}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
-        ],
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.3))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+      ]),
     );
   }
 }

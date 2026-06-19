@@ -17,7 +17,6 @@ class ItemsProvider extends ChangeNotifier {
 
   final Map<String, Map<String, dynamic>> _profileCache = {};
 
-  // 🔥 Очистка при выходе
   void clearItems() {
     _items.clear();
     _profileCache.clear();
@@ -48,18 +47,33 @@ class ItemsProvider extends ChangeNotifier {
       if (data['ok'] == true) {
         _items.clear();
         for (final item in data['items']) {
+          // 🔥 Парсим image_paths
+          final imagePathsRaw = item['image_paths'];
+          List<String> imagePaths = [];
+          if (imagePathsRaw is List) {
+            imagePaths = imagePathsRaw.cast<String>();
+          } else if (item['image_path'] != null && item['image_path'].toString().isNotEmpty) {
+            imagePaths = [item['image_path'].toString()];
+          }
+          if (imagePaths.isEmpty) {
+            imagePaths = ['assets/images/bear.jpg'];
+          }
+
           _items.add(Item(
-            itemId: item['item_id'] ?? '',
-            ownerId: item['user_id'] ?? '',
-            title: item['title'] ?? '',
-            description: item['description'] ?? '',
-            sv: item['sv'] ?? 50,
-            imagePath: item['image_path'] ?? 'assets/images/bear.jpg',
-            location: item['location'] ?? '',
-            category: item['category'] ?? 'Игрушки',
-            condition: item['condition'] ?? 'Хороший',
-            isMine: item['user_id'] == _currentUserId,
-            status: item['status'] ?? 'available',
+            itemId: item['item_id']?.toString() ?? '',
+            ownerId: item['user_id']?.toString() ?? '',
+            title: item['title']?.toString() ?? '',
+            description: item['description']?.toString() ?? '',
+            sv: (item['sv'] ?? 0) is int ? item['sv'] : int.tryParse(item['sv'].toString()) ?? 0,
+            imagePath: imagePaths.isNotEmpty ? imagePaths.first : 'assets/images/bear.jpg',
+            imagePaths: imagePaths,
+            location: item['location']?.toString() ?? '',
+            category: item['category']?.toString() ?? 'Игрушки',
+            condition: item['condition']?.toString() ?? 'Хороший',
+            isMine: item['user_id']?.toString() == _currentUserId,
+            status: item['status']?.toString() ?? 'available',
+            latitude: item['latitude'] != null ? (item['latitude'] as num).toDouble() : null,
+            longitude: item['longitude'] != null ? (item['longitude'] as num).toDouble() : null,
           ));
         }
       }
@@ -161,7 +175,8 @@ class ItemsProvider extends ChangeNotifier {
       title: item.title,
       description: item.description,
       sv: item.sv,
-      imagePath: item.imagePath,
+      imagePath: item.imagePaths.isNotEmpty ? item.imagePaths.first : item.imagePath,
+      imagePaths: item.imagePaths,
       location: item.location,
       category: item.category,
       condition: item.condition,
@@ -182,7 +197,8 @@ class ItemsProvider extends ChangeNotifier {
           "title": item.title,
           "description": item.description,
           "sv": item.sv,
-          "image_path": item.imagePath,
+          "image_path": item.imagePaths.isNotEmpty ? item.imagePaths.first : item.imagePath,
+          "image_paths": item.imagePaths,
           "location": item.location,
           "category": item.category,
           "condition": item.condition,

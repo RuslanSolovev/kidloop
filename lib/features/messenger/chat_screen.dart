@@ -1,11 +1,14 @@
-// chat_screen.dart - 100% РАБОЧИЙ МГНОВЕННЫЙ UI
+// chat_screen.dart - С ОТПРАВКОЙ ФОТО И ПРАВИЛЬНЫМ ПОРЯДКОМ
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -39,9 +42,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _replyToMessageData;
   String? _editingMessageId;
   int _totalMessages = 0;
-  final Set<String> _pendingIds = {}; // Отслеживаем временные ID
+  final Set<String> _pendingIds = {};
 
   static const String chatApiUrl = 'https://functions.yandexcloud.net/d4e40k9g2avoblb1of29';
+  static const String uploadApiUrl = 'https://functions.yandexcloud.net/d4e3c2me21eou683ic6d';
   static const String _cacheKey = 'chat_messages_cache';
 
   @override
@@ -128,24 +132,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (data['ok'] == true) {
         final serverMessages = (data['messages'] as List).cast<Map<String, dynamic>>();
 
-        // СОХРАНЯЕМ pending сообщения (которые ещё не подтверждены сервером)
+        // Сохраняем pending сообщения
         final pendingMessages = _messages.where((m) {
           final id = m['message_id'].toString();
           return id.startsWith('temp_') || _pendingIds.contains(id);
         }).toList();
 
-        // Убираем pending, которые уже есть на сервере (по тексту и времени)
+        // Убираем дубликаты
         final filteredPending = pendingMessages.where((pending) {
           final pendingText = pending['text'] ?? '';
-          final pendingTime = pending['created_at'] ?? '';
+          final pendingImage = pending['image_url'] ?? '';
           return !serverMessages.any((server) =>
-          server['text'] == pendingText &&
-              server['sender_id'] == _currentUserId
+          (server['text'] == pendingText && server['sender_id'] == _currentUserId) ||
+              (server['image_url'] == pendingImage && pendingImage.isNotEmpty)
           );
         }).toList();
 
         setState(() {
-          _messages = [...filteredPending, ...serverMessages];
+          _messages = [...serverMessages, ...filteredPending];
           _totalMessages = _messages.length;
           _initialLoading = false;
           _loadError = null;
@@ -165,11 +169,197 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  // 🔥 ОТПРАВКА ФОТО С ТЕКСТОМ
+  Future<void> _pickAndSendImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (picked == null) return;
+
+    // 🔥 Показываем диалог для ввода текста к фото
+    final textController = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Добавить подпись'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(picked.path),
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textController,
+              autofocus: true,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Подпись к фото (необязательно)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, textController.text.trim()),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Отправить'),
+          ),
+        ],
+      ),
+    );
+
+    if (text == null || !mounted) return; // Отмена
+
+    setState(() => _sending = true);
+
+    try {
+      final bytes = await File(picked.path).readAsBytes();
+      final base64 = base64Encode(bytes);
+
+      final uploadResponse = await http.post(
+        Uri.parse(uploadApiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "action": "upload",
+          "file_name": "chat_${DateTime.now().millisecondsSinceEpoch}.jpg",
+          "file_data": base64,
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      final uploadData = jsonDecode(uploadResponse.body);
+      if (uploadData['ok'] == true) {
+        final imageUrl = uploadData['file_url'];
+        await _sendImageMessage(imageUrl, text: text.isNotEmpty ? text : null);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ошибка загрузки фото'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Image upload error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка загрузки фото'), backgroundColor: Colors.red),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _sending = false);
+  }
+
+  Future<void> _sendImageMessage(String imageUrl, {String? text}) async {
+    if (!mounted) return;
+
+    final replyIdSnapshot = _replyToMessageId;
+    final replyDataSnapshot = _replyToMessageData != null
+        ? Map<String, dynamic>.from(_replyToMessageData!)
+        : null;
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+
+    _pendingIds.add(tempId);
+
+    final optimisticMsg = <String, dynamic>{
+      'message_id': tempId,
+      'sender_id': _currentUserId,
+      'text': text ?? '',
+      'image_url': imageUrl,
+      'sender_name': _currentUserName ?? 'Вы',
+      'sender_avatar': _currentUserAvatar ?? '',
+      'created_at': DateTime.now().toIso8601String(),
+      'status': 'sending',
+      if (replyIdSnapshot != null) 'reply_to': replyIdSnapshot,
+      if (replyIdSnapshot != null && replyDataSnapshot != null)
+        'reply_to_message': {
+          'message_id': replyDataSnapshot['message_id'],
+          'text': replyDataSnapshot['text'] ?? '',
+          'image_url': replyDataSnapshot['image_url'] ?? '',
+          'sender_name': replyDataSnapshot['sender_name'] ?? '',
+          'sender_avatar': replyDataSnapshot['sender_avatar'] ?? '',
+        },
+    };
+
+    setState(() {
+      _messages.add(optimisticMsg);
+      _replyToMessageId = null;
+      _replyToMessageData = null;
+      _totalMessages = _messages.length;
+    });
+
+    _scrollToBottom();
+
+    try {
+      final body = <String, dynamic>{
+        "action": "send-message",
+        "chat_id": widget.chatId,
+        "sender_id": _currentUserId,
+        "text": text ?? '',
+        "image_url": imageUrl,
+      };
+      if (replyIdSnapshot != null) body["reply_to"] = replyIdSnapshot;
+
+      final response = await http.post(
+        Uri.parse(chatApiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+      final data = jsonDecode(response.body);
+
+      if (data['ok'] == true) {
+        final newId = data['message_id'] ?? tempId;
+        _pendingIds.remove(tempId);
+        _pendingIds.add(newId);
+
+        setState(() {
+          final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
+          if (idx != -1) {
+            _messages[idx]['message_id'] = newId;
+            _messages[idx]['status'] = 'sent';
+          }
+        });
+
+        await _loadMessages();
+        _pendingIds.remove(newId);
+        await _cacheMessages();
+      } else {
+        _pendingIds.remove(tempId);
+        setState(() {
+          final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
+          if (idx != -1) _messages[idx]['status'] = 'failed';
+        });
+      }
+    } catch (e) {
+      debugPrint('Send image error: $e');
+      if (!mounted) return;
+      _pendingIds.remove(tempId);
+      setState(() {
+        final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
+        if (idx != -1) _messages[idx]['status'] = 'failed';
+      });
+    }
+  }
+
+  // 🔥 ОТПРАВКА ТЕКСТОВОГО СООБЩЕНИЯ
   Future<void> _handleSendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty || _sending || !mounted) return;
 
-    // Блокируем кнопку
     setState(() => _sending = true);
 
     final isEditing = _editingMessageId != null;
@@ -180,10 +370,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         : null;
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
-    // Добавляем в pending
     _pendingIds.add(tempId);
 
-    // 🔥 СОЗДАЁМ ОПТИМИСТИЧНОЕ СООБЩЕНИЕ
     final optimisticMsg = <String, dynamic>{
       'message_id': tempId,
       'sender_id': _currentUserId,
@@ -203,14 +391,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         },
     };
 
-    // Удаляем оригинал при редактировании
     if (isEditing) {
       _messages.removeWhere((m) => m['message_id'] == editingIdSnapshot);
     }
 
-    // 🔥 МГНОВЕННО ДОБАВЛЯЕМ В UI
+    // 🔥 Добавляем в КОНЕЦ списка
     setState(() {
-      _messages.insert(0, optimisticMsg);
+      _messages.add(optimisticMsg);
       _editingMessageId = null;
       _replyToMessageId = null;
       _replyToMessageData = null;
@@ -220,7 +407,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _textController.clear();
     _scrollToBottom();
 
-    // ОТПРАВЛЯЕМ НА СЕРВЕР
     try {
       Map<String, dynamic> body;
 
@@ -252,7 +438,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       final data = jsonDecode(response.body);
 
       if (data['ok'] == true) {
-        // 🔥 УСПЕХ - обновляем ID и статус
         final newId = data['message_id'] ?? tempId;
         _pendingIds.remove(tempId);
         _pendingIds.add(newId);
@@ -265,18 +450,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           }
         });
 
-        // Подгружаем свежие данные с сервера
         await _loadMessages();
         _pendingIds.remove(newId);
         await _cacheMessages();
       } else {
-        // Ошибка от сервера
         _pendingIds.remove(tempId);
         setState(() {
           final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
-          if (idx != -1) {
-            _messages[idx]['status'] = 'failed';
-          }
+          if (idx != -1) _messages[idx]['status'] = 'failed';
         });
 
         if (mounted) {
@@ -288,25 +469,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('SEND Error: $e');
       if (!mounted) return;
-
       _pendingIds.remove(tempId);
       setState(() {
         final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
-        if (idx != -1) {
-          _messages[idx]['status'] = 'failed';
-        }
+        if (idx != -1) _messages[idx]['status'] = 'failed';
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ошибка сети'), backgroundColor: Colors.red),
-        );
-      }
     }
 
-    if (mounted) {
-      setState(() => _sending = false);
-    }
+    if (mounted) setState(() => _sending = false);
   }
 
   Future<void> _deleteMessage(String messageId) async {
@@ -341,14 +511,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
       if (data['ok'] != true) {
         setState(() {
-          _messages.insert(0, deletedMsg);
+          _messages.add(deletedMsg);
           _totalMessages = _messages.length;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _messages.insert(0, deletedMsg);
+        _messages.add(deletedMsg);
         _totalMessages = _messages.length;
       });
     }
@@ -365,13 +535,181 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _startEditMessage(Map<String, dynamic> message) {
     if (!mounted) return;
-    _textController.text = message['text'] ?? '';
-    setState(() {
-      _editingMessageId = message['message_id'];
-      _replyToMessageId = null;
-      _replyToMessageData = null;
-    });
-    FocusScope.of(context).requestFocus();
+
+    final hasImage = message['image_url'] != null && message['image_url'].toString().isNotEmpty;
+
+    if (hasImage) {
+      // 🔥 Для сообщений с фото показываем диалог
+      _showEditImageDialog(message);
+    } else {
+      // Обычное редактирование текста
+      _textController.text = message['text'] ?? '';
+      _textController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _textController.text.length),
+      );
+      setState(() {
+        _editingMessageId = message['message_id'];
+        _replyToMessageId = null;
+        _replyToMessageData = null;
+      });
+      FocusScope.of(context).requestFocus();
+    }
+  }
+
+// 🔥 Диалог редактирования фото
+  void _showEditImageDialog(Map<String, dynamic> message) {
+    final textController = TextEditingController(text: message['text'] ?? '');
+    String? newImageUrl = message['image_url'];
+    File? newImageFile;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Редактировать фото и текст сообщения'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Текущее или новое фото
+              GestureDetector(
+                onTap: () async {
+                  final picker = ImagePicker();
+                  final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+                  if (picked != null) {
+                    setDialogState(() => newImageFile = File(picked.path));
+                  }
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: newImageFile != null
+                      ? Image.file(newImageFile!, height: 150, width: double.infinity, fit: BoxFit.cover)
+                      : newImageUrl != null && newImageUrl!.isNotEmpty
+                      ? CachedNetworkImage(
+                    imageUrl: newImageUrl!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(height: 150, color: Colors.grey.shade200, child: const Center(child: CircularProgressIndicator())),
+                    errorWidget: (_, __, ___) => Container(height: 150, color: Colors.grey.shade200, child: const Center(child: Icon(Icons.broken_image, size: 40))),
+                  )
+                      : Container(height: 150, color: Colors.grey.shade200, child: const Center(child: Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey))),
+                ),
+              ),
+              if (newImageFile != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: TextButton(
+                    onPressed: () => setDialogState(() { newImageFile = null; newImageUrl = null; }),
+                    child: const Text('Удалить фото'),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: textController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Подпись к фото',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _editImageMessage(
+                  message['message_id'],
+                  textController.text.trim(),
+                  newImageFile,
+                  newImageUrl,
+                );
+              },
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+// 🔥 Сохранение отредактированного фото-сообщения
+  Future<void> _editImageMessage(String messageId, String text, File? newImageFile, String? currentImageUrl) async {
+    if (!mounted) return;
+
+    setState(() => _sending = true);
+
+    String? finalImageUrl = currentImageUrl;
+
+    // Если выбрали новое фото - загружаем его
+    if (newImageFile != null) {
+      try {
+        final bytes = await newImageFile.readAsBytes();
+        final base64 = base64Encode(bytes);
+
+        final uploadResponse = await http.post(
+          Uri.parse(uploadApiUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            "action": "upload",
+            "file_name": "chat_edit_${DateTime.now().millisecondsSinceEpoch}.jpg",
+            "file_data": base64,
+          }),
+        ).timeout(const Duration(seconds: 20));
+
+        final uploadData = jsonDecode(uploadResponse.body);
+        if (uploadData['ok'] == true) {
+          finalImageUrl = uploadData['file_url'];
+        }
+      } catch (e) {
+        debugPrint('Edit image upload error: $e');
+      }
+    }
+
+    // Отправляем изменения
+    try {
+      final response = await http.post(
+        Uri.parse(chatApiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "action": "edit-message",
+          "chat_id": widget.chatId,
+          "sender_id": _currentUserId,
+          "message_id": messageId,
+          "text": text,
+          "image_url": finalImageUrl ?? '',
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+      final data = jsonDecode(response.body);
+
+      if (data['ok'] == true) {
+        await _loadMessages();
+        await _cacheMessages();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(data['errorMessage'] ?? 'Ошибка редактирования'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка сети'), backgroundColor: Colors.red),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _sending = false);
   }
 
   void _cancelEdit() {
@@ -404,7 +742,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       if (_scrollController.hasClients && _messages.isNotEmpty) {
         _scrollController.animateTo(
-          0,
+          _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
         );
@@ -516,7 +854,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _buildLoadingSkeleton() {
     return ListView.builder(
-      reverse: true,
       padding: EdgeInsets.zero,
       itemCount: 6,
       itemBuilder: (context, index) {
@@ -591,17 +928,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildMessagesList() {
+    // 🔥 Максимальный размер изображения в чате (примерно 2/3 от ширины сообщения)
+    final imageMaxWidth = MediaQuery.of(context).size.width * 0.45;
+
     return ListView.builder(
       controller: _scrollController,
-      reverse: true,
       padding: const EdgeInsets.only(bottom: 8),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
-        final msg = _messages[_messages.length - 1 - index];
+        final msg = _messages[index];
         final isMine = msg['sender_id'] == _currentUserId;
         final senderName = msg['sender_name'] ?? '';
         final senderAvatar = msg['sender_avatar'] ?? '';
         final text = msg['text'] ?? '';
+        final imageUrl = msg['image_url'] ?? '';
         final time = msg['created_at'] ?? '';
         final isEdited = msg['is_edited'] == true;
         final status = msg['status']?.toString() ?? 'read';
@@ -680,13 +1020,77 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (isMine ? Colors.white : Colors.orange).withOpacity(0.8))),
                                     ]),
                                     const SizedBox(height: 4),
+                                    if (replyToData['image_url'] != null && replyToData['image_url'].toString().isNotEmpty)
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: CachedNetworkImage(
+                                          imageUrl: replyToData['image_url'],
+                                          height: 60,
+                                          width: 60,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
                                     Text(replyToData['text'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis,
                                         style: TextStyle(fontSize: 13, color: (isMine ? Colors.white : Colors.black87).withOpacity(0.7), fontStyle: FontStyle.italic)),
                                   ],
                                 ),
                               ),
 
-                            Text(text, style: TextStyle(fontSize: 16, color: isMine ? Colors.white : Colors.black87)),
+                            // 🔥 Фото в сообщении (уменьшенный размер и без рамок у плейсхолдера)
+                            if (imageUrl.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: GestureDetector(
+                                  onTap: () => _showFullImage(imageUrl),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: imageMaxWidth,
+                                        maxHeight: imageMaxWidth * 1.2,
+                                      ),
+                                      child: CachedNetworkImage(
+                                        imageUrl: imageUrl,
+                                        fit: BoxFit.cover,
+                                        width: imageMaxWidth,
+                                        placeholder: (_, __) => Container(
+                                          // 🔥 Точно такой же размер как у фото
+                                          width: imageMaxWidth,
+                                          height: imageMaxWidth * 0.8,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.orange,
+                                            ),
+                                          ),
+                                        ),
+                                        errorWidget: (_, __, ___) => Container(
+                                          width: imageMaxWidth,
+                                          height: imageMaxWidth * 0.6,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.broken_image,
+                                              size: 30,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                            if (text.isNotEmpty)
+                              Text(text, style: TextStyle(fontSize: 16, color: isMine ? Colors.white : Colors.black87)),
                             const SizedBox(height: 4),
 
                             Align(
@@ -730,6 +1134,61 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
         );
       },
+    );
+  }
+
+  // 🔥 Полноэкранный просмотр изображения
+  void _showFullImage(String url) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.white, size: 20),
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: double.infinity,
+                placeholder: (_, __) => const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+                errorWidget: (_, __, ___) => const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image, size: 60, color: Colors.white54),
+                      SizedBox(height: 8),
+                      Text(
+                        'Не удалось загрузить изображение',
+                        style: TextStyle(color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -828,7 +1287,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, border: Border(top: BorderSide(color: Colors.grey.shade200))),
           child: SafeArea(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // 🔥 Кнопка фото
+                IconButton(
+                  icon: const Icon(Icons.image_rounded, color: Colors.orange),
+                  onPressed: _pickAndSendImage,
+                  padding: const EdgeInsets.only(bottom: 8),
+                ),
                 Expanded(
                   child: TextField(
                     controller: _textController,
@@ -851,6 +1317,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))
                       : Icon(_editingMessageId != null ? Icons.check_rounded : Icons.send_rounded, color: Colors.orange, size: 24),
                   onPressed: _sending ? null : _handleSendMessage,
+                  padding: const EdgeInsets.only(bottom: 8),
                 ),
               ],
             ),

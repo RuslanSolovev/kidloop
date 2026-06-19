@@ -52,51 +52,116 @@ class _TradeDiscussionScreenState extends State<TradeDiscussionScreen> {
     try {
       final cacheKey = '${widget.offer.fromItemId}_${widget.offer.toItemId}';
       if (_imageCache.containsKey('${cacheKey}_from')) {
-        setState(() {
-          _fromImageUrl = _imageCache['${cacheKey}_from'];
-          _toImageUrl = _imageCache['${cacheKey}_to'];
-          _isLoadingDetails = false;
-        });
+        if (mounted) {
+          setState(() {
+            _fromImageUrl = _imageCache['${cacheKey}_from'];
+            _toImageUrl = _imageCache['${cacheKey}_to'];
+            _isLoadingDetails = false;
+          });
+        }
         return;
       }
 
+      print('🔍 Loading items: from=${widget.offer.fromItemId}, to=${widget.offer.toItemId}');
+
+      // 🔥 Загружаем ВСЕ items (без фильтра по статусу)
+      final response = await http.post(
+        Uri.parse('https://functions.yandexcloud.net/d4ei9an1aushareidmjc'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "action": "list",
+          "limit": 100, // 🔥 Большой лимит
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+
+      final data = jsonDecode(response.body);
+      print('📦 Items count: ${data['items']?.length}');
+
+      if (data['ok'] == true) {
+        bool foundFrom = false;
+        bool foundTo = false;
+
+        for (final item in data['items']) {
+          final itemId = item['item_id']?.toString() ?? '';
+
+          if (itemId == widget.offer.fromItemId) {
+            foundFrom = true;
+            final img = item['image_path']?.toString() ?? '';
+            final sv = int.tryParse(item['sv']?.toString() ?? '0') ?? 0;
+            print('✅ FROM FOUND: sv=$sv img=$img');
+            if (mounted) {
+              setState(() {
+                _fromImageUrl = img;
+                _fromSv = sv;
+                _fromDescription = item['description']?.toString() ?? '';
+                _fromCondition = item['condition']?.toString() ?? '';
+                _fromCategory = item['category']?.toString() ?? '';
+              });
+            }
+            _imageCache['${cacheKey}_from'] = img;
+          }
+
+          if (itemId == widget.offer.toItemId) {
+            foundTo = true;
+            final img = item['image_path']?.toString() ?? '';
+            final sv = int.tryParse(item['sv']?.toString() ?? '0') ?? 0;
+            print('✅ TO FOUND: sv=$sv img=$img');
+            if (mounted) {
+              setState(() {
+                _toImageUrl = img;
+                _toSv = sv;
+                _toDescription = item['description']?.toString() ?? '';
+                _toCondition = item['condition']?.toString() ?? '';
+                _toCategory = item['category']?.toString() ?? '';
+              });
+            }
+            _imageCache['${cacheKey}_to'] = img;
+          }
+
+          if (foundFrom && foundTo) break;
+        }
+
+        if (!foundFrom) print('❌ FROM ITEM NOT FOUND in list!');
+        if (!foundTo) print('❌ TO ITEM NOT FOUND in list!');
+      }
+    } catch (e) {
+      print("❌ ERROR: $e");
+    } finally {
+      if (mounted) setState(() => _isLoadingDetails = false);
+    }
+  }
+
+
+  // 🔥 Запасной метод загрузки одного фото по item_id
+  Future<String> _loadSingleItemImage(String itemId) async {
+    try {
       final response = await http.post(
         Uri.parse('https://functions.yandexcloud.net/d4ei9an1aushareidmjc'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "list"}),
-      );
+      ).timeout(const Duration(seconds: 10));
+
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
         for (final item in data['items']) {
-          if (item['item_id'] == widget.offer.fromItemId) {
-            final url = item['image_path'] ?? '';
-            setState(() {
-              _fromImageUrl = url;
-              _fromSv = item['sv'] ?? 0;
-              _fromDescription = item['description'] ?? '';
-              _fromCondition = item['condition'] ?? '';
-              _fromCategory = item['category'] ?? '';
-            });
-            _imageCache['${cacheKey}_from'] = url;
-          }
-          if (item['item_id'] == widget.offer.toItemId) {
-            final url = item['image_path'] ?? '';
-            setState(() {
-              _toImageUrl = url;
-              _toSv = item['sv'] ?? 0;
-              _toDescription = item['description'] ?? '';
-              _toCondition = item['condition'] ?? '';
-              _toCategory = item['category'] ?? '';
-            });
-            _imageCache['${cacheKey}_to'] = url;
+          if (item['item_id'] == itemId) {
+            // Парсим image_paths
+            if (item['image_paths'] is List && (item['image_paths'] as List).isNotEmpty) {
+              return (item['image_paths'] as List).first.toString();
+            } else if (item['image_path'] != null && item['image_path'].toString().isNotEmpty) {
+              return item['image_path'].toString();
+            }
+            // Если ничего не нашли - возвращаем пустую строку
+            return '';
           }
         }
       }
     } catch (e) {
-      debugPrint("LOAD ITEM DETAILS ERROR: $e");
-    } finally {
-      if (mounted) setState(() => _isLoadingDetails = false);
+      debugPrint("Load single item error for $itemId: $e");
     }
+    return '';
   }
 
   bool get _isFromUser => widget.offer.fromUserId == _currentUserId;

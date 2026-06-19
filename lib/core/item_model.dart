@@ -1,3 +1,4 @@
+// item_model.dart
 import 'package:latlong2/latlong.dart';
 
 class Item {
@@ -7,17 +8,16 @@ class Item {
   final String description;
   final int sv;
   final String imagePath;
+  final List<String> imagePaths;
   final String location;
   final String category;
   final String condition;
   final bool isMine;
   final String status;
 
-  // Координаты (могут приходить с сервера или null)
   final double? latitude;
   final double? longitude;
 
-  // Внутренние изменяемые поля для геокодирования
   double? _dynamicLatitude;
   double? _dynamicLongitude;
 
@@ -28,6 +28,7 @@ class Item {
     required this.description,
     required this.sv,
     required this.imagePath,
+    this.imagePaths = const [],
     required this.location,
     required this.category,
     required this.condition,
@@ -37,38 +38,31 @@ class Item {
     this.longitude,
   });
 
-  /// Есть ли координаты (либо из БД, либо после геокодирования)
   bool get hasCoordinates {
-    // Проверяем статические координаты
     if (latitude != null && latitude != 0.0 && longitude != null && longitude != 0.0) {
       return true;
     }
-    // Проверяем динамические координаты (после геокодирования)
     if (_dynamicLatitude != null && _dynamicLongitude != null) {
       return true;
     }
     return false;
   }
 
-  /// Эффективная широта (приоритет: статическая, затем динамическая)
   double? get effectiveLatitude {
     if (latitude != null && latitude != 0.0) return latitude;
     return _dynamicLatitude;
   }
 
-  /// Эффективная долгота (приоритет: статическая, затем динамическая)
   double? get effectiveLongitude {
     if (longitude != null && longitude != 0.0) return longitude;
     return _dynamicLongitude;
   }
 
-  /// Установить координаты после геокодирования
   void setCoordinates(double lat, double lon) {
     _dynamicLatitude = lat;
     _dynamicLongitude = lon;
   }
 
-  /// Получить координаты как LatLng (если есть)
   LatLng? get coordinates {
     final lat = effectiveLatitude;
     final lon = effectiveLongitude;
@@ -78,7 +72,6 @@ class Item {
     return null;
   }
 
-  /// Создание копии с измененными полями (для иммутабельности)
   Item copyWith({
     String? itemId,
     String? ownerId,
@@ -86,6 +79,7 @@ class Item {
     String? description,
     int? sv,
     String? imagePath,
+    List<String>? imagePaths,
     String? location,
     String? category,
     String? condition,
@@ -101,6 +95,7 @@ class Item {
       description: description ?? this.description,
       sv: sv ?? this.sv,
       imagePath: imagePath ?? this.imagePath,
+      imagePaths: imagePaths ?? this.imagePaths,
       location: location ?? this.location,
       category: category ?? this.category,
       condition: condition ?? this.condition,
@@ -111,15 +106,26 @@ class Item {
     );
   }
 
-  /// Создать из JSON
   factory Item.fromJson(Map<String, dynamic> json) {
+    final images = json['image_paths'];
+    List<String> paths = [];
+    if (images is List) {
+      paths = images.cast<String>();
+    } else if (json['image_path'] != null && json['image_path'].toString().isNotEmpty) {
+      paths = [json['image_path'].toString()];
+    }
+    if (paths.isEmpty) {
+      paths = ['assets/images/bear.jpg'];
+    }
+
     return Item(
       itemId: json['item_id']?.toString() ?? '',
       ownerId: json['user_id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       sv: (json['sv'] ?? 0) is int ? json['sv'] : int.tryParse(json['sv'].toString()) ?? 0,
-      imagePath: json['image_path']?.toString() ?? '',
+      imagePath: paths.isNotEmpty ? paths.first : 'assets/images/bear.jpg',
+      imagePaths: paths,
       location: json['location']?.toString() ?? '',
       category: json['category']?.toString() ?? '',
       condition: json['condition']?.toString() ?? '',
@@ -130,7 +136,6 @@ class Item {
     );
   }
 
-  /// Преобразовать в JSON
   Map<String, dynamic> toJson() {
     return {
       'item_id': itemId,
@@ -139,6 +144,7 @@ class Item {
       'description': description,
       'sv': sv,
       'image_path': imagePath,
+      'image_paths': imagePaths,
       'location': location,
       'category': category,
       'condition': condition,
@@ -149,10 +155,9 @@ class Item {
     };
   }
 
-  /// Для отладки
   @override
   String toString() {
-    return 'Item($itemId: $title, location: $location, coords: $coordinates)';
+    return 'Item($itemId: $title, location: $location, coords: $coordinates, images: ${imagePaths.length})';
   }
 
   @override

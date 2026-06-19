@@ -1,11 +1,14 @@
+// home_screen.dart (только метод _buildItemCard изменён)
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../widgets/image_gallery_widget.dart';
 import '../item_details/item_details_screen.dart';
 import '../../core/items_provider.dart';
 import '../../core/item_model.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -194,97 +197,24 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ИЗОБРАЖЕНИЕ
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: SizedBox(
+              child: ImageGalleryWidget(
+                imageUrls: item.imagePaths,
                 height: 200,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: item.imagePath,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 300),
-                      fadeOutDuration: const Duration(milliseconds: 300),
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey.shade100,
-                        child: const Center(
-                          child: CircularProgressIndicator(color: Colors.orange, strokeWidth: 2),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey.shade100,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.image_not_supported, size: 40, color: Colors.grey.shade400),
-                            const SizedBox(height: 8),
-                            Text(
-                              item.title,
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                      imageBuilder: (context, imageProvider) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            image: DecorationImage(
-                              image: imageProvider,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    // Бейдж статуса
-                    if (item.status != 'available')
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: item.status == 'reserved' ? Colors.orange : Colors.red,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            item.status == 'reserved' ? 'ЗАБРОНИРОВАНО' : 'ОБМЕНЯНО',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                borderRadius: 20,
+                showIndicators: true,
               ),
             ),
-            // Текстовая часть
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Название
-                  Text(
-                    item.title,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(item.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 6),
-                  // Описание
-                  Text(
-                    item.description,
-                    style: TextStyle(color: Colors.grey.shade700),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(item.description, style: TextStyle(color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 12),
-                  // 🔥 Теги: категория + состояние + SV
                   Row(
                     children: [
                       _buildTag(item.category, Colors.orange),
@@ -294,25 +224,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildSvBadge(item.sv),
                     ],
                   ),
-                  // 🔥 ГОРОД - отдельной строкой ниже
                   if (item.location.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Icon(Icons.location_on_outlined, size: 14, color: Colors.blue.shade400),
                         const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            item.location,
-                            style: TextStyle(
-                              color: Colors.blue.shade600,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                        Expanded(child: Text(item.location, style: TextStyle(color: Colors.blue.shade600, fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ],
@@ -329,30 +247,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (text.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
 
   Widget _buildSvBadge(int sv) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange]),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        '$sv SV',
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-      ),
+      decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange]), borderRadius: BorderRadius.circular(16)),
+      child: Text('$sv SV', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 }
