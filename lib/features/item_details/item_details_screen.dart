@@ -22,6 +22,15 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
   Map<String, dynamic>? _ownerData;
   bool _loadingOwner = true;
 
+  // 🔥 Поддержка тёмной/светлой темы
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _cardBgColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade50;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
+
   @override
   void initState() {
     super.initState();
@@ -62,11 +71,14 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
     final item = widget.item;
 
     return Scaffold(
+      backgroundColor: _backgroundColor,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
+            backgroundColor: _surfaceColor,
+            foregroundColor: _textColor,
             flexibleSpace: FlexibleSpaceBar(
               background: Hero(
                 tag: 'item_image_${item.itemId}',
@@ -81,14 +93,14 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100), // 🔥 Увеличенный отступ снизу
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Expanded(child: Text(item.title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
+                      Expanded(child: Text(item.title, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _textColor))),
                       const SizedBox(width: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -109,10 +121,14 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(item.description, style: TextStyle(fontSize: 16, color: Colors.grey.shade700, height: 1.5)),
+                  Text(
+                    item.description,
+                    style: TextStyle(fontSize: 16, color: _subTextColor, height: 1.5),
+                  ),
                   const SizedBox(height: 20),
                   Wrap(
-                    spacing: 8, runSpacing: 8,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       _buildBadge(icon: Icons.category, label: item.category, color: Colors.orange),
                       _buildBadge(icon: Icons.check_circle_outline, label: item.condition, color: Colors.green),
@@ -145,6 +161,7 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20), // 🔥 Дополнительный отступ после кнопки
                   ],
                 ],
               ),
@@ -159,8 +176,18 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
     if (_loadingOwner) {
       return Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-        child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))),
+        decoration: BoxDecoration(
+          color: _cardBgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _cardBorderColor),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+          ),
+        ),
       );
     }
 
@@ -171,10 +198,18 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isMine ? Colors.orange.withOpacity(0.3) : Colors.grey.shade200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        border: Border.all(
+          color: isMine ? Colors.orange.withOpacity(0.3) : _cardBorderColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(_isDarkMode ? 0.1 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -183,7 +218,10 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
             backgroundColor: Colors.orange.shade100,
             backgroundImage: avatarUrl.isNotEmpty ? CachedNetworkImageProvider(avatarUrl) : null,
             child: avatarUrl.isEmpty
-                ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22))
+                ? Text(
+              (name.isNotEmpty ? name[0] : '?').toUpperCase(),
+              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22),
+            )
                 : null,
           ),
           const SizedBox(width: 16),
@@ -191,18 +229,36 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isMine ? 'Это ваша вещь' : 'Владелец', style: TextStyle(color: isMine ? Colors.orange : Colors.grey, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  isMine ? 'Это ваша вещь' : 'Владелец',
+                  style: TextStyle(
+                    color: isMine ? Colors.orange : _subTextColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  name,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor),
+                ),
               ],
             ),
           ),
           if (!isMine)
             OutlinedButton.icon(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: widget.item.ownerId))),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: widget.item.ownerId)),
+              ),
               icon: const Icon(Icons.person, size: 18),
               label: const Text('Профиль'),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.orange, side: const BorderSide(color: Colors.orange), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange,
+                side: const BorderSide(color: Colors.orange),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
             ),
         ],
       ),
@@ -212,12 +268,19 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
   Widget _buildBadge({required IconData icon, required String label, required Color color}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.3))),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
-      ]),
+      decoration: BoxDecoration(
+        color: color.withOpacity(_isDarkMode ? 0.15 : 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(_isDarkMode ? 0.4 : 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+        ],
+      ),
     );
   }
 }

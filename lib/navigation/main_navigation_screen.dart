@@ -228,15 +228,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         appBar: _buildAppBar(textColor, false),
         body: IndexedStack(index: currentIndex, children: screens),
         floatingActionButton: currentIndex == 0
-            ? FloatingActionButton(
-          onPressed: onAddPressed,
-          backgroundColor: Colors.orange,
-          foregroundColor: Colors.white,
-          elevation: 8,
-          child: const Icon(Icons.add_rounded, size: 28),
+            ? Padding(
+          padding: const EdgeInsets.only(bottom: 70), // 🔥 Отступ от нижней навигации
+          child: Align(
+            alignment: Alignment.bottomRight, // 🔥 Прижимаем вправо
+            child: Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x66FF9800),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton(
+                onPressed: onAddPressed,
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                child: const Icon(Icons.add_rounded, size: 28),
+              ),
+            ),
+          ),
         )
             : null,
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // 🔥 Позиция справа
         bottomNavigationBar: _buildCreativeNavBar(),
       )),
     );

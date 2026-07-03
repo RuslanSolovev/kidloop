@@ -30,6 +30,15 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
   @override
   bool get wantKeepAlive => true;
 
+  // 🔥 Используем Theme напрямую — автоматически обновляется при смене темы
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200;
+  Color get _cardBgColor => _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50;
+
   @override
   void initState() {
     super.initState();
@@ -84,14 +93,14 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
           });
         }
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _cacheForums() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_cacheKey, jsonEncode(_forums));
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _loadForums() async {
@@ -114,7 +123,7 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
       } else {
         _handleLoadError();
       }
-    } catch (e) {
+    } catch (_) {
       _handleLoadError();
     }
   }
@@ -145,26 +154,54 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Создать обсуждение'),
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Создать обсуждение', style: TextStyle(color: _textColor)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: titleCtrl,
-              decoration: const InputDecoration(labelText: 'Тема'),
+              style: TextStyle(color: _textColor),
+              decoration: InputDecoration(
+                labelText: 'Тема',
+                labelStyle: TextStyle(color: _subTextColor),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                ),
+              ),
               autofocus: true,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: descCtrl,
-              decoration: const InputDecoration(labelText: 'Описание'),
+              style: TextStyle(color: _textColor),
+              decoration: InputDecoration(
+                labelText: 'Описание',
+                labelStyle: TextStyle(color: _subTextColor),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                ),
+              ),
               maxLines: 3,
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Создать')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Отмена', style: TextStyle(color: _subTextColor)),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Создать', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
         ],
       ),
     );
@@ -186,10 +223,15 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
 
       _retryCount = 0;
       _loadForums();
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не удалось создать обсуждение')),
+          SnackBar(
+            content: const Text('Не удалось создать обсуждение'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         );
       }
     }
@@ -199,14 +241,24 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить обсуждение?'),
-        content: const Text('Это действие нельзя отменить'),
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Удалить обсуждение?', style: TextStyle(color: _textColor)),
+        content: Text('Это действие нельзя отменить', style: TextStyle(color: _subTextColor)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Удалить'),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Отмена', style: TextStyle(color: _subTextColor)),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Удалить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
           ),
         ],
       ),
@@ -222,10 +274,15 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
       ).timeout(const Duration(seconds: 8));
 
       _loadForums();
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не удалось удалить обсуждение')),
+          SnackBar(
+            content: const Text('Не удалось удалить обсуждение'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         );
       }
     }
@@ -244,15 +301,35 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
     }
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'create_forum',
-        onPressed: _createForum,
-        backgroundColor: Colors.orange,
-        child: const Icon(Icons.add_rounded),
+      backgroundColor: _backgroundColor,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 70), // 🔥 Отступ от нижней навигации
+        child: Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x66FF9800),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: FloatingActionButton(
+            heroTag: 'create_forum',
+            onPressed: _createForum,
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            child: const Icon(Icons.add_rounded, size: 28),
+          ),
+        ),
       ),
       body: _forums.isEmpty
           ? _buildEmptyState()
           : RefreshIndicator(
+        color: Colors.orange,
+        backgroundColor: _surfaceColor,
         onRefresh: () async {
           _retryCount = 0;
           _loadError = null;
@@ -262,7 +339,7 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
           duration: const Duration(milliseconds: 300),
           child: ListView.builder(
             key: ValueKey(_forums.length),
-            padding: const EdgeInsets.only(top: 8, bottom: 80),
+            padding: const EdgeInsets.only(top: 8, bottom: 100), // 🔥 Увеличенный отступ снизу
             itemCount: _forums.length,
             itemBuilder: (context, index) {
               return _buildForumCard(_forums[index], index);
@@ -278,27 +355,61 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
       padding: const EdgeInsets.only(top: 8),
       itemCount: 5,
       itemBuilder: (context, index) {
-        return Card(
+        return Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.grey.shade200,
-            ),
-            title: Container(
-              height: 16,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(8),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surfaceColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _cardBorderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: 12,
+                          width: 150,
+                          decoration: BoxDecoration(
+                            color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-            subtitle: Container(
-              height: 12,
-              margin: const EdgeInsets.only(top: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(6),
+              const SizedBox(height: 12),
+              Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
-            ),
+            ],
           ),
         );
       },
@@ -314,12 +425,12 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
             ),
             child: const Icon(Icons.error_outline_rounded, size: 48, color: Colors.orange),
           ),
           const SizedBox(height: 16),
-          Text(_loadError!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          Text(_loadError!, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: _textColor)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
@@ -335,6 +446,7 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],
@@ -351,20 +463,14 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
             ),
             child: const Icon(Icons.forum_rounded, size: 48, color: Colors.orange),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Нет обсуждений',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
+          Text('Нет обсуждений', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: _textColor)),
           const SizedBox(height: 8),
-          const Text(
-            'Создайте первое обсуждение!',
-            style: TextStyle(color: Colors.grey),
-          ),
+          Text('Создайте первое обсуждение!', style: TextStyle(color: _subTextColor)),
         ],
       ),
     );
@@ -392,10 +498,20 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
           ),
         );
       },
-      child: Card(
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+          color: _surfaceColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _cardBorderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isDarkMode ? 0.1 : 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
@@ -431,10 +547,10 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.forum_rounded, color: Colors.blue, size: 20),
+                      child: const Icon(Icons.forum_rounded, color: Colors.orange, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -443,21 +559,29 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             '$creatorName${desc.isNotEmpty ? " • ${desc.length > 50 ? '${desc.substring(0, 50)}...' : desc}" : ""}',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                            style: TextStyle(color: _subTextColor, fontSize: 13),
                           ),
                         ],
                       ),
                     ),
                     if (isCreator)
                       PopupMenuButton(
+                        color: _surfaceColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         itemBuilder: (ctx) => [
                           PopupMenuItem(
-                            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.delete_rounded, color: Colors.red, size: 18),
+                                SizedBox(width: 8),
+                                Text('Удалить', style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
                             onTap: () => _deleteForum(forumId),
                           ),
                         ],
@@ -469,7 +593,7 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: _cardBgColor,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -479,14 +603,14 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
                             lastMsg,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                            style: TextStyle(color: _subTextColor, fontSize: 13),
                           ),
                         ),
                         if (lastTime != null) ...[
                           const SizedBox(width: 8),
                           Text(
                             _formatTime(lastTime),
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                            style: TextStyle(color: _isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400, fontSize: 11),
                           ),
                         ],
                       ],
@@ -496,11 +620,11 @@ class _ForumsTabState extends State<ForumsTab> with AutomaticKeepAliveClientMixi
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.people_rounded, size: 16, color: Colors.grey.shade400),
+                    Icon(Icons.people_rounded, size: 16, color: _subTextColor),
                     const SizedBox(width: 4),
                     Text(
                       '$participantCount участников',
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                      style: TextStyle(color: _subTextColor, fontSize: 12),
                     ),
                   ],
                 ),

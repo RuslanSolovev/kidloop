@@ -85,27 +85,27 @@ LatLng? _getCityCoordsStatic(String location) {
   if (location.isEmpty) return null;
   final lower = location.toLowerCase().trim();
   final cleaned = lower.replaceAll(RegExp(r'[^\w\sа-яё-]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-  final cityMap = {
-    'москва': const LatLng(55.7558, 37.6173), 'moscow': const LatLng(55.7558, 37.6173),
-    'санкт-петербург': const LatLng(59.9343, 30.3351), 'питер': const LatLng(59.9343, 30.3351), 'спб': const LatLng(59.9343, 30.3351),
-    'новосибирск': const LatLng(55.0084, 82.9357), 'екатеринбург': const LatLng(56.8389, 60.6057),
-    'казань': const LatLng(55.7961, 49.1064), 'нижний новгород': const LatLng(56.2965, 43.9361),
-    'челябинск': const LatLng(55.1644, 61.4368), 'самара': const LatLng(53.1959, 50.1002),
-    'щёлково': const LatLng(55.9205, 37.9917), 'щелково': const LatLng(55.9205, 37.9917),
-    'фрязино': const LatLng(55.9606, 38.0412), 'омск': const LatLng(54.9893, 73.3682),
-    'ростов-на-дону': const LatLng(47.2357, 39.7015), 'ростов': const LatLng(47.2357, 39.7015),
-    'уфа': const LatLng(54.7388, 55.9721), 'красноярск': const LatLng(56.0106, 92.8525),
-    'воронеж': const LatLng(51.6755, 39.2085), 'пермь': const LatLng(58.0105, 56.2502),
-    'волгоград': const LatLng(48.7080, 44.5133), 'краснодар': const LatLng(45.0355, 38.9753),
-    'саратов': const LatLng(51.5336, 46.0343), 'тюмень': const LatLng(57.1613, 65.5250),
-    'тольятти': const LatLng(53.5303, 49.3461), 'ижевск': const LatLng(56.8498, 53.2045),
-    'барнаул': const LatLng(53.3480, 83.7765), 'иркутск': const LatLng(52.2869, 104.3050),
-    'хабаровск': const LatLng(48.4802, 135.0719), 'ярославль': const LatLng(57.6261, 39.8845),
-    'владивосток': const LatLng(43.1155, 131.8855), 'махачкала': const LatLng(42.9849, 47.5047),
-    'томск': const LatLng(56.4846, 84.9476), 'оренбург': const LatLng(51.7682, 55.0970),
-    'кемерово': const LatLng(55.3549, 86.0873), 'новокузнецк': const LatLng(53.7557, 87.1099),
-    'рига': const LatLng(56.9496, 24.1052), 'юрмала': const LatLng(56.9681, 23.7566),
-    'даугавпилс': const LatLng(55.8751, 26.5320),
+  const cityMap = {
+    'москва': LatLng(55.7558, 37.6173), 'moscow': LatLng(55.7558, 37.6173),
+    'санкт-петербург': LatLng(59.9343, 30.3351), 'питер': LatLng(59.9343, 30.3351), 'спб': LatLng(59.9343, 30.3351),
+    'новосибирск': LatLng(55.0084, 82.9357), 'екатеринбург': LatLng(56.8389, 60.6057),
+    'казань': LatLng(55.7961, 49.1064), 'нижний новгород': LatLng(56.2965, 43.9361),
+    'челябинск': LatLng(55.1644, 61.4368), 'самара': LatLng(53.1959, 50.1002),
+    'щёлково': LatLng(55.9205, 37.9917), 'щелково': LatLng(55.9205, 37.9917),
+    'фрязино': LatLng(55.9606, 38.0412), 'омск': LatLng(54.9893, 73.3682),
+    'ростов-на-дону': LatLng(47.2357, 39.7015), 'ростов': LatLng(47.2357, 39.7015),
+    'уфа': LatLng(54.7388, 55.9721), 'красноярск': LatLng(56.0106, 92.8525),
+    'воронеж': LatLng(51.6755, 39.2085), 'пермь': LatLng(58.0105, 56.2502),
+    'волгоград': LatLng(48.7080, 44.5133), 'краснодар': LatLng(45.0355, 38.9753),
+    'саратов': LatLng(51.5336, 46.0343), 'тюмень': LatLng(57.1613, 65.5250),
+    'тольятти': LatLng(53.5303, 49.3461), 'ижевск': LatLng(56.8498, 53.2045),
+    'барнаул': LatLng(53.3480, 83.7765), 'иркутск': LatLng(52.2869, 104.3050),
+    'хабаровск': LatLng(48.4802, 135.0719), 'ярославль': LatLng(57.6261, 39.8845),
+    'владивосток': LatLng(43.1155, 131.8855), 'махачкала': LatLng(42.9849, 47.5047),
+    'томск': LatLng(56.4846, 84.9476), 'оренбург': LatLng(51.7682, 55.0970),
+    'кемерово': LatLng(55.3549, 86.0873), 'новокузнецк': LatLng(53.7557, 87.1099),
+    'рига': LatLng(56.9496, 24.1052), 'юрмала': LatLng(56.9681, 23.7566),
+    'даугавпилс': LatLng(55.8751, 26.5320),
   };
   if (cityMap.containsKey(cleaned)) return cityMap[cleaned];
   for (final entry in cityMap.entries) { if (cleaned.contains(entry.key)) return entry.value; }
@@ -144,6 +144,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
   Timer? _debounceTimer;
   StreamSubscription? _connectivitySubscription;
 
+  // 🔥 Загружаем тему из SharedPreferences
+  bool _isDarkMode = false;
+
   static const List<String> _categories = [
     'Все', 'Игрушки', 'LEGO', 'Самокат', 'Книги', 'Одежда',
     'Коляска', 'Мебель', 'Техника', 'Спорт', 'Развивашки',
@@ -154,6 +157,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
 
   @override
   bool get wantKeepAlive => true;
+
+  // 🔥 Геттеры для адаптивных цветов
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
 
   @override
   void initState() {
@@ -194,6 +203,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
   }
 
   Future<void> _initAsync() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isDarkMode = prefs.getBool('is_dark_mode') ?? false;
+      });
+    }
+
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity == ConnectivityResult.none && mounted) setState(() { _isOffline = true; _locationStatus = 'Нет подключения к интернету'; });
     await _determinePosition();
@@ -202,7 +218,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
   }
 
   Future<void> _determinePosition() async {
-    // Пробуем последнюю известную позицию
     try {
       final lastPosition = await Geolocator.getLastKnownPosition();
       if (lastPosition != null && !_isDisposed && mounted) {
@@ -210,7 +225,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
         setState(() { _lastKnownPosition = pos; _locationStatus = 'Последнее местоположение'; });
         _safeMoveMap(pos, 13); _geocodeCenter(pos);
       }
-    } catch (e) { debugPrint('Last position error: $e'); }
+    } catch (_) {}
 
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -227,11 +242,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
       }
     }
 
-    // 🔥 Пытаемся получить позицию с большим таймаутом
     try {
       if (mounted && !_isDisposed) setState(() => _locationStatus = 'Ищем местоположение...');
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium, // 🔥 medium вместо high - быстрее
+        desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 15),
       ).timeout(const Duration(seconds: 18));
 
@@ -239,13 +253,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
         final userLoc = LatLng(position.latitude, position.longitude);
         setState(() { _userLocation = userLoc; _locationStatus = 'Местоположение определено'; });
         _safeMoveMap(userLoc, 14); _geocodeCenter(userLoc);
-        return; // 🔥 Успешно - выходим
+        return;
       }
-    } catch (e) {
-      debugPrint('GPS error: $e');
-    }
+    } catch (_) {}
 
-    // 🔥 Если не удалось получить текущую позицию, используем последнюю известную
     if (_lastKnownPosition != null && !_isDisposed && mounted) {
       setState(() { _userLocation = _lastKnownPosition; _locationStatus = 'Последнее местоположение'; });
       _safeMoveMap(_userLocation!, 12); _geocodeCenter(_userLocation!);
@@ -259,7 +270,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
     final center = camera.center;
     if (_lastGeocodedCenter != null) {
       final distance = const Distance().as(LengthUnit.Meter, _lastGeocodedCenter!, center);
-      if (distance < 300) return; // 🔥 Порог 300м
+      if (distance < 300) return;
     }
     _geocodeDebounce?.cancel();
     _geocodeDebounce = Timer(const Duration(milliseconds: 600), () => _geocodeCenter(center));
@@ -270,7 +281,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
     try {
       final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
         'lat': point.latitude.toString(), 'lon': point.longitude.toString(),
-        'format': 'json', 'accept-language': 'ru', 'zoom': '18', // 🔥 zoom 18 = улица
+        'format': 'json', 'accept-language': 'ru', 'zoom': '18',
       });
       final response = await http.get(uri, headers: {'User-Agent': 'KidLoop/1.0'}).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200 && mounted && !_isDisposed) {
@@ -284,13 +295,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
           final state = address['state'] ?? '';
 
           final parts = <String>[];
-          // 🔥 Улица + дом
           if (road.isNotEmpty) {
             parts.add(house.isNotEmpty ? '$road, $house' : road);
           }
-          // 🔥 Район
           if (suburb.isNotEmpty) parts.add(suburb);
-          // 🔥 Город
           if (city.isNotEmpty) {
             parts.add(city);
           } else if (state.isNotEmpty) {
@@ -303,38 +311,72 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
           }
         }
       }
-    } catch (e) { debugPrint('Geocode error: $e'); }
+    } catch (_) {}
   }
 
   void _safeMoveMap(LatLng point, double zoom) {
     if (!mounted || _isDisposed) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_isDisposed) { try { _mapController.move(point, zoom); } catch (e) {} }
+      if (mounted && !_isDisposed) { try { _mapController.move(point, zoom); } catch (_) {} }
     });
   }
 
   Future<void> _showLocationSettingsDialog() async {
     if (!mounted || _isDisposed) return;
-    showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
-      title: const Text('Геолокация выключена'),
-      content: const Text('Включите службу геолокации в настройках устройства.'),
-      actions: [
-        TextButton(child: const Text('Пропустить'), onPressed: () => Navigator.pop(ctx)),
-        ElevatedButton(child: const Text('Настройки'), onPressed: () { Navigator.pop(ctx); Geolocator.openLocationSettings(); }),
-      ],
-    ));
+    showDialog(
+      context: context, barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Геолокация выключена', style: TextStyle(color: _textColor)),
+        content: Text('Включите службу геолокации в настройках устройства.', style: TextStyle(color: _subTextColor)),
+        actions: [
+          TextButton(
+            child: Text('Пропустить', style: TextStyle(color: _subTextColor)),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextButton(
+              child: const Text('Настройки', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              onPressed: () { Navigator.pop(ctx); Geolocator.openLocationSettings(); },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showPermissionDeniedDialog() async {
     if (!mounted || _isDisposed) return;
-    showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
-      title: const Text('Нет доступа'),
-      content: const Text('Разрешите доступ к геолокации в настройках приложения.'),
-      actions: [
-        TextButton(child: const Text('Пропустить'), onPressed: () => Navigator.pop(ctx)),
-        ElevatedButton(child: const Text('Настройки'), onPressed: () { Navigator.pop(ctx); Geolocator.openAppSettings(); }),
-      ],
-    ));
+    showDialog(
+      context: context, barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Нет доступа', style: TextStyle(color: _textColor)),
+        content: Text('Разрешите доступ к геолокации в настройках приложения.', style: TextStyle(color: _subTextColor)),
+        actions: [
+          TextButton(
+            child: Text('Пропустить', style: TextStyle(color: _subTextColor)),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextButton(
+              child: const Text('Настройки', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              onPressed: () { Navigator.pop(ctx); Geolocator.openAppSettings(); },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _setDefaultLocation() {
@@ -344,23 +386,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
     }
   }
 
-  void _showRetryDialog() {
-    if (!mounted || _isDisposed) return;
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Не удалось определить местоположение'),
-      content: const Text('Проверьте GPS и подключение к интернету.'),
-      actions: [
-        TextButton(child: const Text('Закрыть'), onPressed: () => Navigator.pop(ctx)),
-        ElevatedButton(child: const Text('Повторить'), onPressed: () { Navigator.pop(ctx); if (!_isDisposed && mounted) _determinePosition(); }),
-      ],
-    ));
-  }
-
   Future<void> _refreshDataSilently() async {
     if (_isRefreshing || _isOffline) return;
     _isRefreshing = true;
     try { await Future.wait([_loadItems(), _loadCustomMarkers()]); if (mounted && !_isDisposed) setState(() {}); }
-    catch (e) { debugPrint('Refresh error: $e'); } finally { _isRefreshing = false; }
+    catch (_) {} finally { _isRefreshing = false; }
   }
 
   Future<void> _loadItems() async {
@@ -386,7 +416,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
         if (itemsNeedGeocoding.isNotEmpty) await _geocodeItems(itemsNeedGeocoding);
         if (!_isDisposed && mounted) setState(() => _items = processedItems);
       }
-    } catch (e) { debugPrint('Load items error: $e'); }
+    } catch (_) {}
   }
 
   Future<void> _geocodeItems(List<Item> items) async {
@@ -403,7 +433,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
           } else { GeocodingCache.set(item.location, null); }
         }
         await Future.delayed(const Duration(seconds: 1));
-      } catch (e) { GeocodingCache.set(item.location, null); }
+      } catch (_) { GeocodingCache.set(item.location, null); }
     }
   }
 
@@ -418,7 +448,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
         final processedMarkers = await compute(processMarkersInBackground, markersList);
         if (!_isDisposed && mounted) setState(() => _customMarkers = processedMarkers);
       }
-    } catch (e) { debugPrint('Load markers error: $e'); }
+    } catch (_) {}
   }
 
   LatLng? _getItemCoordinates(Item item) {
@@ -457,12 +487,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
       return ClipOval(child: Image.network(path, width: size, height: size, fit: BoxFit.cover,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
-          return Container(width: size, height: size, decoration: BoxDecoration(color: fallbackColor.withOpacity(0.2), shape: BoxShape.circle), child: Icon(Icons.toys, color: fallbackColor, size: size * 0.5));
+          return Container(width: size, height: size, decoration: BoxDecoration(color: fallbackColor.withValues(alpha: 0.2), shape: BoxShape.circle), child: Icon(Icons.toys, color: fallbackColor, size: size * 0.5));
         },
-        errorBuilder: (context, url, error) => Container(width: size, height: size, decoration: BoxDecoration(color: fallbackColor.withOpacity(0.2), shape: BoxShape.circle), child: Icon(Icons.broken_image, color: fallbackColor, size: size * 0.5)),
+        errorBuilder: (context, url, error) => Container(width: size, height: size, decoration: BoxDecoration(color: fallbackColor.withValues(alpha: 0.2), shape: BoxShape.circle), child: Icon(Icons.broken_image, color: fallbackColor, size: size * 0.5)),
       ));
     }
-    return Container(width: size, height: size, decoration: BoxDecoration(color: fallbackColor.withOpacity(0.2), shape: BoxShape.circle), child: Icon(Icons.toys, color: fallbackColor, size: size * 0.5));
+    return Container(width: size, height: size, decoration: BoxDecoration(color: fallbackColor.withValues(alpha: 0.2), shape: BoxShape.circle), child: Icon(Icons.toys, color: fallbackColor, size: size * 0.5));
   }
 
   List<Marker> _buildClusteredMarkers() {
@@ -520,34 +550,51 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
 
   void _showClusterDialog(List<Item> items) {
     if (_isDisposed) return;
-    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (ctx) => DraggableScrollableSheet(
-      initialChildSize: 0.5, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
-      builder: (_, controller) => Column(children: [
-        Padding(padding: const EdgeInsets.all(16), child: Text('Вещи рядом (${items.length})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-        Expanded(child: ListView.builder(controller: controller, itemCount: items.length, itemBuilder: (_, i) {
-          final item = items[i];
-          return ListTile(leading: _buildCircleImageWidget(item.imagePath, _categoryColor(item.category), 40), title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${item.sv} SV • ${item.category}'), trailing: const Icon(Icons.arrow_forward_ios, size: 16), onTap: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item))); });
-        })),
-      ]),
-    ));
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _surfaceColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
+        builder: (_, controller) => Column(children: [
+          Padding(padding: const EdgeInsets.all(16), child: Text('Вещи рядом (${items.length})', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textColor))),
+          Expanded(child: ListView.builder(controller: controller, itemCount: items.length, itemBuilder: (_, i) {
+            final item = items[i];
+            return ListTile(
+              leading: _buildCircleImageWidget(item.imagePath, _categoryColor(item.category), 40),
+              title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _textColor)),
+              subtitle: Text('${item.sv} SV • ${item.category}', style: TextStyle(color: _subTextColor)),
+              trailing: Icon(Icons.arrow_forward_ios, size: 16, color: _subTextColor),
+              onTap: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item))); },
+            );
+          })),
+        ]),
+      ),
+    );
   }
 
   void _showMarkerInfo(MapMarker marker) {
     if (_isDisposed) return;
-    showModalBottomSheet(context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (ctx) => Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Text(_markerTypeEmoji(marker.type), style: const TextStyle(fontSize: 32)), const SizedBox(width: 12), Expanded(child: Text(marker.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)))]),
-        if (marker.description.isNotEmpty) ...[const SizedBox(height: 12), Text(marker.description, style: TextStyle(color: Colors.grey.shade700))],
-        const SizedBox(height: 12), Text('Автор: ${marker.userName}', style: const TextStyle(color: Colors.grey)),
-        const SizedBox(height: 16), SizedBox(width: double.infinity, child: TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Закрыть'))),
-      ]),
-    ));
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _surfaceColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Text(_markerTypeEmoji(marker.type), style: const TextStyle(fontSize: 32)), const SizedBox(width: 12), Expanded(child: Text(marker.title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _textColor)))]),
+          if (marker.description.isNotEmpty) ...[const SizedBox(height: 12), Text(marker.description, style: TextStyle(color: _subTextColor))],
+          const SizedBox(height: 12), Text('Автор: ${marker.userName}', style: TextStyle(color: _subTextColor)),
+          const SizedBox(height: 16), SizedBox(width: double.infinity, child: TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Закрыть', style: TextStyle(color: Colors.orange)))),
+        ]),
+      ),
+    );
   }
 
   void _showCreateMarkerDialog(LatLng point) async {
     if (_isDisposed || _isOffline) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Нет подключения к интернету'))); return; }
-    final result = await showModalBottomSheet<Map<String, String>>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (ctx) => _CreateMarkerSheet(point: point));
+    final result = await showModalBottomSheet<Map<String, String>>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (ctx) => _CreateMarkerSheet(point: point, isDarkMode: _isDarkMode));
     if (result == null || !mounted || _isDisposed) return;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -556,7 +603,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
       final response = await http.post(Uri.parse(mapApiUrl), headers: {'Content-Type': 'application/json'}, body: jsonEncode({"action": "create", "user_id": userId, "user_name": userName, "type": result['type'], "title": result['title'], "description": result['description'], "latitude": point.latitude, "longitude": point.longitude})).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) { await _loadCustomMarkers(); if (mounted && !_isDisposed) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Маркер создан! 🎉'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating)); }
       else throw Exception('Ошибка сервера');
-    } catch (e) { if (mounted && !_isDisposed) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating)); }
+    } catch (_) { if (mounted && !_isDisposed) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Ошибка при создании маркера'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating)); }
   }
 
   void _onCreateMarkerButtonPressed() { _showCreateMarkerDialog(_mapController.center); }
@@ -564,7 +611,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading) return Scaffold(body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 16), Text(_locationStatus)])));
+    if (_loading) return Scaffold(backgroundColor: _backgroundColor, body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(color: Colors.orange), const SizedBox(height: 16), Text(_locationStatus, style: TextStyle(color: _subTextColor))])));
 
     return Stack(children: [
       FlutterMap(
@@ -577,42 +624,96 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
         ),
         children: [
           TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.kid_loop', tileProvider: NetworkTileProvider(), errorImage: const AssetImage('assets/no_tile.png')),
-          MarkerLayer(markers: [..._buildClusteredMarkers(), if (_userLocation != null) Marker(point: _userLocation!, width: 40, height: 40, child: Container(decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: Colors.blue, width: 3), boxShadow: const [BoxShadow(color: Colors.blue, blurRadius: 8)]), child: const Icon(Icons.my_location, color: Colors.blue, size: 24)))]),
+          MarkerLayer(markers: [..._buildClusteredMarkers(), if (_userLocation != null) Marker(point: _userLocation!, width: 40, height: 40, child: Container(decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.2), shape: BoxShape.circle, border: Border.all(color: Colors.blue, width: 3), boxShadow: const [BoxShadow(color: Colors.blue, blurRadius: 8)]), child: const Icon(Icons.my_location, color: Colors.blue, size: 24)))]),
         ],
       ),
       if (_isOffline) Positioned(top: 0, left: 0, right: 0, child: Container(color: Colors.orange.shade800, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), child: const Row(children: [Icon(Icons.wifi_off, color: Colors.white, size: 20), SizedBox(width: 8), Expanded(child: Text('Нет подключения к интернету', style: TextStyle(color: Colors.white, fontSize: 14)))]))),
       if (!_isOffline) Positioned(top: 0, left: 0, right: 0, child: GestureDetector(
         onTap: () { if (_userLocation != null) _mapController.move(_userLocation!, 15); else _determinePosition(); },
-        child: Container(color: Colors.green.withOpacity(0.85), padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12), child: Row(children: [
+        child: Container(color: Colors.green.withValues(alpha: 0.85), padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12), child: Row(children: [
           const Icon(Icons.location_on, color: Colors.white, size: 16), const SizedBox(width: 6),
           Expanded(child: Text(_centerAddress.isNotEmpty ? _centerAddress : _locationStatus, style: const TextStyle(color: Colors.white, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ])),
       )),
-      Positioned(top: 46, left: 10, right: 10, child: Container(height: 42, decoration: BoxDecoration(color: Colors.white.withOpacity(0.95), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)]), child: ListView.separated(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), itemCount: _categories.length, separatorBuilder: (_, __) => const SizedBox(width: 2), itemBuilder: (_, index) {
-        final cat = _categories[index]; final isSelected = _selectedCategory == cat || (_selectedCategory == null && cat == 'Все');
-        return FilterChip(label: Text(cat, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)), selected: isSelected, onSelected: (_) { if (!_isDisposed && mounted) setState(() => _selectedCategory = cat == 'Все' ? null : cat); }, backgroundColor: Colors.transparent, selectedColor: Colors.orange.shade100, checkmarkColor: Colors.orange, visualDensity: VisualDensity.compact, side: BorderSide(color: isSelected ? Colors.orange : Colors.grey.shade300));
-      }))),
-      // 🔥 Кнопки прижаты к правому краю
+      // В методе build, секция с FilterChip:
+      Positioned(top: 46, left: 10, right: 10, child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          color: _surfaceColor.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+        ),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          itemCount: _categories.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 2),
+          itemBuilder: (_, index) {
+            final cat = _categories[index];
+            final isSelected = _selectedCategory == cat || (_selectedCategory == null && cat == 'Все');
+            return FilterChip(
+              label: Text(
+                cat,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  // 🔥 Всегда видимый цвет текста
+                  color: isSelected ? Colors.orange : _textColor,
+                ),
+              ),
+              selected: isSelected,
+              onSelected: (_) {
+                if (!_isDisposed && mounted) {
+                  setState(() => _selectedCategory = cat == 'Все' ? null : cat);
+                }
+              },
+              // 🔥 Фон чипа в зависимости от темы
+              backgroundColor: _isDarkMode ? _surfaceColor : Colors.white,
+              selectedColor: Colors.orange.withValues(alpha: 0.15),
+              checkmarkColor: Colors.orange,
+              visualDensity: VisualDensity.compact,
+              side: BorderSide(
+                color: isSelected
+                    ? Colors.orange
+                    : (_isDarkMode ? Colors.white.withValues(alpha: 0.15) : Colors.grey.shade300),
+              ),
+            );
+          },
+        ),
+      )),
       Positioned(right: 8, bottom: 100, child: Column(mainAxisSize: MainAxisSize.min, children: [
         FloatingActionButton.small(heroTag: 'add_marker_btn', onPressed: _onCreateMarkerButtonPressed, backgroundColor: Colors.orange, foregroundColor: Colors.white, tooltip: 'Создать маркер', elevation: 4, child: const Icon(Icons.add_location_alt, size: 20)),
         const SizedBox(height: 8),
-        FloatingActionButton.small(heroTag: 'location_btn', onPressed: () { if (_userLocation != null) _mapController.move(_userLocation!, 15); else _determinePosition(); }, backgroundColor: Colors.white, foregroundColor: Colors.blue, tooltip: 'Моё местоположение', elevation: 4, child: const Icon(Icons.my_location, size: 20)),
+        FloatingActionButton.small(heroTag: 'location_btn', onPressed: () { if (_userLocation != null) _mapController.move(_userLocation!, 15); else _determinePosition(); }, backgroundColor: _surfaceColor, foregroundColor: Colors.blue, tooltip: 'Моё местоположение', elevation: 4, child: const Icon(Icons.my_location, size: 20)),
       ])),
       if (_selectedItem != null) Positioned(bottom: 16, left: 16, right: 16, child: Material(borderRadius: BorderRadius.circular(16), elevation: 8, child: InkWell(borderRadius: BorderRadius.circular(16), onTap: () async {
         final item = _selectedItem!; setState(() => _selectedItem = null);
         final prefs = await SharedPreferences.getInstance(); final currentUserId = prefs.getString('user_id') ?? '';
         if (item.ownerId == currentUserId && item.ownerId.isNotEmpty) {
-          if (mounted) showDialog(context: context, builder: (ctx) => AlertDialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), icon: const Icon(Icons.info_outline, color: Colors.orange, size: 48), title: const Text('Это ваша вещь'), content: const Text('Вы не можете предложить обмен самому себе.', textAlign: TextAlign.center), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Закрыть')), FilledButton(onPressed: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item))); }, style: FilledButton.styleFrom(backgroundColor: Colors.orange), child: const Text('Смотреть'))]));
+          if (mounted) showDialog(context: context, builder: (ctx) => AlertDialog(
+            backgroundColor: _surfaceColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            icon: const Icon(Icons.info_outline, color: Colors.orange, size: 48),
+            title: Text('Это ваша вещь', style: TextStyle(color: _textColor)),
+            content: Text('Вы не можете предложить обмен самому себе.', textAlign: TextAlign.center, style: TextStyle(color: _subTextColor)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Закрыть', style: TextStyle(color: _subTextColor))),
+              Container(
+                decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(12)),
+                child: TextButton(onPressed: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item))); }, child: const Text('Смотреть', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+              ),
+            ],
+          ));
         } else { if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item))); }
-      }, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)), child: Row(children: [
+      }, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: _surfaceColor, borderRadius: BorderRadius.circular(16)), child: Row(children: [
         _buildCircleImageWidget(_selectedItem!.imagePath, _categoryColor(_selectedItem!.category), 50), const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(_selectedItem!.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 4), Text('${_selectedItem!.sv} SV • ${_selectedItem!.category}', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-          if (_selectedItem!.isMine) Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(6)), child: const Text('Это ваша вещь', style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600))),
-        ])), IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () { if (mounted && !_isDisposed) setState(() => _selectedItem = null); }),
+          Text(_selectedItem!.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4), Text('${_selectedItem!.sv} SV • ${_selectedItem!.category}', style: TextStyle(color: _subTextColor, fontSize: 13)),
+          if (_selectedItem!.isMine) Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)), child: const Text('Это ваша вещь', style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600))),
+        ])), IconButton(icon: Icon(Icons.close, size: 20, color: _subTextColor), onPressed: () { if (mounted && !_isDisposed) setState(() => _selectedItem = null); }),
       ]))))),
-      if (_isRefreshing) const Positioned(top: 50, right: 60, child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+      if (_isRefreshing) const Positioned(top: 50, right: 60, child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))),
     ]);
   }
 }
@@ -622,7 +723,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Auto
 // ============================================================================
 class _CreateMarkerSheet extends StatefulWidget {
   final LatLng point;
-  const _CreateMarkerSheet({required this.point});
+  final bool isDarkMode;
+  const _CreateMarkerSheet({required this.point, required this.isDarkMode});
   @override
   State<_CreateMarkerSheet> createState() => _CreateMarkerSheetState();
 }
@@ -638,6 +740,12 @@ class _CreateMarkerSheetState extends State<_CreateMarkerSheet> {
     {'type': 'meetup', 'emoji': '🤝', 'label': 'Встреча', 'desc': 'Предложите обменяться лично', 'color': Colors.green},
   ];
 
+  Color get _textColor => widget.isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => widget.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _surfaceColor => widget.isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _fillColor => widget.isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade50;
+  Color get _borderColor => widget.isDarkMode ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200;
+
   @override
   void dispose() { _titleController.dispose(); _descController.dispose(); super.dispose(); }
 
@@ -647,31 +755,31 @@ class _CreateMarkerSheetState extends State<_CreateMarkerSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Container(
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      decoration: BoxDecoration(color: _surfaceColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
       padding: EdgeInsets.fromLTRB(24, 16, 24, bottomInset + 24),
       child: Form(key: _formKey, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Center(child: Container(width: 36, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(3)))),
+        Center(child: Container(width: 36, height: 5, decoration: BoxDecoration(color: _subTextColor, borderRadius: BorderRadius.circular(3)))),
         const SizedBox(height: 20),
-        const Text('Создать маркер', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+        Text('Создать маркер', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _textColor), textAlign: TextAlign.center),
         const SizedBox(height: 4),
-        Text('${widget.point.latitude.toStringAsFixed(4)}, ${widget.point.longitude.toStringAsFixed(4)}', style: TextStyle(color: Colors.grey.shade500, fontSize: 12), textAlign: TextAlign.center),
+        Text('${widget.point.latitude.toStringAsFixed(4)}, ${widget.point.longitude.toStringAsFixed(4)}', style: TextStyle(color: _subTextColor, fontSize: 12), textAlign: TextAlign.center),
         const SizedBox(height: 20),
-        const Text('Тип маркера', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        Text('Тип маркера', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: _textColor)),
         const SizedBox(height: 10),
         Row(children: _types.map((t) {
           final isSelected = _selectedType == t['type']; final color = t['color'] as Color;
           return Expanded(child: Padding(padding: EdgeInsets.only(right: t != _types.last ? 8 : 0), child: GestureDetector(
             onTap: () => setState(() => _selectedType = t['type'] as String),
-            child: AnimatedContainer(duration: const Duration(milliseconds: 250), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8), decoration: BoxDecoration(color: isSelected ? color.withOpacity(0.08) : Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: isSelected ? color : Colors.grey.shade200, width: isSelected ? 2 : 1), boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 2))] : null),
-                child: Column(children: [Text(t['emoji'] as String, style: const TextStyle(fontSize: 28)), const SizedBox(height: 6), Text(t['label'] as String, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: isSelected ? color : Colors.black87)), const SizedBox(height: 2), Text(t['desc'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade500), textAlign: TextAlign.center, maxLines: 2), if (isSelected) ...[const SizedBox(height: 6), Icon(Icons.check_circle, color: color, size: 18)]])),
+            child: AnimatedContainer(duration: const Duration(milliseconds: 250), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8), decoration: BoxDecoration(color: isSelected ? color.withValues(alpha: 0.08) : _fillColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: isSelected ? color : _borderColor, width: isSelected ? 2 : 1), boxShadow: isSelected ? [BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))] : null),
+                child: Column(children: [Text(t['emoji'] as String, style: const TextStyle(fontSize: 28)), const SizedBox(height: 6), Text(t['label'] as String, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: isSelected ? color : _textColor)), const SizedBox(height: 2), Text(t['desc'] as String, style: TextStyle(fontSize: 10, color: _subTextColor), textAlign: TextAlign.center, maxLines: 2), if (isSelected) ...[const SizedBox(height: 6), Icon(Icons.check_circle, color: color, size: 18)]])),
           )));
         }).toList()),
         const SizedBox(height: 20),
-        TextFormField(controller: _titleController, validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите название' : null, autofocus: true, decoration: InputDecoration(labelText: 'Название', hintText: 'Краткое описание', prefixIcon: const Icon(Icons.edit_rounded), filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)))),
+        TextFormField(controller: _titleController, validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите название' : null, autofocus: true, style: TextStyle(color: _textColor), decoration: InputDecoration(labelText: 'Название', hintText: 'Краткое описание', labelStyle: TextStyle(color: _subTextColor), hintStyle: TextStyle(color: _subTextColor.withValues(alpha: 0.5)), prefixIcon: const Icon(Icons.edit_rounded, color: Colors.orange), filled: true, fillColor: _fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: _borderColor)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)))),
         const SizedBox(height: 14),
-        TextFormField(controller: _descController, maxLines: 3, decoration: InputDecoration(labelText: 'Описание (необязательно)', hintText: 'Подробности...', prefixIcon: const Icon(Icons.description_rounded), filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)))),
+        TextFormField(controller: _descController, maxLines: 3, style: TextStyle(color: _textColor), decoration: InputDecoration(labelText: 'Описание (необязательно)', hintText: 'Подробности...', labelStyle: TextStyle(color: _subTextColor), hintStyle: TextStyle(color: _subTextColor.withValues(alpha: 0.5)), prefixIcon: const Icon(Icons.description_rounded, color: Colors.orange), filled: true, fillColor: _fillColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: _borderColor)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)))),
         const SizedBox(height: 20),
-        SizedBox(height: 54, child: ElevatedButton(onPressed: _submit, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 4, shadowColor: Colors.orange.withOpacity(0.4)), child: const Text('Создать маркер', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))),
+        SizedBox(height: 54, child: ElevatedButton(onPressed: _submit, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 4, shadowColor: Colors.orange.withValues(alpha: 0.4)), child: const Text('Создать маркер', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))),
       ])),
     );
   }

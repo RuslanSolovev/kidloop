@@ -14,29 +14,32 @@ class MyItemsScreen extends StatelessWidget {
         .where((e) => e.isMine)
         .toList();
 
+    // 🔥 Используем Theme напрямую
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final surfaceColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
+    final backgroundColor = isDark ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Мои вещи'),
-        centerTitle: true,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+        title: Text('Мои вещи', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 20)),
+        centerTitle: true,
       ),
       body: items.isEmpty
           ? Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 72, color: Colors.grey.shade300),
+            Icon(Icons.auto_awesome, size: 72, color: isDark ? Colors.grey.shade700 : Colors.grey.shade300),
             const SizedBox(height: 16),
             Text(
               'У тебя пока нет вещей.\nНажми + чтобы добавить!',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey.shade600,
-                height: 1.5,
-              ),
+              style: TextStyle(fontSize: 18, color: subTextColor, height: 1.5),
             ),
           ],
         ),
@@ -74,7 +77,7 @@ class MyItemsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -83,7 +86,7 @@ class MyItemsScreen extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: Material(
-                    color: Theme.of(context).cardColor,
+                    color: surfaceColor,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -124,7 +127,7 @@ class MyItemsScreen extends StatelessWidget {
                                     begin: Alignment.bottomCenter,
                                     end: Alignment.topCenter,
                                     colors: [
-                                      Colors.black.withOpacity(0.6),
+                                      Colors.black.withValues(alpha: 0.6),
                                       Colors.transparent,
                                     ],
                                   ),
@@ -163,7 +166,7 @@ class MyItemsScreen extends StatelessWidget {
                                 Text(
                                   item.description,
                                   style: TextStyle(
-                                    color: Colors.grey.shade700,
+                                    color: subTextColor,
                                     fontSize: 15,
                                     height: 1.4,
                                   ),
@@ -210,9 +213,9 @@ class MyItemsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

@@ -13,16 +13,16 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
 
-  // Плавное скрытие вместо резкого
   double _headerOpacity = 1.0;
   double _headerHeight = 80.0;
   double _lastScrollOffset = 0;
   double _scrollAccumulator = 0;
 
-  // Константы для анимации
   static const double _maxHeaderHeight = 80.0;
-  static const double _minHeaderHeight = 0.0;
-  static const double _scrollThreshold = 50.0; // Порог срабатывания
+  static const double _scrollThreshold = 50.0;
+
+  // 🔥 Поддержка тёмной/светлой темы
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
 
   @override
   void initState() {
@@ -43,27 +43,20 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     final currentOffset = _scrollController.offset;
     final delta = currentOffset - _lastScrollOffset;
 
-    // Накапливаем смещение для плавности
     _scrollAccumulator += delta;
-
-    // Ограничиваем накопленное смещение
     _scrollAccumulator = _scrollAccumulator.clamp(-_scrollThreshold, _scrollThreshold);
 
-    // Вычисляем прогресс скрытия (0 = показан, 1 = скрыт)
     double targetProgress;
     if (_scrollAccumulator >= _scrollThreshold) {
       targetProgress = 1.0;
     } else if (_scrollAccumulator <= -_scrollThreshold) {
       targetProgress = 0.0;
     } else if (_scrollAccumulator > 0) {
-      // Плавно скрываем
       targetProgress = _scrollAccumulator / _scrollThreshold;
     } else {
-      // Плавно показываем
       targetProgress = 0.0;
     }
 
-    // Применяем с анимацией через setState
     setState(() {
       _headerOpacity = 1.0 - targetProgress;
       _headerHeight = _maxHeaderHeight - (targetProgress * _maxHeaderHeight);
@@ -71,15 +64,22 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
 
     _lastScrollOffset = currentOffset;
 
-    // Сбрасываем аккумулятор если дошли до крайних значений
     if (_scrollAccumulator >= _scrollThreshold || _scrollAccumulator <= -_scrollThreshold) {
       _scrollAccumulator = _scrollAccumulator.clamp(-_scrollThreshold, _scrollThreshold);
     }
   }
 
-  // ============================================================================
+  // 🔥 Хелперы для цветов темы
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : Colors.white;
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _surfaceColor2 => _isDarkMode ? const Color(0xFF151932) : Colors.grey.shade50;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade500 : Colors.grey.shade600;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200;
+  Color get _dividerColor => _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade300;
+  Color get _emptyIconBgColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.grey.shade100;
+
   // СИСТЕМА ДОСТИЖЕНИЙ
-  // ============================================================================
   List<Achievement> get _achievements {
     final achievements = <Achievement>[];
 
@@ -154,7 +154,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
         title: 'Активный день',
         description: 'Пройдите 5 000 шагов за день',
         icon: Icons.sunny,
-        color: const Color(0xFFFF9800),
+        color: Colors.orange,
         unlocked: true,
         date: _findBestDayDate(5000, daySteps),
       ));
@@ -165,7 +165,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
         title: 'Дневной марафон',
         description: 'Пройдите 10 000 шагов за день',
         icon: Icons.emoji_events,
-        color: const Color(0xFFFF5722),
+        color: Colors.deepOrange,
         unlocked: true,
         date: _findBestDayDate(10000, daySteps),
       ));
@@ -209,7 +209,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
         title: 'Месяц движения',
         description: 'Будьте активны 30 разных дней',
         icon: Icons.workspace_premium,
-        color: const Color(0xFFFFD700),
+        color: Colors.amber,
         unlocked: true,
         date: 'За всё время',
       ));
@@ -218,9 +218,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     return achievements;
   }
 
-  // ============================================================================
   // СИСТЕМА РЕКОРДОВ
-  // ============================================================================
   List<Record> get _records {
     final records = <Record>[];
     final daySteps = <String, int>{};
@@ -247,7 +245,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
         date: day.key,
         icon: Icons.calendar_today,
         color: i == 0
-            ? const Color(0xFFFFD700)
+            ? Colors.amber
             : i == 1
             ? const Color(0xFFC0C0C0)
             : const Color(0xFFCD7F32),
@@ -279,7 +277,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
       value: '${_formatNumber(totalSteps)} шагов',
       date: 'За всё время',
       icon: Icons.stars,
-      color: const Color(0xFFFF6B6B),
+      color: Colors.orange,
       isTop: false,
     ));
 
@@ -331,38 +329,32 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     return days.length;
   }
 
-  int get _recordsCount => _records.length;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A1A),
+      backgroundColor: _backgroundColor,
       body: NestedScrollView(
         controller: _scrollController,
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar(
-              backgroundColor: const Color(0xFF0A0A1A),
+              backgroundColor: _backgroundColor,
               elevation: 0,
               pinned: true,
               leading: IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    border: Border.all(color: _isDarkMode ? Colors.white.withOpacity(0.06) : Colors.grey.shade200),
                   ),
-                  child: const Icon(Icons.arrow_back_rounded,
-                      color: Colors.white, size: 22),
+                  child: Icon(Icons.arrow_back_rounded, color: _textColor, size: 22),
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
-              title: const Text('Журнал',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700)),
+              title: Text('Журнал',
+                  style: TextStyle(color: _textColor, fontSize: 24, fontWeight: FontWeight.w700)),
               bottom: PreferredSize(
                 preferredSize: Size.fromHeight(_headerHeight + 52),
                 child: Column(
@@ -385,18 +377,18 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF1A1A2E).withOpacity(0.9),
-                            const Color(0xFF151932).withOpacity(0.7),
+                            _surfaceColor.withOpacity(0.9),
+                            _surfaceColor2.withOpacity(0.7),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white.withOpacity(0.06)),
+                        border: Border.all(color: _cardBorderColor),
                       ),
                       child: TabBar(
                         controller: _tabController,
                         indicator: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
+                            colors: [Colors.orange, Colors.deepOrange],
                           ),
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -404,16 +396,10 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                         indicatorWeight: 0,
                         labelColor: Colors.white,
                         unselectedLabelColor: Colors.grey,
-                        tabs: [
-                          Tab(
-                            icon: Icon(Icons.list_alt_rounded, size: 22),
-                          ),
-                          Tab(
-                            icon: Icon(Icons.emoji_events_rounded, size: 22),
-                          ),
-                          Tab(
-                            icon: Icon(Icons.stars_rounded, size: 22),
-                          ),
+                        tabs: const [
+                          Tab(icon: Icon(Icons.list_alt_rounded, size: 22)),
+                          Tab(icon: Icon(Icons.emoji_events_rounded, size: 22)),
+                          Tab(icon: Icon(Icons.stars_rounded, size: 22)),
                         ],
                       ),
                     ),
@@ -441,26 +427,11 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildMiniStat(
-            Icons.directions_walk_rounded,
-            _formatNumber(_totalSteps),
-            'шагов',
-            const Color(0xFF4CAF50),
-          ),
-          Container(width: 1, height: 36, color: Colors.white.withOpacity(0.08)),
-          _buildMiniStat(
-            Icons.emoji_events_rounded,
-            '$_achievementsCount',
-            'достижений',
-            const Color(0xFFFF9800),
-          ),
-          Container(width: 1, height: 36, color: Colors.white.withOpacity(0.08)),
-          _buildMiniStat(
-            Icons.calendar_month_rounded,
-            '$_activeDays',
-            'дней',
-            const Color(0xFF4A90E2),
-          ),
+          _buildMiniStat(Icons.directions_walk_rounded, _formatNumber(_totalSteps), 'шагов', const Color(0xFF4CAF50)),
+          Container(width: 1, height: 36, color: _dividerColor),
+          _buildMiniStat(Icons.emoji_events_rounded, '$_achievementsCount', 'достижений', Colors.orange),
+          Container(width: 1, height: 36, color: _dividerColor),
+          _buildMiniStat(Icons.calendar_month_rounded, '$_activeDays', 'дней', const Color(0xFF4A90E2)),
         ],
       ),
     );
@@ -483,21 +454,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(value,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold)),
-            Text(label,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 10)),
+                style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text(label, style: TextStyle(color: _subTextColor, fontSize: 10)),
           ],
         ),
       ],
     );
   }
 
-  // ============================================================================
   // ВКЛАДКА "ВСЕ"
-  // ============================================================================
   Widget _buildAllActivityTab() {
     final groupedByDay = _groupFeedByDay(widget.feed);
     final sortedDays = groupedByDay.keys.toList()
@@ -522,9 +487,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     );
   }
 
-  // ============================================================================
   // ВКЛАДКА "ДОСТИЖЕНИЯ"
-  // ============================================================================
   Widget _buildAchievementsTab() {
     final achievements = _achievements;
     final unlocked = achievements.where((a) => a.unlocked).toList();
@@ -552,17 +515,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                achievement.color.withOpacity(0.12),
-                const Color(0xFF151932).withOpacity(0.6),
+                achievement.color.withOpacity(_isDarkMode ? 0.12 : 0.06),
+                _surfaceColor2.withOpacity(0.6),
               ],
             ),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: achievement.color.withOpacity(0.25),
-            ),
+            border: Border.all(color: achievement.color.withOpacity(0.25)),
             boxShadow: [
               BoxShadow(
-                color: achievement.color.withOpacity(0.05),
+                color: achievement.color.withOpacity(_isDarkMode ? 0.05 : 0.03),
                 blurRadius: 15,
                 spreadRadius: 1,
               ),
@@ -581,10 +542,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                       achievement.color.withOpacity(0.08),
                     ],
                   ),
-                  border: Border.all(
-                    color: achievement.color.withOpacity(0.35),
-                    width: 2,
-                  ),
+                  border: Border.all(color: achievement.color.withOpacity(0.35), width: 2),
                 ),
                 child: Icon(achievement.icon, color: achievement.color, size: 24),
               ),
@@ -593,22 +551,11 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      achievement.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    Text(achievement.title,
+                        style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 3),
-                    Text(
-                      achievement.description,
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 12,
-                      ),
-                    ),
+                    Text(achievement.description,
+                        style: TextStyle(color: _subTextColor, fontSize: 12)),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -616,14 +563,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                         color: achievement.color.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        achievement.date,
-                        style: TextStyle(
-                          color: achievement.color.withOpacity(0.85),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: Text(achievement.date,
+                          style: TextStyle(color: achievement.color.withOpacity(0.85), fontSize: 10, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
@@ -643,9 +584,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     );
   }
 
-  // ============================================================================
   // ВКЛАДКА "РЕКОРДЫ"
-  // ============================================================================
   Widget _buildRecordsTab() {
     final records = _records;
 
@@ -672,29 +611,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: record.isTop
-                  ? [
-                const Color(0xFFFFD700).withOpacity(0.1),
-                const Color(0xFF151932).withOpacity(0.6),
-              ]
-                  : [
-                record.color.withOpacity(0.06),
-                const Color(0xFF151932).withOpacity(0.6),
-              ],
+                  ? [Colors.amber.withOpacity(_isDarkMode ? 0.12 : 0.06), _surfaceColor2.withOpacity(0.6)]
+                  : [record.color.withOpacity(_isDarkMode ? 0.06 : 0.03), _surfaceColor2.withOpacity(0.6)],
             ),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: record.isTop
-                  ? const Color(0xFFFFD700).withOpacity(0.25)
-                  : record.color.withOpacity(0.15),
+              color: record.isTop ? Colors.amber.withOpacity(0.3) : record.color.withOpacity(0.15),
             ),
             boxShadow: record.isTop
-                ? [
-              BoxShadow(
-                color: const Color(0xFFFFD700).withOpacity(0.1),
-                blurRadius: 20,
-                spreadRadius: 2,
-              )
-            ]
+                ? [BoxShadow(color: Colors.amber.withOpacity(_isDarkMode ? 0.12 : 0.06), blurRadius: 20, spreadRadius: 2)]
                 : [],
           ),
           child: Row(
@@ -705,15 +630,9 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [
-                      record.color.withOpacity(0.25),
-                      record.color.withOpacity(0.08),
-                    ],
+                    colors: [record.color.withOpacity(0.25), record.color.withOpacity(0.08)],
                   ),
-                  border: Border.all(
-                    color: record.color.withOpacity(0.35),
-                    width: 2,
-                  ),
+                  border: Border.all(color: record.color.withOpacity(0.35), width: 2),
                 ),
                 child: Icon(record.icon, color: record.color, size: 24),
               ),
@@ -724,14 +643,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                   children: [
                     Row(
                       children: [
-                        Text(
-                          record.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        Text(record.title,
+                            style: TextStyle(color: _textColor, fontSize: 15, fontWeight: FontWeight.w700)),
                         if (record.isTop) ...[
                           const SizedBox(width: 6),
                           const Text('👑', style: TextStyle(fontSize: 14)),
@@ -739,22 +652,10 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      record.value,
-                      style: TextStyle(
-                        color: record.color.withOpacity(0.9),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    Text(record.value,
+                        style: TextStyle(color: record.color.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 3),
-                    Text(
-                      record.date,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 11,
-                      ),
-                    ),
+                    Text(record.date, style: TextStyle(color: _subTextColor, fontSize: 11)),
                   ],
                 ),
               ),
@@ -763,22 +664,11 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                 height: 36,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      record.color.withOpacity(0.2),
-                      record.color.withOpacity(0.05),
-                    ],
-                  ),
+                  gradient: LinearGradient(colors: [record.color.withOpacity(0.2), record.color.withOpacity(0.05)]),
                 ),
                 child: Center(
-                  child: Text(
-                    '#${index + 1}',
-                    style: TextStyle(
-                      color: record.color,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: Text('#${index + 1}',
+                      style: TextStyle(color: record.color, fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -788,9 +678,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     );
   }
 
-  // ============================================================================
   // ПУСТОЕ СОСТОЯНИЕ
-  // ============================================================================
   Widget _buildEmptyState(String title, String subtitle, IconData icon) {
     return Center(
       child: Column(
@@ -801,44 +689,27 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF1A1A2E),
-                  const Color(0xFF151932),
-                ],
-              ),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.06),
-                width: 2,
-              ),
+              gradient: LinearGradient(colors: [_emptyIconBgColor, _surfaceColor2]),
+              border: Border.all(color: _cardBorderColor, width: 2),
             ),
-            child: Icon(icon, size: 40, color: Colors.grey.shade600),
+            child: Icon(icon, size: 40, color: _subTextColor),
           ),
           const SizedBox(height: 20),
           Text(title,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700)),
+              style: TextStyle(color: _textColor, fontSize: 20, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Text(subtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 14,
-                  height: 1.5)),
+              style: TextStyle(color: _subTextColor, fontSize: 14, height: 1.5)),
         ],
       ),
     );
   }
 
-  // ============================================================================
   // ГРУППИРОВКА ПО ДНЯМ
-  // ============================================================================
   Widget _buildDayGroup(String day, List<String> entries) {
     final now = DateTime.now();
-    final todayStr =
-        '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}';
+    final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}';
     final isToday = day == todayStr;
 
     int daySteps = 0;
@@ -858,20 +729,12 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isToday
-                  ? [
-                const Color(0xFF4CAF50).withOpacity(0.12),
-                const Color(0xFF151932).withOpacity(0.4),
-              ]
-                  : [
-                const Color(0xFF1A1A2E),
-                const Color(0xFF151932),
-              ],
+                  ? [const Color(0xFF4CAF50).withOpacity(_isDarkMode ? 0.12 : 0.06), _surfaceColor2.withOpacity(0.4)]
+                  : [_surfaceColor, _surfaceColor2],
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isToday
-                  ? const Color(0xFF4CAF50).withOpacity(0.18)
-                  : Colors.white.withOpacity(0.03),
+              color: isToday ? const Color(0xFF4CAF50).withOpacity(0.18) : _cardBorderColor,
             ),
           ),
           child: Row(
@@ -883,19 +746,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
                     colors: isToday
-                        ? [
-                      const Color(0xFF4CAF50).withOpacity(0.25),
-                      const Color(0xFF4CAF50).withOpacity(0.08),
-                    ]
-                        : [
-                      Colors.white.withOpacity(0.06),
-                      Colors.white.withOpacity(0.02),
-                    ],
+                        ? [const Color(0xFF4CAF50).withOpacity(0.25), const Color(0xFF4CAF50).withOpacity(0.08)]
+                        : [_isDarkMode ? Colors.white.withOpacity(0.06) : Colors.grey.shade200, _isDarkMode ? Colors.white.withOpacity(0.02) : Colors.grey.shade100],
                   ),
                 ),
                 child: Icon(
                   isToday ? Icons.today_rounded : Icons.date_range_rounded,
-                  color: isToday ? const Color(0xFF4CAF50) : Colors.grey,
+                  color: isToday ? const Color(0xFF4CAF50) : (_isDarkMode ? Colors.grey : Colors.grey.shade500),
                   size: 22,
                 ),
               ),
@@ -904,22 +761,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isToday ? 'Сегодня' : _formatFullDate(day),
-                      style: TextStyle(
-                        color: isToday ? const Color(0xFF4CAF50) : Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    Text(isToday ? 'Сегодня' : _formatFullDate(day),
+                        style: TextStyle(
+                          color: isToday ? const Color(0xFF4CAF50) : _textColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        )),
                     const SizedBox(height: 3),
-                    Text(
-                      '${entries.length} записей${daySteps > 0 ? ' • ${_formatNumber(daySteps)} шагов' : ''}',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 11,
-                      ),
-                    ),
+                    Text('${entries.length} записей${daySteps > 0 ? ' • ${_formatNumber(daySteps)} шагов' : ''}',
+                        style: TextStyle(color: _subTextColor, fontSize: 11)),
                   ],
                 ),
               ),
@@ -928,24 +778,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF4CAF50).withOpacity(0.2),
-                        const Color(0xFF4CAF50).withOpacity(0.06),
-                      ],
+                      colors: [const Color(0xFF4CAF50).withOpacity(0.2), const Color(0xFF4CAF50).withOpacity(0.06)],
                     ),
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFF4CAF50).withOpacity(0.25),
-                    ),
+                    border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.25)),
                   ),
-                  child: Text(
-                    _formatNumber(daySteps),
-                    style: const TextStyle(
-                      color: Color(0xFF4CAF50),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: Text(_formatNumber(daySteps),
+                      style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 14, fontWeight: FontWeight.bold)),
                 ),
             ],
           ),
@@ -961,10 +800,10 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
             accentColor = const Color(0xFF4CAF50);
             icon = Icons.play_circle_filled;
           } else if (entry.contains('Конец')) {
-            accentColor = const Color(0xFFFF6B6B);
+            accentColor = Colors.red;
             icon = Icons.stop_circle;
           } else if (entry.contains('Достигли') || entry.contains('рекорд')) {
-            accentColor = const Color(0xFFFF9800);
+            accentColor = Colors.orange;
             icon = Icons.emoji_events;
           } else {
             accentColor = const Color(0xFF4A90E2);
@@ -977,8 +816,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF1A1A2E).withOpacity(0.6),
-                  const Color(0xFF151932).withOpacity(0.4),
+                  _surfaceColor.withOpacity(0.6),
+                  _surfaceColor2.withOpacity(0.4),
                 ],
               ),
               borderRadius: BorderRadius.circular(14),
@@ -995,15 +834,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                         color: accentColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        time,
-                        style: TextStyle(
-                          color: accentColor.withOpacity(0.85),
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: Text(time,
+                          style: TextStyle(
+                            color: accentColor.withOpacity(0.85),
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
+                          )),
                     ),
                     const SizedBox(height: 6),
                     Container(
@@ -1019,14 +856,12 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      color: Colors.grey.shade300,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
+                  child: Text(text,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
+                        fontSize: 13,
+                        height: 1.4,
+                      )),
                 ),
               ],
             ),
@@ -1036,9 +871,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     );
   }
 
-  // ============================================================================
   // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-  // ============================================================================
   Map<String, List<String>> _groupFeedByDay(List<String> feed) {
     final Map<String, List<String>> grouped = {};
     for (final entry in feed) {
@@ -1071,9 +904,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
   }
 }
 
-// ============================================================================
 // МОДЕЛИ ДАННЫХ
-// ============================================================================
 class Achievement {
   final String title;
   final String description;

@@ -29,6 +29,14 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
     }
   }
 
+  // 🔥 Используем Theme напрямую — автоматически обновляется при смене темы
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200;
+
   Future<void> _acceptOffer(TradeOffer offer) async {
     final result = await context.read<TradesProvider>().updateStatus(offer.id, 'accepted');
     if (result['ok'] != true) {
@@ -37,17 +45,28 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
+            backgroundColor: _surfaceColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             icon: Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
-            title: const Text('Ошибка'),
+            title: Text('Ошибка', style: TextStyle(color: _textColor)),
             content: Text(
               error == 'insufficient_balance'
                   ? 'У вас недостаточно SV для принятия.'
                   : 'Не удалось принять предложение.',
               textAlign: TextAlign.center,
+              style: TextStyle(color: _subTextColor),
             ),
             actions: [
-              FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                ),
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
         );
@@ -70,18 +89,20 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // 🔥 _isDarkMode автоматически обновляется через Theme.of(context)
     final offers = context.watch<TradesProvider>().offers;
     final provider = context.read<TradesProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        title: const Text('Предложения обмена', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        surfaceTintColor: Colors.transparent,
+        title: Text(
+          'Предложения обмена',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: _textColor),
+        ),
+        centerTitle: true,
       ),
       body: offers.isEmpty
           ? Center(
@@ -91,35 +112,36 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.08),
+                color: Colors.orange.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.swap_horiz_rounded, size: 56, color: Colors.grey.shade400),
+              child: Icon(Icons.swap_horiz_rounded, size: 56, color: Colors.orange.withValues(alpha: 0.5)),
             ),
             const SizedBox(height: 20),
-            const Text('Пока нет предложений обмена', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black54)),
+            Text('Пока нет предложений обмена', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _textColor.withValues(alpha: 0.6))),
             const SizedBox(height: 8),
-            const Text('Здесь будут появляться предложения\nобмена от других пользователей', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 14)),
+            Text('Здесь будут появляться предложения\nобмена от других пользователей', textAlign: TextAlign.center, style: TextStyle(color: _subTextColor, fontSize: 14)),
           ],
         ),
       )
           : RefreshIndicator(
         onRefresh: () => context.read<TradesProvider>().loadOffers(),
         color: Colors.orange,
+        backgroundColor: _surfaceColor,
         child: ListView.builder(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
           itemCount: offers.length,
           itemBuilder: (context, index) {
             final offer = offers[index];
-            return _buildOfferCard(offer, provider, theme);
+            return _buildOfferCard(offer, provider);
           },
         ),
       ),
     );
   }
 
-  Widget _buildOfferCard(TradeOffer offer, TradesProvider provider, ThemeData theme) {
+  Widget _buildOfferCard(TradeOffer offer, TradesProvider provider) {
     final isTo = _isToUser(offer);
     final statusColor = _getStatusColor(offer.status);
     final canTap = offer.status == 'accepted' || offer.status == 'shipped' || offer.status == 'completed';
@@ -130,35 +152,38 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
         onTap: canTap
             ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => TradeDiscussionScreen(offer: offer)))
             : null,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _surfaceColor,
             borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: canTap ? statusColor.withValues(alpha: 0.3) : _cardBorderColor, width: canTap ? 1.5 : 1),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 14, offset: const Offset(0, 4)),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _isDarkMode ? 0.15 : 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
             ],
-            border: canTap ? Border.all(color: statusColor.withOpacity(0.3), width: 1.5) : null,
           ),
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Статус
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 8,
-                            height: 8,
+                            width: 8, height: 8,
                             decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
                           ),
                           const SizedBox(width: 6),
@@ -174,7 +199,7 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: Colors.orange.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.arrow_forward_rounded, color: Colors.orange, size: 18),
@@ -182,8 +207,6 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Предметы обмена
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -193,13 +216,19 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
-                            child: Text(isTo ? 'Предлагают' : 'Вы предлагаете', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blue.shade600)),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isTo ? 'Предлагают' : 'Вы предлагаете',
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.orange),
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             isTo ? offer.fromItemTitle : offer.toItemTitle,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, height: 1.3),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, height: 1.3, color: _textColor),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -209,11 +238,13 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [Colors.orange.shade300, Colors.deepOrange.shade300]),
-                          borderRadius: BorderRadius.circular(12),
+                        width: 38, height: 38,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                          boxShadow: [
+                            BoxShadow(color: Color(0x4DFF9800), blurRadius: 6, offset: Offset(0, 2)),
+                          ],
                         ),
                         child: const Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 20),
                       ),
@@ -224,13 +255,19 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.green.withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
-                            child: Text(isTo ? 'Взамен на' : 'На что меняете', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green.shade600)),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isTo ? 'Взамен на' : 'На что меняете',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green.shade600),
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             isTo ? offer.toItemTitle : offer.fromItemTitle,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, height: 1.3),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, height: 1.3, color: _textColor),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -239,22 +276,19 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 14),
-
-                // Доплата
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: offer.svDifference != 0
-                          ? [Colors.amber.withOpacity(0.1), Colors.orange.withOpacity(0.05)]
-                          : [Colors.green.withOpacity(0.1), Colors.teal.withOpacity(0.05)],
+                          ? [Colors.amber.withValues(alpha: 0.1), Colors.orange.withValues(alpha: 0.05)]
+                          : [Colors.green.withValues(alpha: 0.1), Colors.teal.withValues(alpha: 0.05)],
                     ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: offer.svDifference != 0 ? Colors.amber.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                      color: offer.svDifference != 0 ? Colors.amber.withValues(alpha: 0.3) : Colors.green.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -281,8 +315,6 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                     ],
                   ),
                 ),
-
-                // Кнопки для pending
                 if (offer.status == 'pending' && isTo) ...[
                   const SizedBox(height: 16),
                   Row(
@@ -291,34 +323,39 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                         child: OutlinedButton(
                           onPressed: () => _showRejectDialog(offer, provider),
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.red.withOpacity(0.4)),
+                            side: BorderSide(color: Colors.red.withValues(alpha: 0.4)),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            backgroundColor: Colors.red.withOpacity(0.03),
+                            backgroundColor: Colors.red.withValues(alpha: 0.03),
                           ),
                           child: const Text('Отклонить', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _acceptOffer(offer),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            elevation: 2,
-                            shadowColor: Colors.green.withOpacity(0.4),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            borderRadius: BorderRadius.all(Radius.circular(14)),
+                            boxShadow: [
+                              BoxShadow(color: Color(0x4D4CAF50), blurRadius: 8, offset: Offset(0, 2)),
+                            ],
                           ),
-                          child: const Text('Принять', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: ElevatedButton(
+                            onPressed: () => _acceptOffer(offer),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              elevation: 0,
+                            ),
+                            child: const Text('Принять', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ],
-
-                // Ожидание для отправителя
                 if (offer.status == 'pending' && !isTo)
                   Padding(
                     padding: const EdgeInsets.only(top: 14),
@@ -326,7 +363,7 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.06),
+                        color: Colors.orange.withValues(alpha: _isDarkMode ? 0.1 : 0.06),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Row(
@@ -339,8 +376,6 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       ),
                     ),
                   ),
-
-                // Отклонено
                 if (offer.status == 'rejected')
                   Padding(
                     padding: const EdgeInsets.only(top: 14),
@@ -348,7 +383,7 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.06),
+                        color: Colors.red.withValues(alpha: _isDarkMode ? 0.1 : 0.06),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Row(
@@ -361,8 +396,6 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       ),
                     ),
                   ),
-
-                // Завершено
                 if (offer.status == 'completed')
                   Padding(
                     padding: const EdgeInsets.only(top: 14),
@@ -370,7 +403,7 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [Colors.green.withOpacity(0.08), Colors.teal.withOpacity(0.04)]),
+                        gradient: LinearGradient(colors: [Colors.green.withValues(alpha: 0.08), Colors.teal.withValues(alpha: 0.04)]),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Row(
@@ -395,33 +428,31 @@ class _TradeOffersScreenState extends State<TradeOffersScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: _surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Отклонить предложение?'),
-        content: const Text('Вы уверены, что хотите отклонить это предложение обмена?'),
+        title: Text('Отклонить предложение?', style: TextStyle(color: _textColor)),
+        content: Text('Вы уверены, что хотите отклонить это предложение обмена?', style: TextStyle(color: _subTextColor)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.updateStatus(offer.id, 'rejected');
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Отклонить'),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Отмена', style: TextStyle(color: _isDarkMode ? Colors.grey : Colors.grey.shade600)),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+            child: TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                provider.updateStatus(offer.id, 'rejected');
+              },
+              child: const Text('Отклонить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
           ),
         ],
       ),
     );
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'accepted': return Icons.check_circle_outline;
-      case 'shipped': return Icons.local_shipping;
-      case 'completed': return Icons.verified;
-      case 'rejected': return Icons.cancel;
-      case 'cancelled': return Icons.cancel;
-      default: return Icons.hourglass_empty;
-    }
   }
 
   String _getStatusText(String status) {

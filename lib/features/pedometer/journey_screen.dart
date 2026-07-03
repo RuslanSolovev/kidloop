@@ -25,6 +25,9 @@ class _JourneyViewState extends State<JourneyView>
   late AnimationController _slideController;
   final Map<int, AnimationController> _itemAnimControllers = {};
 
+  // 🔥 Поддержка тёмной/светлой темы
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +62,19 @@ class _JourneyViewState extends State<JourneyView>
   double get _progressPercent =>
       (widget.walkedKm / _totalDistance).clamp(0.0, 1.0);
 
+  // 🔥 Хелперы для цветов темы
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : Colors.white;
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _surfaceColor2 => _isDarkMode ? const Color(0xFF151932) : Colors.grey.shade50;
+  Color get _surfaceColor3 => _isDarkMode ? const Color(0xFF16213E) : Colors.grey.shade100;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade500 : Colors.grey.shade600;
+  Color get _dimTextColor => _isDarkMode ? const Color(0xFF8888AA) : Colors.grey.shade600;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200;
+  Color get _dividerColor => _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade300;
+  Color get _timelineLineColor => _isDarkMode ? const Color(0xFF2D2D44) : Colors.grey.shade300;
+  Color get _timelineLineReachedColor => _isDarkMode ? Colors.orange.withOpacity(0.5) : Colors.orange.withOpacity(0.6);
+
   @override
   Widget build(BuildContext context) {
     final nextIndex = _cities.indexOf(_currentCity) + 1;
@@ -70,7 +86,7 @@ class _JourneyViewState extends State<JourneyView>
         : 1.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A1A),
+      backgroundColor: _backgroundColor,
       appBar: _buildAppBar(),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -102,27 +118,21 @@ class _JourneyViewState extends State<JourneyView>
       leading: Container(
         margin: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200),
         ),
         child: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded,
-              color: Color(0xFFFF6B6B), size: 20),
+          icon: Icon(Icons.arrow_back_rounded, color: Colors.orange, size: 20),
           onPressed: widget.onBack,
         ),
       ),
       title: Column(
         children: [
-          const Text('Транссибирское путешествие',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
+          Text('Транссибирское путешествие',
+              style: TextStyle(color: _textColor, fontSize: 16, fontWeight: FontWeight.w600)),
           Text('Москва → Владивосток',
-              style: TextStyle(
-                  color: const Color(0xFFFF6B6B).withOpacity(0.7),
-                  fontSize: 11)),
+              style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 11)),
         ],
       ),
       centerTitle: true,
@@ -140,18 +150,16 @@ class _JourneyViewState extends State<JourneyView>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFFFF6B6B).withOpacity(0.12),
-                const Color(0xFF1A1A2E),
-                const Color(0xFF0F0F1A),
+                Colors.orange.withOpacity(_isDarkMode ? 0.15 : 0.08),
+                _surfaceColor,
+                _isDarkMode ? const Color(0xFF0F0F1A) : Colors.grey.shade50,
               ],
             ),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(
-              color: const Color(0xFFFF6B6B).withOpacity(0.15),
-            ),
+            border: Border.all(color: Colors.orange.withOpacity(0.2)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF6B6B).withOpacity(0.08),
+                color: Colors.orange.withOpacity(_isDarkMode ? 0.1 : 0.05),
                 blurRadius: 40,
                 spreadRadius: 2,
               ),
@@ -162,10 +170,7 @@ class _JourneyViewState extends State<JourneyView>
               scale: _pulseAnimation.value,
               child: ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
-                  colors: [
-                    const Color(0xFFFF6B6B),
-                    const Color(0xFFFF8E8E).withOpacity(0.9),
-                  ],
+                  colors: [Colors.orange, Colors.deepOrange.withOpacity(0.9)],
                 ).createShader(bounds),
                 child: Text(
                   '${(_progressPercent * 100).toStringAsFixed(1)}%',
@@ -180,20 +185,15 @@ class _JourneyViewState extends State<JourneyView>
             ),
             const SizedBox(height: 4),
             Text('пути пройдено',
-                style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 14,
-                    letterSpacing: 1.5)),
+                style: TextStyle(color: _subTextColor, fontSize: 14, letterSpacing: 1.5)),
             const SizedBox(height: 20),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: LinearProgressIndicator(
                 value: _progressPercent,
                 minHeight: 14,
-                backgroundColor: const Color(0xFF1E1E3A),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  const Color(0xFFFF6B6B).withOpacity(0.9),
-                ),
+                backgroundColor: _isDarkMode ? const Color(0xFF1E1E3A) : Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.orange.withOpacity(0.9)),
               ),
             ),
             const SizedBox(height: 28),
@@ -201,22 +201,10 @@ class _JourneyViewState extends State<JourneyView>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildStatItem('👣', '${widget.totalSteps}', 'шагов'),
-                Container(
-                  width: 1,
-                  height: 44,
-                  color: Colors.white.withOpacity(0.08),
-                ),
-                _buildStatItem(
-                    '📍', '${widget.walkedKm.toStringAsFixed(1)}', 'км'),
-                Container(
-                  width: 1,
-                  height: 44,
-                  color: Colors.white.withOpacity(0.08),
-                ),
-                _buildStatItem(
-                    '🎯',
-                    '${(_totalDistance - widget.walkedKm).toStringAsFixed(0)}',
-                    'осталось'),
+                Container(width: 1, height: 44, color: _dividerColor),
+                _buildStatItem('📍', '${widget.walkedKm.toStringAsFixed(1)}', 'км'),
+                Container(width: 1, height: 44, color: _dividerColor),
+                _buildStatItem('🎯', '${(_totalDistance - widget.walkedKm).toStringAsFixed(0)}', 'осталось'),
               ],
             ),
           ]),
@@ -231,13 +219,9 @@ class _JourneyViewState extends State<JourneyView>
         Text(emoji, style: const TextStyle(fontSize: 24)),
         const SizedBox(height: 6),
         Text(value,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold)),
+            style: TextStyle(color: _textColor, fontSize: 20, fontWeight: FontWeight.bold)),
         const SizedBox(height: 2),
-        Text(label,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+        Text(label, style: TextStyle(color: _subTextColor, fontSize: 11)),
       ],
     );
   }
@@ -251,14 +235,12 @@ class _JourneyViewState extends State<JourneyView>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF4CAF50).withOpacity(0.08),
-                  const Color(0xFF1A1A2E).withOpacity(0.5),
+                  const Color(0xFF4CAF50).withOpacity(_isDarkMode ? 0.08 : 0.04),
+                  _surfaceColor.withOpacity(0.5),
                 ],
               ),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: const Color(0xFF4CAF50).withOpacity(0.15),
-              ),
+              border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.15)),
             ),
             child: Row(
               children: [
@@ -268,21 +250,15 @@ class _JourneyViewState extends State<JourneyView>
                     color: const Color(0xFF4CAF50).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.location_city,
-                      color: Color(0xFF4CAF50), size: 22),
+                  child: const Icon(Icons.location_city, color: Color(0xFF4CAF50), size: 22),
                 ),
                 const SizedBox(width: 14),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('$_reachedCitiesCount',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold)),
-                    Text('посещено',
-                        style: TextStyle(
-                            color: Colors.grey.shade500, fontSize: 11)),
+                        style: TextStyle(color: _textColor, fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text('посещено', style: TextStyle(color: _subTextColor, fontSize: 11)),
                   ],
                 ),
               ],
@@ -296,14 +272,12 @@ class _JourneyViewState extends State<JourneyView>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF4A90E2).withOpacity(0.08),
-                  const Color(0xFF1A1A2E).withOpacity(0.5),
+                  const Color(0xFF4A90E2).withOpacity(_isDarkMode ? 0.08 : 0.04),
+                  _surfaceColor.withOpacity(0.5),
                 ],
               ),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: const Color(0xFF4A90E2).withOpacity(0.15),
-              ),
+              border: Border.all(color: const Color(0xFF4A90E2).withOpacity(0.15)),
             ),
             child: Row(
               children: [
@@ -313,21 +287,15 @@ class _JourneyViewState extends State<JourneyView>
                     color: const Color(0xFF4A90E2).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.explore,
-                      color: Color(0xFF4A90E2), size: 22),
+                  child: const Icon(Icons.explore, color: Color(0xFF4A90E2), size: 22),
                 ),
                 const SizedBox(width: 14),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('$_remainingCitiesCount',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold)),
-                    Text('впереди',
-                        style: TextStyle(
-                            color: Colors.grey.shade500, fontSize: 11)),
+                        style: TextStyle(color: _textColor, fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text('впереди', style: TextStyle(color: _subTextColor, fontSize: 11)),
                   ],
                 ),
               ],
@@ -346,27 +314,15 @@ class _JourneyViewState extends State<JourneyView>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isCurrent
-              ? [
-            const Color(0xFF16213E),
-            const Color(0xFFFF6B6B).withOpacity(0.08),
-          ]
-              : [
-            const Color(0xFF0F0F1A),
-            const Color(0xFF1A1A2E).withOpacity(0.5),
-          ],
+              ? [_surfaceColor3, Colors.orange.withOpacity(_isDarkMode ? 0.12 : 0.06)]
+              : [_isDarkMode ? const Color(0xFF0F0F1A) : Colors.white, _surfaceColor.withOpacity(0.5)],
         ),
         borderRadius: BorderRadius.circular(28),
         border: isCurrent
-            ? Border.all(color: const Color(0xFFFF6B6B).withOpacity(0.25))
-            : Border.all(color: Colors.white.withOpacity(0.05)),
+            ? Border.all(color: Colors.orange.withOpacity(0.3))
+            : Border.all(color: _cardBorderColor),
         boxShadow: isCurrent
-            ? [
-          BoxShadow(
-            color: const Color(0xFFFF6B6B).withOpacity(0.1),
-            blurRadius: 20,
-            spreadRadius: 2,
-          )
-        ]
+            ? [BoxShadow(color: Colors.orange.withOpacity(_isDarkMode ? 0.15 : 0.08), blurRadius: 20, spreadRadius: 2)]
             : [],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -376,76 +332,47 @@ class _JourneyViewState extends State<JourneyView>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isCurrent
-                    ? [
-                  const Color(0xFFFF6B6B).withOpacity(0.2),
-                  const Color(0xFFFF6B6B).withOpacity(0.05),
-                ]
-                    : [
-                  Colors.white.withOpacity(0.05),
-                  Colors.white.withOpacity(0.02),
-                ],
+                    ? [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)]
+                    : [_isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100, _isDarkMode ? Colors.white.withOpacity(0.02) : Colors.grey.shade50],
               ),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
               isCurrent ? Icons.location_on_rounded : Icons.place_outlined,
-              color: isCurrent ? const Color(0xFFFF6B6B) : Colors.grey,
+              color: isCurrent ? Colors.orange : (_isDarkMode ? Colors.grey : Colors.grey.shade500),
               size: 28,
             ),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isCurrent)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFFFF6B6B).withOpacity(0.2),
-                            const Color(0xFFFF8E8E).withOpacity(0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text('📍 ТЕКУЩАЯ ЛОКАЦИЯ',
-                          style: TextStyle(
-                              color: Color(0xFFFF6B6B),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (isCurrent)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)],
                     ),
-                  const SizedBox(height: 6),
-                  Text(city.name,
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isCurrent ? 28 : 18,
-                          fontWeight: FontWeight.bold)),
-                  Text('${city.distanceFromMoscow} км от Москвы',
-                      style: TextStyle(
-                          color: isCurrent
-                              ? const Color(0xFFFF6B6B).withOpacity(0.7)
-                              : const Color(0xFF8888AA),
-                          fontSize: 12)),
-                ]),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('📍 ТЕКУЩАЯ ЛОКАЦИЯ',
+                      style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1)),
+                ),
+              const SizedBox(height: 6),
+              Text(city.name,
+                  style: TextStyle(color: _textColor, fontSize: isCurrent ? 28 : 18, fontWeight: FontWeight.bold)),
+              Text('${city.distanceFromMoscow} км от Москвы',
+                  style: TextStyle(color: isCurrent ? Colors.orange.withOpacity(0.7) : _dimTextColor, fontSize: 12)),
+            ]),
           ),
           if (city.isMajor)
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFFF9800).withOpacity(0.3),
-                    const Color(0xFFFF9800).withOpacity(0.1),
-                  ],
-                ),
+                gradient: LinearGradient(colors: [Colors.amber.withOpacity(0.3), Colors.amber.withOpacity(0.1)]),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.star_rounded,
-                  color: Color(0xFFFF9800), size: 18),
+              child: const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
             ),
         ]),
         const SizedBox(height: 20),
@@ -460,13 +387,10 @@ class _JourneyViewState extends State<JourneyView>
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.03),
-                  Colors.white.withOpacity(0.01),
-                ],
+                colors: [_isDarkMode ? Colors.white.withOpacity(0.03) : Colors.grey.shade50, _isDarkMode ? Colors.white.withOpacity(0.01) : Colors.grey.shade100],
               ),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+              border: Border.all(color: _cardBorderColor),
             ),
             child: Row(
               children: [
@@ -474,8 +398,7 @@ class _JourneyViewState extends State<JourneyView>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text('Местная кухня: ${city.cuisine}',
-                      style: const TextStyle(
-                          color: Color(0xFFAAAAAA), fontSize: 13)),
+                      style: TextStyle(color: _isDarkMode ? const Color(0xFFAAAAAA) : Colors.grey.shade700, fontSize: 13)),
                 ),
               ],
             ),
@@ -489,9 +412,9 @@ class _JourneyViewState extends State<JourneyView>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: _isDarkMode ? Colors.white.withOpacity(0.03) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.04)),
+        border: Border.all(color: _isDarkMode ? Colors.white.withOpacity(0.04) : Colors.grey.shade200),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,26 +423,17 @@ class _JourneyViewState extends State<JourneyView>
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  const Color(0xFFFF6B6B).withOpacity(0.2),
-                  const Color(0xFFFF6B6B).withOpacity(0.05),
-                ],
+                colors: [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)],
               ),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(label,
-                style: const TextStyle(
-                    color: Color(0xFFFF6B6B),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600)),
+                style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: const TextStyle(
-                    color: Color(0xFFBBBBBB),
-                    fontSize: 12,
-                    height: 1.5)),
+                style: TextStyle(color: _isDarkMode ? const Color(0xFFBBBBBB) : Colors.grey.shade700, fontSize: 12, height: 1.5)),
           ),
         ],
       ),
@@ -531,42 +445,25 @@ class _JourneyViewState extends State<JourneyView>
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            const Color(0xFFFF6B6B).withOpacity(0.08),
-            const Color(0xFF0F0F1A),
-          ],
+          colors: [Colors.orange.withOpacity(_isDarkMode ? 0.1 : 0.05), _isDarkMode ? const Color(0xFF0F0F1A) : Colors.white],
         ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: const Color(0xFFFF6B6B).withOpacity(0.15),
-        ),
+        border: Border.all(color: Colors.orange.withOpacity(0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFFFF6B6B).withOpacity(0.2),
-                  const Color(0xFFFF8E8E).withOpacity(0.1),
-                ],
-              ),
+              gradient: LinearGradient(colors: [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)]),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Text('🎯 СЛЕДУЮЩАЯ ОСТАНОВКА',
-                style: TextStyle(
-                    color: Color(0xFFFF6B6B),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1)),
+                style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1)),
           ),
           const Spacer(),
           Text('${(progress * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(
-                  color: Color(0xFFFF6B6B),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
+              style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
         ]),
         const SizedBox(height: 14),
         Row(
@@ -574,16 +471,10 @@ class _JourneyViewState extends State<JourneyView>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFFF6B6B).withOpacity(0.2),
-                    const Color(0xFFFF6B6B).withOpacity(0.05),
-                  ],
-                ),
+                gradient: LinearGradient(colors: [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)]),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.navigation,
-                  color: Color(0xFFFF6B6B), size: 22),
+              child: const Icon(Icons.navigation, color: Colors.orange, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -591,13 +482,9 @@ class _JourneyViewState extends State<JourneyView>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(city.name,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
+                      style: TextStyle(color: _textColor, fontSize: 22, fontWeight: FontWeight.bold)),
                   Text('${city.distanceFromMoscow} км',
-                      style: const TextStyle(
-                          color: Color(0xFF8888AA), fontSize: 12)),
+                      style: TextStyle(color: _dimTextColor, fontSize: 12)),
                 ],
               ),
             ),
@@ -605,10 +492,10 @@ class _JourneyViewState extends State<JourneyView>
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF9800).withOpacity(0.2),
+                  color: Colors.amber.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.star, color: Color(0xFFFF9800), size: 18),
+                child: const Icon(Icons.star, color: Colors.amber, size: 18),
               ),
           ],
         ),
@@ -618,8 +505,8 @@ class _JourneyViewState extends State<JourneyView>
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 10,
-            backgroundColor: const Color(0xFF1E1E3A),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF6B6B)),
+            backgroundColor: _isDarkMode ? const Color(0xFF1E1E3A) : Colors.grey.shade200,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
           ),
         ),
       ]),
@@ -634,40 +521,27 @@ class _JourneyViewState extends State<JourneyView>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF6B6B).withOpacity(0.1),
+              color: Colors.orange.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.timeline, color: Color(0xFFFF6B6B), size: 18),
+            child: const Icon(Icons.timeline, color: Colors.orange, size: 18),
           ),
           const SizedBox(width: 10),
           const Text('ПОЛНЫЙ МАРШРУТ',
-              style: TextStyle(
-                  color: Color(0xFFFF6B6B),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2)),
+              style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text('${_cities.length} городов',
-                style: const TextStyle(
-                    color: Color(0xFF8888AA),
-                    fontSize: 10,
-                    letterSpacing: 0.5)),
+                style: TextStyle(color: _dimTextColor, fontSize: 10, letterSpacing: 0.5)),
           ),
           const Spacer(),
-          Text(
-            '$_reachedCitiesCount/${_cities.length}',
-            style: TextStyle(
-              color: const Color(0xFFFF6B6B).withOpacity(0.7),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text('$_reachedCitiesCount/${_cities.length}',
+              style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -699,57 +573,23 @@ class _JourneyViewState extends State<JourneyView>
                       children: [
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 400),
-                          width: isCurrent
-                              ? 28
-                              : (city.isMajor ? 20 : 14),
-                          height: isCurrent
-                              ? 28
-                              : (city.isMajor ? 20 : 14),
+                          width: isCurrent ? 28 : (city.isMajor ? 20 : 14),
+                          height: isCurrent ? 28 : (city.isMajor ? 20 : 14),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: isReached
-                                ? LinearGradient(
-                              colors: [
-                                const Color(0xFFFF6B6B),
-                                const Color(0xFFFF8E8E)
-                                    .withOpacity(0.7),
-                              ],
-                            )
-                                : null,
-                            color: isReached
-                                ? null
-                                : const Color(0xFF2D2D44),
-                            border: isCurrent
-                                ? Border.all(
-                                color: Colors.white.withOpacity(0.4),
-                                width: 3)
-                                : null,
+                            gradient: isReached ? const LinearGradient(colors: [Colors.orange, Colors.deepOrange]) : null,
+                            color: isReached ? null : _timelineLineColor,
+                            border: isCurrent ? Border.all(color: Colors.white.withOpacity(0.4), width: 3) : null,
                             boxShadow: isCurrent
-                                ? [
-                              BoxShadow(
-                                color: const Color(0xFFFF6B6B)
-                                    .withOpacity(0.5),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                              )
-                            ]
+                                ? [BoxShadow(color: Colors.orange.withOpacity(0.5), blurRadius: 12, spreadRadius: 2)]
                                 : isReached
-                                ? [
-                              BoxShadow(
-                                color: const Color(0xFFFF6B6B)
-                                    .withOpacity(0.2),
-                                blurRadius: 6,
-                                spreadRadius: 1,
-                              )
-                            ]
+                                ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 6, spreadRadius: 1)]
                                 : [],
                           ),
                           child: isReached && city.isMajor && !isCurrent
-                              ? const Icon(Icons.check,
-                              color: Colors.white, size: 12)
+                              ? const Icon(Icons.check, color: Colors.white, size: 12)
                               : isCurrent
-                              ? const Icon(Icons.location_on,
-                              color: Colors.white, size: 14)
+                              ? const Icon(Icons.location_on, color: Colors.white, size: 14)
                               : null,
                         ),
                         if (index < _cities.length - 1)
@@ -762,16 +602,8 @@ class _JourneyViewState extends State<JourneyView>
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                                 colors: isReached
-                                    ? [
-                                  const Color(0xFFFF6B6B)
-                                      .withOpacity(0.5),
-                                  const Color(0xFFFF6B6B)
-                                      .withOpacity(0.1),
-                                ]
-                                    : [
-                                  const Color(0xFF2D2D44),
-                                  const Color(0xFF1A1A2E),
-                                ],
+                                    ? [_timelineLineReachedColor, Colors.orange.withOpacity(0.1)]
+                                    : [_timelineLineColor, _surfaceColor],
                               ),
                             ),
                           ),
@@ -786,103 +618,56 @@ class _JourneyViewState extends State<JourneyView>
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isReached
-                              ? [
-                            const Color(0xFFFF6B6B)
-                                .withOpacity(0.08),
-                            const Color(0xFF16213E)
-                                .withOpacity(0.5),
-                          ]
-                              : [
-                            const Color(0xFF16213E)
-                                .withOpacity(0.5),
-                            const Color(0xFF0F0F1A),
-                          ],
+                              ? [Colors.orange.withOpacity(_isDarkMode ? 0.1 : 0.05), _surfaceColor3.withOpacity(0.5)]
+                              : [_surfaceColor3.withOpacity(0.5), _isDarkMode ? const Color(0xFF0F0F1A) : Colors.white],
                         ),
                         borderRadius: BorderRadius.circular(16),
                         border: isCurrent
-                            ? Border.all(
-                            color: const Color(0xFFFF6B6B)
-                                .withOpacity(0.3))
-                            : Border.all(
-                            color: Colors.white.withOpacity(0.03)),
+                            ? Border.all(color: Colors.orange.withOpacity(0.3))
+                            : Border.all(color: _cardBorderColor),
                       ),
                       child: Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  city.name,
-                                  style: TextStyle(
-                                    color: isReached
-                                        ? const Color(0xFFFF6B6B)
-                                        : Colors.white,
-                                    fontSize:
-                                    city.isMajor ? 14 : 12,
-                                    fontWeight: isCurrent
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                  ),
-                                ),
+                                Text(city.name,
+                                    style: TextStyle(
+                                      color: isReached ? Colors.orange : _textColor,
+                                      fontSize: city.isMajor ? 14 : 12,
+                                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                                    )),
                                 if (city.isMajor) ...[
                                   const SizedBox(height: 4),
-                                  Text(
-                                    '${city.population} • ${city.founded}',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade700,
-                                      fontSize: 10,
-                                    ),
-                                  ),
+                                  Text('${city.population} • ${city.founded}',
+                                      style: TextStyle(color: _subTextColor, fontSize: 10)),
                                 ],
                               ],
                             ),
                           ),
                           Column(
-                            crossAxisAlignment:
-                            CrossAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                '${city.distanceFromMoscow} км',
-                                style: TextStyle(
-                                  color: isReached
-                                      ? const Color(0xFFFF6B6B)
-                                      .withOpacity(0.7)
-                                      : const Color(0xFF8888AA),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
+                              Text('${city.distanceFromMoscow} км',
+                                  style: TextStyle(
+                                    color: isReached ? Colors.orange.withOpacity(0.7) : _dimTextColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  )),
                               if (isCurrent)
                                 Container(
-                                  margin:
-                                  const EdgeInsets.only(top: 4),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
-                                      colors: [
-                                        const Color(0xFFFF6B6B)
-                                            .withOpacity(0.3),
-                                        const Color(0xFFFF8E8E)
-                                            .withOpacity(0.1),
-                                      ],
+                                      colors: [Colors.orange.withOpacity(0.3), Colors.deepOrange.withOpacity(0.1)],
                                     ),
-                                    borderRadius:
-                                    BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: const Text(
-                                    'ВЫ ЗДЕСЬ',
-                                    style: TextStyle(
-                                      color: Color(0xFFFF6B6B),
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
+                                  child: const Text('ВЫ ЗДЕСЬ',
+                                      style: TextStyle(color: Colors.orange, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                                 ),
                             ],
                           ),
@@ -911,14 +696,12 @@ class _JourneyViewState extends State<JourneyView>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF0A0A1A),
-                const Color(0xFF16213E).withOpacity(0.5),
+                _isDarkMode ? const Color(0xFF0A0A1A) : Colors.white,
+                _surfaceColor3.withOpacity(0.5),
               ],
             ),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: const Color(0xFFFF6B6B).withOpacity(0.2),
-            ),
+            border: Border.all(color: Colors.orange.withOpacity(0.2)),
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -931,15 +714,11 @@ class _JourneyViewState extends State<JourneyView>
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFFFF6B6B).withOpacity(0.2),
-                            const Color(0xFFFF6B6B).withOpacity(0.05),
-                          ],
+                          colors: [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)],
                         ),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.location_city,
-                          color: Color(0xFFFF6B6B), size: 26),
+                      child: const Icon(Icons.location_city, color: Colors.orange, size: 26),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -947,13 +726,9 @@ class _JourneyViewState extends State<JourneyView>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(city.name,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold)),
+                              style: TextStyle(color: _textColor, fontSize: 22, fontWeight: FontWeight.bold)),
                           Text('${city.distanceFromMoscow} км от Москвы',
-                              style: const TextStyle(
-                                  color: Color(0xFFFF6B6B), fontSize: 12)),
+                              style: const TextStyle(color: Colors.orange, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -961,16 +736,10 @@ class _JourneyViewState extends State<JourneyView>
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFFFF9800).withOpacity(0.3),
-                              const Color(0xFFFF9800).withOpacity(0.1),
-                            ],
-                          ),
+                          gradient: LinearGradient(colors: [Colors.amber.withOpacity(0.3), Colors.amber.withOpacity(0.1)]),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.star_rounded,
-                            color: Color(0xFFFF9800), size: 18),
+                        child: const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
                       ),
                   ],
                 ),
@@ -998,24 +767,17 @@ class _JourneyViewState extends State<JourneyView>
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFFFF6B6B).withOpacity(0.2),
-                          const Color(0xFFFF8E8E).withOpacity(0.1),
-                        ],
+                        colors: [Colors.orange.withOpacity(0.25), Colors.deepOrange.withOpacity(0.1)],
                       ),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: TextButton(
                       onPressed: () => Navigator.pop(ctx),
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 32, vertical: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                       ),
                       child: const Text('Закрыть',
-                          style: TextStyle(
-                              color: Color(0xFFFF6B6B),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600)),
+                          style: TextStyle(color: Colors.orange, fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ),
@@ -1033,30 +795,23 @@ class _JourneyViewState extends State<JourneyView>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF16213E).withOpacity(0.8),
-            const Color(0xFF0F0F1A).withOpacity(0.5),
+            _surfaceColor3.withOpacity(0.8),
+            (_isDarkMode ? const Color(0xFF0F0F1A) : Colors.white).withOpacity(0.5),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: _cardBorderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
-                  color: Color(0xFFFF6B6B),
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5)),
+              style: const TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           const SizedBox(height: 12),
           ...lines.map((l) => Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(l,
-                style: const TextStyle(
-                    color: Color(0xFFCCCCCC),
-                    fontSize: 13,
-                    height: 1.5)),
+                style: TextStyle(color: _isDarkMode ? const Color(0xFFCCCCCC) : Colors.grey.shade700, fontSize: 13, height: 1.5)),
           )),
         ],
       ),
@@ -1068,36 +823,21 @@ class _JourneyViewState extends State<JourneyView>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            const Color(0xFFFF6B6B).withOpacity(0.05),
-            Colors.transparent,
-          ],
+          colors: [Colors.orange.withOpacity(_isDarkMode ? 0.08 : 0.04), Colors.transparent],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
-          const Icon(Icons.format_quote_rounded,
-              color: Color(0xFFFF6B6B), size: 28),
+          const Icon(Icons.format_quote_rounded, color: Colors.orange, size: 28),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Дорога в тысячу миль\nначинается с одного шага',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFFAAAAAA),
-              fontSize: 14,
-              fontStyle: FontStyle.italic,
-              height: 1.5,
-            ),
+            style: TextStyle(color: _isDarkMode ? const Color(0xFFAAAAAA) : Colors.grey.shade700, fontSize: 14, fontStyle: FontStyle.italic, height: 1.5),
           ),
           const SizedBox(height: 8),
-          Text(
-            '— Лао-Цзы',
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 11,
-            ),
-          ),
+          Text('— Лао-Цзы', style: TextStyle(color: _subTextColor, fontSize: 11)),
         ],
       ),
     );

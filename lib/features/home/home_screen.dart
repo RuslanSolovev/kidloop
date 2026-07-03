@@ -1,4 +1,4 @@
-// home_screen.dart (только метод _buildItemCard изменён)
+// home_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _isRefreshing = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _isRefreshing = false);
       _retryLoad();
     }
@@ -70,6 +70,13 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadItems();
   }
 
+  // 🔥 Используем Theme напрямую
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200;
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ItemsProvider>();
@@ -83,18 +90,18 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SizedBox(
             width: double.infinity,
             child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Все вещи'), icon: Icon(Icons.public)),
-                ButtonSegment(value: true, label: Text('Мои вещи'), icon: Icon(Icons.inventory)),
+              segments: [
+                ButtonSegment(value: false, label: Text('Все вещи', style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black)), icon: const Icon(Icons.public)),
+                ButtonSegment(value: true, label: Text('Мои вещи', style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black)), icon: const Icon(Icons.inventory)),
               ],
               selected: {_showMyItems},
               onSelectionChanged: (selected) => setState(() => _showMyItems = selected.first),
               style: ButtonStyle(
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  return states.contains(WidgetState.selected) ? Colors.orange : Colors.grey.shade200;
+                  return states.contains(WidgetState.selected) ? Colors.orange : (_isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200);
                 }),
                 foregroundColor: WidgetStateProperty.resolveWith((states) {
-                  return states.contains(WidgetState.selected) ? Colors.white : Colors.black;
+                  return states.contains(WidgetState.selected) ? Colors.white : (_isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black);
                 }),
               ),
             ),
@@ -111,11 +118,11 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.wifi_off, size: 64, color: Colors.grey),
+            Icon(Icons.wifi_off, size: 64, color: _subTextColor),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+              child: Text(_loadError!, textAlign: TextAlign.center, style: TextStyle(color: _subTextColor, fontSize: 14)),
             ),
             const SizedBox(height: 12),
             ElevatedButton(
@@ -132,13 +139,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if ((provider.isLoading || _isRefreshing) && items.isEmpty && _loadError == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.orange),
-            SizedBox(height: 16),
-            Text('Загрузка вещей...', style: TextStyle(color: Colors.grey)),
+            const CircularProgressIndicator(color: Colors.orange),
+            const SizedBox(height: 16),
+            Text('Загрузка вещей...', style: TextStyle(color: _subTextColor)),
           ],
         ),
       );
@@ -149,12 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.inventory_2_outlined, size: 64, color: _isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
               _showMyItems ? 'У тебя пока нет вещей.\nНажми + чтобы добавить!' : 'Пока нет вещей.\nНажми + чтобы добавить',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+              style: TextStyle(color: _subTextColor, fontSize: 16),
             ),
           ],
         ),
@@ -164,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: Colors.orange,
-      backgroundColor: Colors.white,
+      backgroundColor: _surfaceColor,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: items.length,
@@ -188,10 +195,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _surfaceColor,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _cardBorderColor),
           boxShadow: [
-            BoxShadow(color: Colors.grey.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.15 : 0.08), blurRadius: 12, offset: const Offset(0, 4)),
           ],
         ),
         child: Column(
@@ -211,9 +219,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(item.title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 6),
-                  Text(item.description, style: TextStyle(color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(item.description, style: TextStyle(color: _subTextColor), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -247,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (text.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
       child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
@@ -255,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSvBadge(int sv) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange]), borderRadius: BorderRadius.circular(16)),
+      decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.all(Radius.circular(16))),
       child: Text('$sv SV', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }

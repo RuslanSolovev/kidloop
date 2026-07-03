@@ -1,4 +1,4 @@
-// chats_tab.dart - ИСПРАВЛЕННЫЙ _openChat (передаём аватар)
+// chats_tab.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -30,6 +30,13 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
 
   @override
   bool get wantKeepAlive => true;
+
+  // 🔥 Используем Theme напрямую
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200;
 
   @override
   void initState() {
@@ -89,14 +96,14 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
           });
         }
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _cacheChats() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_cacheKey, jsonEncode(_chats));
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _loadChats() async {
@@ -121,7 +128,7 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
       } else {
         _handleLoadError();
       }
-    } catch (e) {
+    } catch (_) {
       _handleLoadError();
     }
   }
@@ -145,7 +152,18 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
     }
   }
 
-  // 🔥 ПЕРЕДАЁМ АВАТАР В ЧАТ
+  // 🔥 Получаем текст последнего сообщения с автором
+  String _formatLastMessage(Map<String, dynamic> chat) {
+    final lastMsg = chat['last_message'] ?? '';
+    final lastSenderName = chat['last_sender_name'] ?? '';
+    final isMe = (chat['last_sender_id'] ?? '') == _currentUserId;
+
+    if (lastMsg.toString().isEmpty) return 'Нет сообщений';
+
+    final sender = isMe ? 'Вы' : (lastSenderName.isNotEmpty ? lastSenderName : 'Пользователь');
+    return '$sender: $lastMsg';
+  }
+
   void _openChat(Map<String, dynamic> chat) {
     final chatId = chat['chat_id'] ?? '';
     final otherUserId = chat['other_user_id'] ?? '';
@@ -159,17 +177,14 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
           chatId: chatId,
           otherUserId: otherUserId,
           otherName: otherName,
-          otherAvatar: otherAvatar, // 🔥 Передаём аватар
+          otherAvatar: otherAvatar,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(1.0, 0.0),
               end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            )),
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
             child: child,
           );
         },
@@ -194,6 +209,8 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
     }
 
     return RefreshIndicator(
+      color: Colors.orange,
+      backgroundColor: _surfaceColor,
       onRefresh: () async {
         _retryCount = 0;
         _loadError = null;
@@ -218,10 +235,36 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
       padding: const EdgeInsets.only(top: 8),
       itemCount: 8,
       itemBuilder: (context, index) {
-        return ListTile(
-          leading: CircleAvatar(backgroundColor: Colors.grey.shade200),
-          title: Container(height: 16, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8))),
-          subtitle: Container(height: 12, margin: const EdgeInsets.only(top: 4), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6))),
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _surfaceColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _cardBorderColor),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 16, decoration: BoxDecoration(color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200, borderRadius: BorderRadius.circular(8))),
+                    const SizedBox(height: 4),
+                    Container(height: 12, decoration: BoxDecoration(color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade100, borderRadius: BorderRadius.circular(6))),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -232,9 +275,13 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withOpacity(0.1)), child: const Icon(Icons.error_outline_rounded, size: 48, color: Colors.orange)),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withValues(alpha: 0.1)),
+            child: const Icon(Icons.error_outline_rounded, size: 48, color: Colors.orange),
+          ),
           const SizedBox(height: 16),
-          Text(_loadError!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          Text(_loadError!, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: _textColor)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
@@ -243,7 +290,11 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
             },
             icon: const Icon(Icons.refresh),
             label: const Text('Повторить'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ],
       ),
@@ -255,11 +306,15 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withOpacity(0.1)), child: const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.orange)),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withValues(alpha: 0.1)),
+            child: const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.orange),
+          ),
           const SizedBox(height: 16),
-          const Text('Нет чатов', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+          Text('Нет чатов', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: _textColor)),
           const SizedBox(height: 8),
-          const Text('Добавьте друзей, чтобы начать общение', style: TextStyle(color: Colors.grey)),
+          Text('Добавьте друзей, чтобы начать общение', style: TextStyle(color: _subTextColor)),
         ],
       ),
     );
@@ -268,9 +323,12 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
   Widget _buildChatTile(Map<String, dynamic> chat, int index) {
     final name = chat['other_name'] ?? 'Пользователь';
     final avatar = chat['other_avatar'] ?? '';
-    final lastMsg = chat['last_message'] ?? '';
     final lastTime = chat['last_time'];
     final unreadCount = chat['unread_count'] ?? 0;
+
+    // 🔥 Форматируем последнее сообщение с автором
+    final lastMsg = _formatLastMessage(chat);
+    final isMe = (chat['last_sender_id'] ?? '') == _currentUserId;
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -281,38 +339,120 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin,
           child: Opacity(opacity: value, child: child),
         );
       },
-      child: Card(
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.orange.shade100,
-                backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
-                child: avatar.isEmpty
-                    ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 20))
-                    : null,
-              ),
-              if (unreadCount > 0)
-                Positioned(
-                  right: 0, bottom: 0,
-                  child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                    child: Text(unreadCount > 99 ? '99+' : unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+        decoration: BoxDecoration(
+          color: _surfaceColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: unreadCount > 0 ? Colors.orange.withValues(alpha: 0.3) : _cardBorderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isDarkMode ? 0.1 : 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _openChat(chat),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                // 🔥 Аватар с индикатором непрочитанных
+                Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3), width: 2),
+                      ),
+                      child: CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.orange.shade100,
+                        backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                        child: avatar.isEmpty
+                            ? Text((name.isNotEmpty ? name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 20))
+                            : null,
+                      ),
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 0, bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                // 🔥 Имя и последнее сообщение
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 15,
+                          color: _textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // 🔥 Индикатор "Вы:" если это моё сообщение
+                          if (isMe && lastMsg.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              margin: const EdgeInsets.only(right: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('Вы', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                          Expanded(
+                            child: Text(
+                              lastMsg,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: unreadCount > 0 ? _textColor.withValues(alpha: 0.8) : _subTextColor,
+                                fontSize: 13,
+                                fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-            ],
+                const SizedBox(width: 8),
+                // 🔥 Время
+                Text(
+                  _formatTime(lastTime),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: unreadCount > 0 ? Colors.orange : _subTextColor,
+                    fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
           ),
-          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Row(children: [
-            Expanded(child: Text(lastMsg.isNotEmpty ? lastMsg : 'Нет сообщений', maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: unreadCount > 0 ? Colors.black87 : Colors.grey.shade600, fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal))),
-          ]),
-          trailing: Text(_formatTime(lastTime), style: TextStyle(fontSize: 12, color: unreadCount > 0 ? Colors.orange : Colors.grey, fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal)),
-          onTap: () => _openChat(chat), // 🔥 Передаём весь объект чата
         ),
       ),
     );

@@ -27,6 +27,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String _avatarUrl = '';
   bool isSaving = false;
 
+  // 🔥 Загружаем настройку темы из SharedPreferences
+  bool _isDarkMode = false;
+
   final categories = [
     'LEGO',
     'Игрушки',
@@ -70,6 +73,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
 
+    // 🔥 Загружаем тему при инициализации
+    _loadThemeMode();
+
     final profile = context.read<ProfileProvider>().profile;
 
     nameController = TextEditingController(text: profile.name);
@@ -79,6 +85,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     telegramController = TextEditingController(text: profile.telegram);
     selectedCategory = profile.favoriteCategory;
     _avatarUrl = profile.avatarUrl;
+  }
+
+  // 🔥 Загружаем настройку темы
+  Future<void> _loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isDarkMode = prefs.getBool('is_dark_mode') ?? false;
+      });
+    }
   }
 
   @override
@@ -186,14 +202,85 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    // 🔥 Адаптивные цвета (используем _isDarkMode из SharedPreferences)
+    final backgroundColor = _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+    final surfaceColor = _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+    final textColor = _isDarkMode ? Colors.white : Colors.black87;
+    final subTextColor = _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+    final borderColor = _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
+    final fillColor = _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade50;
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Редактировать профиль'),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.arrow_back_rounded, color: textColor, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
+        title: Text(
+          'Редактировать профиль',
+          style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.orange, Colors.deepOrange],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextButton(
+                onPressed: isSaving ? null : save,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                child: isSaving
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+                    : const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_rounded, color: Colors.white, size: 18),
+                    SizedBox(width: 6),
+                    Text(
+                      'Сохранить',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -202,125 +289,246 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             // Аватар
             GestureDetector(
               onTap: _pickAvatar,
-              child: Hero(
-                tag: 'profile_avatar',
-                child: CircleAvatar(
-                  radius: 64,
-                  backgroundColor: colorScheme.surfaceVariant,
-                  backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-                  child: _avatarUrl.isEmpty
-                      ? Icon(Icons.camera_alt, size: 48, color: colorScheme.primary)
-                      : null,
+              child: Center(
+                child: Hero(
+                  tag: 'profile_avatar',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.2),
+                          blurRadius: 20,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 64,
+                      backgroundColor: Colors.orange.shade100,
+                      backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
+                      child: _avatarUrl.isEmpty
+                          ? const Icon(Icons.camera_alt, size: 48, color: Colors.orange)
+                          : null,
+                    ),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Нажмите, чтобы изменить фото',
-              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+            GestureDetector(
+              onTap: _pickAvatar,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.orange.withOpacity(0.15), Colors.deepOrange.withOpacity(0.05)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.camera_alt_rounded, color: Colors.orange, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Изменить фото',
+                      style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 32),
 
-            // Имя
-            _buildTextField(controller: nameController, label: 'Имя', icon: Icons.person, theme: theme),
+            // Секция "Основное"
+            _buildSectionTitle('👤 Основное', textColor),
             const SizedBox(height: 16),
 
-            // Город - выпадающий список
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Город', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            // Имя
+            _buildTextField(
+              controller: nameController,
+              label: 'Имя',
+              icon: Icons.person_rounded,
+              hint: 'Ваше имя',
+              textColor: textColor,
+              subTextColor: subTextColor,
+              borderColor: borderColor,
+              fillColor: fillColor,
+              surfaceColor: surfaceColor,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+
+            // Город
+            _buildSectionTitle('📍 Город', textColor),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: colorScheme.surface,
+                color: surfaceColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colorScheme.outline),
+                border: Border.all(color: borderColor),
               ),
               child: DropdownButtonFormField<String>(
                 value: locations.contains(cityController.text) ? cityController.text : locations.first,
+                dropdownColor: surfaceColor,
+                style: TextStyle(color: textColor, fontSize: 15),
                 decoration: const InputDecoration(border: InputBorder.none),
                 icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.orange),
-                items: locations.map((loc) => DropdownMenuItem(value: loc, child: Text(loc))).toList(),
+                items: locations.map((loc) => DropdownMenuItem(
+                  value: loc,
+                  child: Text(loc, style: TextStyle(color: textColor)),
+                )).toList(),
                 onChanged: (val) {
                   if (val != null) cityController.text = val;
                 },
               ),
             ),
+            const SizedBox(height: 24),
+
+            // Секция "О себе"
+            _buildSectionTitle('📝 О себе', textColor),
             const SizedBox(height: 16),
 
-            // О себе
-            _buildTextField(controller: bioController, label: 'О себе', icon: Icons.info_outline, maxLines: 3, theme: theme),
-            const SizedBox(height: 16),
-
-            // Возраст
-            _buildTextField(controller: ageController, label: 'Возраст', icon: Icons.cake, keyboardType: TextInputType.number, theme: theme),
-            const SizedBox(height: 16),
-
-            // Telegram
-            _buildTextField(controller: telegramController, label: 'Telegram', icon: Icons.telegram, theme: theme),
-            const SizedBox(height: 16),
-
-            // Любимая категория
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Любимая категория', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            _buildTextField(
+              controller: bioController,
+              label: 'Расскажите о себе',
+              icon: Icons.info_outline_rounded,
+              hint: 'Чем увлекаетесь, что ищете...',
+              maxLines: 3,
+              textColor: textColor,
+              subTextColor: subTextColor,
+              borderColor: borderColor,
+              fillColor: fillColor,
+              surfaceColor: surfaceColor,
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: categories.map((cat) => ChoiceChip(
-                label: Text(cat, style: const TextStyle(fontSize: 12)),
-                selected: selectedCategory == cat,
-                onSelected: (val) {
-                  setState(() => selectedCategory = cat);
-                },
-                selectedColor: colorScheme.primaryContainer,
-                labelStyle: TextStyle(
-                  color: selectedCategory == cat ? colorScheme.onPrimaryContainer : null,
-                ),
-                visualDensity: VisualDensity.compact,
-              )).toList(),
+            const SizedBox(height: 16),
+
+            _buildTextField(
+              controller: ageController,
+              label: 'Возраст',
+              icon: Icons.cake_rounded,
+              hint: 'Ваш возраст',
+              keyboardType: TextInputType.number,
+              textColor: textColor,
+              subTextColor: subTextColor,
+              borderColor: borderColor,
+              fillColor: fillColor,
+              surfaceColor: surfaceColor,
             ),
+            const SizedBox(height: 16),
 
-            const SizedBox(height: 32),
+            _buildTextField(
+              controller: telegramController,
+              label: 'Telegram',
+              icon: Icons.telegram,
+              hint: '@username',
+              textColor: textColor,
+              subTextColor: subTextColor,
+              borderColor: borderColor,
+              fillColor: fillColor,
+              surfaceColor: surfaceColor,
+            ),
+            const SizedBox(height: 24),
 
-            // Кнопка сохранения
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)],
-                  ),
-                ),
-                child: ElevatedButton(
-                  onPressed: isSaving ? null : save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: isSaving
-                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.save, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text('Сохранить', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
+            // Секция "Интересы"
+            _buildSectionTitle('🎯 Любимая категория', textColor),
+            const SizedBox(height: 16),
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: borderColor),
+              ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: categories.map((cat) {
+                  final isSelected = selectedCategory == cat;
+                  return GestureDetector(
+                    onTap: () => setState(() => selectedCategory = cat),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? const LinearGradient(
+                          colors: [Colors.orange, Colors.deepOrange],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                            : null,
+                        color: isSelected ? null : fillColor,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: isSelected ? Colors.orange : borderColor,
+                          width: 1.5,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected) ...[
+                            const Icon(Icons.check_rounded, color: Colors.white, size: 16),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            cat,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : textColor,
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
+
+            const SizedBox(height: 40),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, Color textColor) {
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 20,
+          decoration: BoxDecoration(
+            color: Colors.orange,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
@@ -328,22 +536,59 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    String? hint,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
-    required ThemeData theme,
+    required Color textColor,
+    required Color subTextColor,
+    required Color borderColor,
+    required Color fillColor,
+    required Color surfaceColor,
   }) {
-    final colorScheme = theme.colorScheme;
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: colorScheme.primary),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colorScheme.outline)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: colorScheme.primary, width: 2)),
-        filled: true,
-        fillColor: colorScheme.surface,
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(_isDarkMode ? 0.1 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        style: TextStyle(color: textColor, fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          labelStyle: TextStyle(color: subTextColor, fontSize: 14),
+          hintStyle: TextStyle(color: subTextColor.withOpacity(0.5), fontSize: 14),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: Colors.orange, size: 20),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.orange, width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
       ),
     );
   }

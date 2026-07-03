@@ -1,4 +1,4 @@
-// forum_screen.dart - КАК ЧАТ (мгновенный UI + галочки)
+// forum_screen.dart - КАК ЧАТ (мгновенный UI + галочки + НАСТРОЙКИ ЦВЕТОВ)
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,6 +6,109 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
+// 🔥 Модель цветовой схемы форума
+class ForumColorScheme {
+  final Color myBgColor;
+  final Color myTextColor;
+  final Color otherBgColor;
+  final Color otherTextColor;
+  final Color backgroundColor;
+  final String name;
+
+  const ForumColorScheme({
+    required this.myBgColor,
+    required this.myTextColor,
+    required this.otherBgColor,
+    required this.otherTextColor,
+    required this.backgroundColor,
+    required this.name,
+  });
+}
+
+// 🔥 Предустановленные цветовые схемы
+const List<ForumColorScheme> _colorSchemes = [
+  ForumColorScheme(
+    name: 'Стандарт',
+    myBgColor: Color(0xFFFF9800),
+    myTextColor: Colors.white,
+    otherBgColor: Colors.white,
+    otherTextColor: Colors.black87,
+    backgroundColor: Color(0xFFFFF8F0),
+  ),
+  ForumColorScheme(
+    name: 'Океан',
+    myBgColor: Color(0xFF2196F3),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFE3F2FD),
+    otherTextColor: Color(0xFF1565C0),
+    backgroundColor: Color(0xFFF0F8FF),
+  ),
+  ForumColorScheme(
+    name: 'Лес',
+    myBgColor: Color(0xFF4CAF50),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFE8F5E9),
+    otherTextColor: Color(0xFF2E7D32),
+    backgroundColor: Color(0xFFF1F8E9),
+  ),
+  ForumColorScheme(
+    name: 'Закат',
+    myBgColor: Color(0xFFE91E63),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFFCE4EC),
+    otherTextColor: Color(0xFF880E4F),
+    backgroundColor: Color(0xFFFFF5F5),
+  ),
+  ForumColorScheme(
+    name: 'Фиолет',
+    myBgColor: Color(0xFF9C27B0),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFF3E5F5),
+    otherTextColor: Color(0xFF6A1B9A),
+    backgroundColor: Color(0xFFFDF8FF),
+  ),
+  ForumColorScheme(
+    name: 'Темный',
+    myBgColor: Color(0xFF37474F),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFF1A1A2E),
+    otherTextColor: Color(0xFFECEFF1),
+    backgroundColor: Color(0xFF0A0A1A),
+  ),
+  ForumColorScheme(
+    name: 'Мятный',
+    myBgColor: Color(0xFF00897B),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFE0F2F1),
+    otherTextColor: Color(0xFF004D40),
+    backgroundColor: Color(0xFFF0FFFE),
+  ),
+  ForumColorScheme(
+    name: 'Карамель',
+    myBgColor: Color(0xFFFF6F00),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFFFF3E0),
+    otherTextColor: Color(0xFFE65100),
+    backgroundColor: Color(0xFFFFFBF5),
+  ),
+  ForumColorScheme(
+    name: 'Лаванда',
+    myBgColor: Color(0xFF7B1FA2),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFF5F0FF),
+    otherTextColor: Color(0xFF4A148C),
+    backgroundColor: Color(0xFFFAF8FF),
+  ),
+  ForumColorScheme(
+    name: 'Ночь',
+    myBgColor: Color(0xFF455A64),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFF2C3E50),
+    otherTextColor: Color(0xFFECF0F1),
+    backgroundColor: Color(0xFF1A1A2E),
+  ),
+];
 
 class ForumScreen extends StatefulWidget {
   final String forumId;
@@ -32,13 +135,27 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
   String? _editingMessageId;
   final Set<String> _pendingIds = {};
 
+  // 🔥 Настройки цветов
+  int _selectedColorSchemeIndex = 0;
+  late ForumColorScheme _currentColorScheme;
+
   static const String forumApiUrl = 'https://functions.yandexcloud.net/d4en6mi363fq4o5js5ee';
   static const String _cacheKey = 'forum_messages_cache';
+
+  // 🔥 Используем Theme напрямую
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
+  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+  Color get _cardBorderColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200;
+  Color get _inputFillColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100;
+  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _currentColorScheme = _colorSchemes[0];
     _init();
   }
 
@@ -64,6 +181,10 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     _currentUserName = prefs.getString('user_name') ?? 'Пользователь';
     _currentUserAvatar = prefs.getString('avatar_url') ?? '';
 
+    // 🔥 Загружаем сохраненную цветовую схему
+    _selectedColorSchemeIndex = prefs.getInt('forum_color_scheme_${widget.forumId}') ?? 0;
+    _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex];
+
     await _loadCachedMessages();
     await _loadMessages();
 
@@ -71,6 +192,195 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
       setState(() => _initialLoading = false);
       _scrollToBottom();
     }
+  }
+
+  // 🔥 Сохранение цветовой схемы
+  Future<void> _saveColorScheme(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('forum_color_scheme_${widget.forumId}', index);
+  }
+
+  // 🔥 Диалог выбора цветовой схемы
+  void _showColorSchemeDialog() {
+    final isDark = _isDarkMode;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.palette_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Оформление форума',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                // 🔥 Предпросмотр с фоном
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _colorSchemes[_selectedColorSchemeIndex].backgroundColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.visibility_rounded, size: 14, color: isDark ? Colors.white54 : Colors.grey.shade600),
+                          const SizedBox(width: 6),
+                          Text('Предпросмотр', style: TextStyle(color: isDark ? Colors.white54 : Colors.grey.shade600, fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Мое сообщение
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _colorSchemes[_selectedColorSchemeIndex].myBgColor,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(4),
+                            ),
+                          ),
+                          child: Text('Ваше сообщение',
+                              style: TextStyle(color: _colorSchemes[_selectedColorSchemeIndex].myTextColor, fontSize: 14)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Чужое сообщение
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _colorSchemes[_selectedColorSchemeIndex].otherBgColor,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(4),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(16),
+                            ),
+                          ),
+                          child: Text('Сообщение участника',
+                              style: TextStyle(color: _colorSchemes[_selectedColorSchemeIndex].otherTextColor, fontSize: 14)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // 🔥 Сетка с выбором цветов
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: _colorSchemes.length,
+                  itemBuilder: (context, index) {
+                    final scheme = _colorSchemes[index];
+                    final isSelected = _selectedColorSchemeIndex == index;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => _selectedColorSchemeIndex = index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? Colors.orange : Colors.grey.withOpacity(0.3),
+                            width: isSelected ? 2.5 : 1,
+                          ),
+                          color: isSelected
+                              ? (isDark ? Colors.orange.withOpacity(0.1) : Colors.orange.withOpacity(0.05))
+                              : Colors.transparent,
+                          boxShadow: isSelected
+                              ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 8)]
+                              : null,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(child: Container(height: 24, decoration: BoxDecoration(color: scheme.myBgColor, borderRadius: const BorderRadius.horizontal(left: Radius.circular(8))))),
+                                const SizedBox(width: 2),
+                                Expanded(child: Container(height: 24, decoration: BoxDecoration(color: scheme.otherBgColor))),
+                                const SizedBox(width: 2),
+                                Expanded(child: Container(height: 24, decoration: BoxDecoration(color: scheme.backgroundColor, borderRadius: const BorderRadius.horizontal(right: Radius.circular(8))))),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(scheme.name, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? Colors.orange : (isDark ? Colors.white70 : Colors.grey.shade700)), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            if (isSelected) ...[
+                              const SizedBox(height: 4),
+                              Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withOpacity(0.2)), child: const Icon(Icons.check, color: Colors.orange, size: 14)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+                  child: Row(children: [
+                    Icon(Icons.info_outline, size: 16, color: isDark ? Colors.white54 : Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Цвета: своё сообщение | чужое | фон', style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.grey.shade600))),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена', style: TextStyle(color: isDark ? Colors.white54 : Colors.grey))),
+            Container(
+              decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(12)),
+              child: TextButton(
+                onPressed: () {
+                  setState(() => _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex]);
+                  _saveColorScheme(_selectedColorSchemeIndex);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Применить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadCachedMessages() async {
@@ -84,7 +394,7 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
           _initialLoading = false;
         });
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _cacheMessages() async {
@@ -94,7 +404,7 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
           .toList();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('$_cacheKey${widget.forumId}', jsonEncode(toCache));
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _loadMessages() async {
@@ -113,13 +423,11 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
       if (data['ok'] == true) {
         final serverMessages = (data['messages'] as List).cast<Map<String, dynamic>>();
 
-        // Сохраняем pending сообщения
         final pendingMessages = _messages.where((m) {
           final id = m['message_id'].toString();
           return id.startsWith('temp_') || _pendingIds.contains(id);
         }).toList();
 
-        // Убираем дубликаты
         final filteredPending = pendingMessages.where((pending) {
           final pendingText = pending['text'] ?? '';
           return !serverMessages.any((server) =>
@@ -134,7 +442,7 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
 
         await _cacheMessages();
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       if (_messages.isEmpty) {
         setState(() {
@@ -161,7 +469,6 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
 
     _pendingIds.add(tempId);
 
-    // 🔥 Оптимистичное сообщение
     final optimisticMsg = <String, dynamic>{
       'message_id': tempId,
       'forum_id': widget.forumId,
@@ -181,14 +488,12 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
         },
     };
 
-    // Удаляем оригинал при редактировании
     if (isEditing) {
       _messages.removeWhere((m) => m['message_id'] == editingIdSnapshot);
     }
 
-    // 🔥 Мгновенно показываем
     setState(() {
-      _messages.insert(0, optimisticMsg);
+      _messages.add(optimisticMsg);
       _editingMessageId = null;
       _replyToMessageId = null;
       _replyToMessageData = null;
@@ -237,30 +542,26 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
         _pendingIds.remove(tempId);
         setState(() {
           final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
-          if (idx != -1) {
-            _messages[idx]['status'] = 'failed';
-          }
+          if (idx != -1) _messages[idx]['status'] = 'failed';
         });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['errorMessage'] ?? 'Ошибка'), backgroundColor: Colors.red),
+            SnackBar(content: Text(data['errorMessage'] ?? 'Ошибка'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           );
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       _pendingIds.remove(tempId);
       setState(() {
         final idx = _messages.indexWhere((m) => m['message_id'] == tempId);
-        if (idx != -1) {
-          _messages[idx]['status'] = 'failed';
-        }
+        if (idx != -1) _messages[idx]['status'] = 'failed';
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ошибка сети'), backgroundColor: Colors.red),
+          SnackBar(content: const Text('Ошибка сети'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         );
       }
     }
@@ -282,33 +583,22 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     await _cacheMessages();
 
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse(forumApiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "action": "delete-forum-message",
-          "message_id": messageId,
-          "user_id": _currentUserId,
-        }),
+        body: jsonEncode({"action": "delete-forum-message", "message_id": messageId, "user_id": _currentUserId}),
       ).timeout(const Duration(seconds: 8));
 
       if (!mounted) return;
-      final data = jsonDecode((await http.post(
-        Uri.parse(forumApiUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "action": "delete-forum-message",
-          "message_id": messageId,
-          "user_id": _currentUserId,
-        }),
-      )).body);
+      final data = jsonDecode(response.body);
 
       if (data['ok'] != true) {
-        setState(() => _messages.insert(0, deletedMsg));
+        setState(() => _messages.add(deletedMsg));
+        await _cacheMessages();
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() => _messages.insert(0, deletedMsg));
+      setState(() => _messages.add(deletedMsg));
     }
   }
 
@@ -369,11 +659,9 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
 
   Widget _buildStatusIcon(String status, bool isMine) {
     if (!isMine) return const SizedBox.shrink();
-
     switch (status) {
       case 'sending':
-        return const SizedBox(width: 12, height: 12,
-            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white70));
+        return const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white70));
       case 'sent':
         return Icon(Icons.check, size: 14, color: Colors.white.withOpacity(0.6));
       case 'read':
@@ -391,11 +679,7 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
         radius: radius,
         backgroundColor: Colors.grey.shade200,
         child: ClipOval(
-          child: CachedNetworkImage(
-            imageUrl: url,
-            width: radius * 2,
-            height: radius * 2,
-            fit: BoxFit.cover,
+          child: CachedNetworkImage(imageUrl: url, width: radius * 2, height: radius * 2, fit: BoxFit.cover,
             placeholder: (_, __) => _buildInitial(name, radius),
             errorWidget: (_, __, ___) => _buildInitial(name, radius),
           ),
@@ -408,62 +692,69 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
   Widget _buildInitial(String name, double radius) {
     return CircleAvatar(
       radius: radius,
-      backgroundColor: Colors.blue.shade100,
-      child: Text(
-        (name.isNotEmpty ? name[0] : '?').toUpperCase(),
-        style: TextStyle(fontSize: radius * 0.85, color: Colors.blue, fontWeight: FontWeight.bold),
-      ),
+      backgroundColor: Colors.orange.shade100,
+      child: Text((name.isNotEmpty ? name[0] : '?').toUpperCase(),
+          style: TextStyle(fontSize: radius * 0.85, color: Colors.orange, fontWeight: FontWeight.bold)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDarkMode;
+
     return Scaffold(
+      backgroundColor: _currentColorScheme.backgroundColor, // 🔥 Фон из схемы
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _cardBorderColor),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.arrow_back_rounded, color: _textColor, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.forumTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            Text('${_messages.length} сообщений', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text(widget.forumTitle, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _textColor)),
+            Text('${_messages.length} сообщений', style: TextStyle(fontSize: 11, color: _subTextColor)),
           ],
         ),
+        centerTitle: true,
+        actions: [
+          // 🔥 Кнопка настроек цветов
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.palette_rounded, color: Colors.orange, size: 20),
+            ),
+            onPressed: _showColorSchemeDialog,
+            tooltip: 'Оформление форума',
+          ),
+        ],
       ),
-      body: Container(
-        color: Colors.blue.withOpacity(0.02),
-        child: Column(
-          children: [
-            if (_initialLoading)
-              Expanded(child: _buildLoadingSkeleton())
-            else if (_loadError != null && _messages.isEmpty)
-              Expanded(child: _buildErrorState())
-            else
-              Expanded(child: _messages.isEmpty ? _buildEmptyState() : _buildMessagesList()),
-            _buildInputField(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingSkeleton() {
-    return ListView.builder(
-      reverse: true, padding: EdgeInsets.zero, itemCount: 6,
-      itemBuilder: (_, __) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(16)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const CircleAvatar(radius: 16, backgroundColor: Color(0xFFE0E0E0)),
-              const SizedBox(width: 8),
-              Container(width: 80, height: 12, decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(6))),
-            ]),
-            const SizedBox(height: 8),
-            Container(width: 200, height: 16, decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(8))),
-          ]),
-        ),
+      body: Column(
+        children: [
+          if (_initialLoading)
+            const Expanded(child: Center(child: CircularProgressIndicator(color: Colors.orange)))
+          else if (_loadError != null && _messages.isEmpty)
+            Expanded(child: _buildErrorState())
+          else
+            Expanded(child: _messages.isEmpty ? _buildEmptyState() : _buildMessagesList()),
+          _buildInputField(),
+        ],
       ),
     );
   }
@@ -471,14 +762,14 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
   Widget _buildErrorState() {
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey),
+        Icon(Icons.wifi_off_rounded, size: 48, color: _subTextColor),
         const SizedBox(height: 16),
-        Text(_loadError!, style: const TextStyle(fontSize: 16)),
+        Text(_loadError!, style: TextStyle(fontSize: 16, color: _textColor)),
         const SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: () { setState(() { _initialLoading = true; _loadError = null; }); _loadMessages(); },
           icon: const Icon(Icons.refresh), label: const Text('Повторить'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         ),
       ]),
     );
@@ -487,11 +778,11 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
   Widget _buildEmptyState() {
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.forum_rounded, size: 48, color: Colors.grey),
+        Icon(Icons.forum_rounded, size: 48, color: _currentColorScheme.myBgColor.withOpacity(0.4)),
         const SizedBox(height: 16),
-        const Text('Нет сообщений', style: TextStyle(fontSize: 18)),
+        Text('Нет сообщений', style: TextStyle(fontSize: 18, color: _textColor)),
         const SizedBox(height: 8),
-        const Text('Начните обсуждение первым!', style: TextStyle(color: Colors.grey)),
+        Text('Начните обсуждение первым!', style: TextStyle(color: _subTextColor)),
       ]),
     );
   }
@@ -510,6 +801,14 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
         final status = msg['status']?.toString() ?? 'read';
         final replyToData = msg['reply_to_message'] as Map<String, dynamic>?;
 
+        // 🔥 Используем выбранную цветовую схему
+        final myBg = _currentColorScheme.myBgColor;
+        final myText = _currentColorScheme.myTextColor;
+        final otherBg = _currentColorScheme.otherBgColor;
+        final otherText = _currentColorScheme.otherTextColor;
+        final bgColor = isMine ? myBg : otherBg;
+        final textColor = isMine ? myText : otherText;
+
         return GestureDetector(
           onLongPress: status == 'failed' ? null : () => _showMessageOptions(msg, isMine),
           child: Padding(
@@ -523,82 +822,68 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.all(12),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: status == 'failed'
-                            ? [Colors.red.shade100, Colors.red.shade200]
-                            : isMine
-                            ? [Colors.blue.shade400, Colors.blue.shade600]
-                            : [Colors.white, Colors.grey.shade50],
-                      ),
+                      gradient: status == 'failed'
+                          ? LinearGradient(colors: [Colors.red.shade100, Colors.red.shade200])
+                          : null,
+                      color: status == 'failed' ? null : bgColor,
                       borderRadius: BorderRadius.circular(20).copyWith(
                         topRight: isMine ? const Radius.circular(4) : null,
                         topLeft: !isMine ? const Radius.circular(4) : null,
                       ),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                      border: isMine ? null : Border.all(color: _cardBorderColor),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(_isDarkMode ? 0.15 : 0.05), blurRadius: 4, offset: const Offset(0, 2))],
                     ),
-                    child: Stack(
-                      children: [
-                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if (!isMine)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Row(children: [
-                                _buildAvatar(senderAvatar, senderName, radius: 15),
-                                const SizedBox(width: 8),
-                                Text(senderName.isNotEmpty ? senderName : 'Пользователь',
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue)),
-                              ]),
-                            ),
-
-                          if (replyToData != null)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: (isMine ? Colors.white : Colors.black).withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border(left: BorderSide(color: (isMine ? Colors.white : Colors.blue).withOpacity(0.6), width: 3)),
-                              ),
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(children: [
-                                  Icon(Icons.reply_rounded, size: 14, color: (isMine ? Colors.white : Colors.blue).withOpacity(0.7)),
-                                  const SizedBox(width: 4),
-                                  Text(replyToData['sender_name'] ?? '',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (isMine ? Colors.white : Colors.blue).withOpacity(0.8))),
-                                ]),
-                                const SizedBox(height: 4),
-                                Text(replyToData['text'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 13, color: (isMine ? Colors.white : Colors.black87).withOpacity(0.7), fontStyle: FontStyle.italic)),
-                              ]),
-                            ),
-
-                          Text(text, style: TextStyle(fontSize: 16, color: isMine ? Colors.white : Colors.black87)),
-                          const SizedBox(height: 4),
-
-                          Align(
-                            alignment: Alignment.bottomRight,
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Text(_formatTime(time),
-                                  style: TextStyle(fontSize: 11, color: isMine ? Colors.white.withOpacity(0.7) : Colors.grey.shade500)),
-                              if (isMine) ...[
-                                const SizedBox(width: 4),
-                                _buildStatusIcon(status, isMine),
-                              ],
+                    child: Stack(children: [
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        if (!isMine)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(children: [
+                              _buildAvatar(senderAvatar, senderName, radius: 15),
+                              const SizedBox(width: 8),
+                              Text(senderName.isNotEmpty ? senderName : 'Пользователь',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: otherText)),
                             ]),
                           ),
-                        ]),
-                        if (status == 'failed')
-                          Positioned(
-                            right: 0, top: 0,
-                            child: GestureDetector(
-                              onTap: () => _retryMessage(msg),
-                              child: Container(padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
-                                  child: const Icon(Icons.refresh, size: 16, color: Colors.white)),
+                        if (replyToData != null)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: (isMine ? Colors.white : Colors.black).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border(left: BorderSide(color: textColor.withOpacity(0.6), width: 3)),
                             ),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Row(children: [
+                                Icon(Icons.reply_rounded, size: 14, color: textColor.withOpacity(0.7)),
+                                const SizedBox(width: 4),
+                                Text(replyToData['sender_name'] ?? '',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8))),
+                              ]),
+                              const SizedBox(height: 4),
+                              Text(replyToData['text'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 13, color: textColor.withOpacity(0.7), fontStyle: FontStyle.italic)),
+                            ]),
                           ),
-                      ],
-                    ),
+                        Text(text, style: TextStyle(fontSize: 16, color: textColor)),
+                        const SizedBox(height: 4),
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text(_formatTime(time), style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.7))),
+                            if (isMine) ...[const SizedBox(width: 4), _buildStatusIcon(status, isMine)],
+                          ]),
+                        ),
+                      ]),
+                      if (status == 'failed')
+                        Positioned(
+                          right: 0, top: 0,
+                          child: GestureDetector(
+                            onTap: () => _retryMessage(msg),
+                            child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.refresh, size: 16, color: Colors.white)),
+                          ),
+                        ),
+                    ]),
                   ),
                 ),
               ],
@@ -613,20 +898,18 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
+      backgroundColor: _surfaceColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 16),
-            ListTile(leading: Icon(Icons.reply_rounded, color: Colors.blue.shade700), title: const Text('Ответить'),
-                onTap: () { Navigator.pop(ctx); _setReplyToMessage(message); }),
+            ListTile(leading: const Icon(Icons.reply_rounded, color: Colors.orange), title: Text('Ответить', style: TextStyle(color: _textColor)), onTap: () { Navigator.pop(ctx); _setReplyToMessage(message); }),
             if (isMine) ...[
-              ListTile(leading: Icon(Icons.edit_rounded, color: Colors.blue.shade700), title: const Text('Редактировать'),
-                  onTap: () { Navigator.pop(ctx); _startEditMessage(message); }),
-              ListTile(leading: const Icon(Icons.delete_rounded, color: Colors.red), title: const Text('Удалить', style: TextStyle(color: Colors.red)),
-                  onTap: () { Navigator.pop(ctx); _showDeleteConfirmation(message['message_id']); }),
+              ListTile(leading: const Icon(Icons.edit_rounded, color: Colors.orange), title: Text('Редактировать', style: TextStyle(color: _textColor)), onTap: () { Navigator.pop(ctx); _startEditMessage(message); }),
+              ListTile(leading: const Icon(Icons.delete_rounded, color: Colors.red), title: const Text('Удалить', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(ctx); _showDeleteConfirmation(message['message_id']); }),
             ],
           ]),
         ),
@@ -639,14 +922,15 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить сообщение?'),
-        content: const Text('Это действие нельзя отменить'),
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Удалить сообщение?', style: TextStyle(color: _textColor)),
+        content: Text('Это действие нельзя отменить', style: TextStyle(color: _subTextColor)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
-          FilledButton(
-            onPressed: () { Navigator.pop(ctx); if (mounted) _deleteMessage(messageId); },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Удалить'),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена', style: TextStyle(color: _subTextColor))),
+          Container(
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.all(Radius.circular(12))),
+            child: TextButton(onPressed: () { Navigator.pop(ctx); if (mounted) _deleteMessage(messageId); }, child: const Text('Удалить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
           ),
         ],
       ),
@@ -658,46 +942,45 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
       if (_replyToMessageData != null)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          color: Colors.blue.withOpacity(0.08),
+          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.08), border: Border(bottom: BorderSide(color: Colors.orange.withOpacity(0.2)))),
           child: Row(children: [
-            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.reply_rounded, color: Colors.blue, size: 18)),
+            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.reply_rounded, color: Colors.orange, size: 18)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Ответ на сообщение ${_replyToMessageData!['sender_name'] ?? ''}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue)),
-              Text(_replyToMessageData!['text'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              Text('Ответ на сообщение ${_replyToMessageData!['sender_name'] ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange)),
+              Text(_replyToMessageData!['text'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: _subTextColor)),
             ])),
-            IconButton(icon: const Icon(Icons.close_rounded, size: 20, color: Colors.grey), onPressed: _cancelReply),
+            IconButton(icon: Icon(Icons.close_rounded, size: 20, color: _subTextColor), onPressed: _cancelReply),
           ]),
         ),
       if (_editingMessageId != null)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          color: Colors.blue.withOpacity(0.08),
+          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.08), border: Border(bottom: BorderSide(color: Colors.orange.withOpacity(0.2)))),
           child: Row(children: [
-            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.edit_rounded, color: Colors.blue, size: 18)),
+            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.edit_rounded, color: Colors.orange, size: 18)),
             const SizedBox(width: 10),
-            const Text('Редактирование', style: TextStyle(fontSize: 13, color: Colors.blue)),
+            const Text('Редактирование', style: TextStyle(fontSize: 13, color: Colors.orange)),
             const Spacer(),
-            TextButton(onPressed: _cancelEdit, child: const Text('Отмена')),
+            TextButton(onPressed: _cancelEdit, child: Text('Отмена', style: TextStyle(color: Colors.orange))),
           ]),
         ),
       Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, border: Border(top: BorderSide(color: Colors.grey.shade200))),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: _surfaceColor, border: Border(top: BorderSide(color: _cardBorderColor))),
         child: SafeArea(
-          child: Row(children: [
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Expanded(
               child: TextField(
                 controller: _textController,
+                style: TextStyle(color: _textColor, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: _editingMessageId != null ? 'Редактировать...' : 'Сообщение...',
-                  filled: true, fillColor: Colors.grey.shade100,
+                  hintStyle: TextStyle(color: _subTextColor, fontSize: 14),
+                  filled: true, fillColor: _inputFillColor,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Colors.orange, width: 2)),
                 ),
                 onSubmitted: (_) => _handleSendMessage(),
                 textCapitalization: TextCapitalization.sentences,
@@ -705,15 +988,20 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: _sending
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue))
-                  : Icon(_editingMessageId != null ? Icons.check_rounded : Icons.send_rounded, color: Colors.blue, size: 24),
-              onPressed: _sending ? null : _handleSendMessage,
+            GestureDetector(
+              onTap: _sending ? null : _handleSendMessage,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), boxShadow: [BoxShadow(color: Color(0x4DFF9800), blurRadius: 8, offset: Offset(0, 2))]),
+                child: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+              ),
             ),
           ]),
         ),
       ),
+
+
+
     ]);
   }
 
@@ -725,8 +1013,6 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
       if (dt.day == now.day && dt.month == now.month && dt.year == now.year) return DateFormat('HH:mm').format(dt);
       if (dt.year == now.year) return DateFormat('dd MMM, HH:mm', 'ru').format(dt);
       return DateFormat('dd.MM.yy, HH:mm').format(dt);
-    } catch (_) {
-      return '';
-    }
+    } catch (_) { return ''; }
   }
 }

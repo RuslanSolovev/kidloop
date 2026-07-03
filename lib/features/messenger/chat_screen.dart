@@ -1,4 +1,4 @@
-// chat_screen.dart - С ОТПРАВКОЙ ФОТО И ПРАВИЛЬНЫМ ПОРЯДКОМ
+// chat_screen.dart - С ОТПРАВКОЙ ФОТО, ПРАВИЛЬНЫМ ПОРЯДКОМ И НАСТРОЙКАМИ ЦВЕТОВ
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -9,6 +9,108 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 
+// 🔥 Модель цветовой схемы чата
+class ChatColorScheme {
+  final Color myBgColor;
+  final Color myTextColor;
+  final Color otherBgColor;
+  final Color otherTextColor;
+  final Color backgroundColor;
+  final String name;
+
+  const ChatColorScheme({
+    required this.myBgColor,
+    required this.myTextColor,
+    required this.otherBgColor,
+    required this.otherTextColor,
+    required this.backgroundColor,
+    required this.name,
+  });
+}
+
+// 🔥 Предустановленные цветовые схемы (10 вариантов)
+const List<ChatColorScheme> _colorSchemes = [
+  ChatColorScheme(
+    name: 'Стандарт',
+    myBgColor: Color(0xFFFF9800),
+    myTextColor: Colors.white,
+    otherBgColor: Colors.white,
+    otherTextColor: Colors.black87,
+    backgroundColor: Color(0xFFFFF8F0),
+  ),
+  ChatColorScheme(
+    name: 'Океан',
+    myBgColor: Color(0xFF2196F3),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFE3F2FD),
+    otherTextColor: Color(0xFF1565C0),
+    backgroundColor: Color(0xFFF0F8FF),
+  ),
+  ChatColorScheme(
+    name: 'Лес',
+    myBgColor: Color(0xFF4CAF50),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFE8F5E9),
+    otherTextColor: Color(0xFF2E7D32),
+    backgroundColor: Color(0xFFF1F8E9),
+  ),
+  ChatColorScheme(
+    name: 'Закат',
+    myBgColor: Color(0xFFE91E63),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFFCE4EC),
+    otherTextColor: Color(0xFF880E4F),
+    backgroundColor: Color(0xFFFFF5F5),
+  ),
+  ChatColorScheme(
+    name: 'Фиолет',
+    myBgColor: Color(0xFF9C27B0),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFF3E5F5),
+    otherTextColor: Color(0xFF6A1B9A),
+    backgroundColor: Color(0xFFFDF8FF),
+  ),
+  ChatColorScheme(
+    name: 'Темный',
+    myBgColor: Color(0xFF37474F),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFECEFF1),
+    otherTextColor: Color(0xFF263238),
+    backgroundColor: Color(0xFFECEFF1),
+  ),
+  ChatColorScheme(
+    name: 'Мятный',
+    myBgColor: Color(0xFF00897B),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFE0F2F1),
+    otherTextColor: Color(0xFF004D40),
+    backgroundColor: Color(0xFFF0FFFE),
+  ),
+  ChatColorScheme(
+    name: 'Карамель',
+    myBgColor: Color(0xFFFF6F00),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFFFF3E0),
+    otherTextColor: Color(0xFFE65100),
+    backgroundColor: Color(0xFFFFFBF5),
+  ),
+  ChatColorScheme(
+    name: 'Лаванда',
+    myBgColor: Color(0xFF7B1FA2),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFFF5F0FF),
+    otherTextColor: Color(0xFF4A148C),
+    backgroundColor: Color(0xFFFAF8FF),
+  ),
+  ChatColorScheme(
+    name: 'Ночь',
+    myBgColor: Color(0xFF455A64),
+    myTextColor: Colors.white,
+    otherBgColor: Color(0xFF2C3E50),
+    otherTextColor: Color(0xFFECF0F1),
+    backgroundColor: Color(0xFF1A1A2E),
+  ),
+];
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -44,14 +146,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   int _totalMessages = 0;
   final Set<String> _pendingIds = {};
 
+  // 🔥 Настройки цветов
+  int _selectedColorSchemeIndex = 0;
+  late ChatColorScheme _currentColorScheme;
+
   static const String chatApiUrl = 'https://functions.yandexcloud.net/d4e40k9g2avoblb1of29';
   static const String uploadApiUrl = 'https://functions.yandexcloud.net/d4e3c2me21eou683ic6d';
   static const String _cacheKey = 'chat_messages_cache';
+
+  // 🔥 Поддержка темной темы
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _currentColorScheme = _colorSchemes[0];
     _init();
   }
 
@@ -78,6 +188,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _currentUserName = prefs.getString('user_name') ?? 'Вы';
     _currentUserAvatar = prefs.getString('avatar_url') ?? '';
 
+    // 🔥 Загружаем сохраненную цветовую схему
+    _selectedColorSchemeIndex = prefs.getInt('chat_color_scheme_${widget.chatId}') ?? 0;
+    _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex];
+
     await _loadCachedMessages();
     await _loadMessages();
 
@@ -85,6 +199,278 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() => _initialLoading = false);
       _scrollToBottom();
     }
+  }
+
+  // 🔥 Сохранение цветовой схемы
+  Future<void> _saveColorScheme(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('chat_color_scheme_${widget.chatId}', index);
+  }
+
+  // 🔥 Диалог выбора цветовой схемы
+  void _showColorSchemeDialog() {
+    final isDark = _isDarkMode;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.palette_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Оформление чата',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                // 🔥 Предпросмотр с фоном
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _colorSchemes[_selectedColorSchemeIndex].backgroundColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.visibility_rounded, size: 14, color: isDark ? Colors.white54 : Colors.grey.shade600),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Предпросмотр',
+                            style: TextStyle(
+                              color: isDark ? Colors.white54 : Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Мое сообщение
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _colorSchemes[_selectedColorSchemeIndex].myBgColor,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(4),
+                            ),
+                          ),
+                          child: Text(
+                            'Ваше сообщение',
+                            style: TextStyle(
+                              color: _colorSchemes[_selectedColorSchemeIndex].myTextColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Чужое сообщение
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _colorSchemes[_selectedColorSchemeIndex].otherBgColor,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(4),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'Сообщение собеседника',
+                            style: TextStyle(
+                              color: _colorSchemes[_selectedColorSchemeIndex].otherTextColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // 🔥 Сетка с выбором цветов (3 колонки)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: _colorSchemes.length,
+                  itemBuilder: (context, index) {
+                    final scheme = _colorSchemes[index];
+                    final isSelected = _selectedColorSchemeIndex == index;
+                    return GestureDetector(
+                      onTap: () {
+                        setDialogState(() => _selectedColorSchemeIndex = index);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? Colors.orange : Colors.grey.withOpacity(0.3),
+                            width: isSelected ? 2.5 : 1,
+                          ),
+                          color: isSelected
+                              ? (isDark ? Colors.orange.withOpacity(0.1) : Colors.orange.withOpacity(0.05))
+                              : Colors.transparent,
+                          boxShadow: isSelected
+                              ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 8)]
+                              : null,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Три цвета: свои, чужие, фон
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: scheme.myBgColor,
+                                      borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Expanded(
+                                  child: Container(
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: scheme.otherBgColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Expanded(
+                                  child: Container(
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: scheme.backgroundColor,
+                                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              scheme.name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected
+                                    ? Colors.orange
+                                    : (isDark ? Colors.white70 : Colors.grey.shade700),
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.orange.withOpacity(0.2),
+                                ),
+                                child: const Icon(Icons.check, color: Colors.orange, size: 14),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // 🔥 Подсказка
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: isDark ? Colors.white54 : Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Цвета: своё сообщение | чужое | фон',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white54 : Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Отмена', style: TextStyle(color: isDark ? Colors.white54 : Colors.grey)),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex];
+                  });
+                  _saveColorScheme(_selectedColorSchemeIndex);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Применить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadCachedMessages() async {
@@ -132,13 +518,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (data['ok'] == true) {
         final serverMessages = (data['messages'] as List).cast<Map<String, dynamic>>();
 
-        // Сохраняем pending сообщения
         final pendingMessages = _messages.where((m) {
           final id = m['message_id'].toString();
           return id.startsWith('temp_') || _pendingIds.contains(id);
         }).toList();
 
-        // Убираем дубликаты
         final filteredPending = pendingMessages.where((pending) {
           final pendingText = pending['text'] ?? '';
           final pendingImage = pending['image_url'] ?? '';
@@ -169,13 +553,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  // 🔥 ОТПРАВКА ФОТО С ТЕКСТОМ
   Future<void> _pickAndSendImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (picked == null) return;
 
-    // 🔥 Показываем диалог для ввода текста к фото
     final textController = TextEditingController();
     final text = await showDialog<String>(
       context: context,
@@ -221,7 +603,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ),
     );
 
-    if (text == null || !mounted) return; // Отмена
+    if (text == null || !mounted) return;
 
     setState(() => _sending = true);
 
@@ -355,7 +737,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  // 🔥 ОТПРАВКА ТЕКСТОВОГО СООБЩЕНИЯ
   Future<void> _handleSendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty || _sending || !mounted) return;
@@ -395,7 +776,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _messages.removeWhere((m) => m['message_id'] == editingIdSnapshot);
     }
 
-    // 🔥 Добавляем в КОНЕЦ списка
     setState(() {
       _messages.add(optimisticMsg);
       _editingMessageId = null;
@@ -539,10 +919,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final hasImage = message['image_url'] != null && message['image_url'].toString().isNotEmpty;
 
     if (hasImage) {
-      // 🔥 Для сообщений с фото показываем диалог
       _showEditImageDialog(message);
     } else {
-      // Обычное редактирование текста
       _textController.text = message['text'] ?? '';
       _textController.selection = TextSelection.fromPosition(
         TextPosition(offset: _textController.text.length),
@@ -556,7 +934,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-// 🔥 Диалог редактирования фото
   void _showEditImageDialog(Map<String, dynamic> message) {
     final textController = TextEditingController(text: message['text'] ?? '');
     String? newImageUrl = message['image_url'];
@@ -571,7 +948,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Текущее или новое фото
               GestureDetector(
                 onTap: () async {
                   final picker = ImagePicker();
@@ -640,7 +1016,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-// 🔥 Сохранение отредактированного фото-сообщения
   Future<void> _editImageMessage(String messageId, String text, File? newImageFile, String? currentImageUrl) async {
     if (!mounted) return;
 
@@ -648,7 +1023,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     String? finalImageUrl = currentImageUrl;
 
-    // Если выбрали новое фото - загружаем его
     if (newImageFile != null) {
       try {
         final bytes = await newImageFile.readAsBytes();
@@ -673,7 +1047,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     }
 
-    // Отправляем изменения
     try {
       final response = await http.post(
         Uri.parse(chatApiUrl),
@@ -815,6 +1188,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDarkMode;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -832,9 +1207,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+        actions: [
+          // 🔥 Кнопка настроек цветов
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.palette_rounded, color: Colors.orange, size: 20),
+            ),
+            onPressed: _showColorSchemeDialog,
+            tooltip: 'Оформление чата',
+          ),
+        ],
       ),
       body: Container(
-        color: Colors.orange.withOpacity(0.02),
+        // 🔥 Используем цвет фона из выбранной схемы
+        color: _currentColorScheme.backgroundColor,
         child: Column(
           children: [
             if (_initialLoading)
@@ -917,7 +1308,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Colors.grey),
+          Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 48,
+            color: _currentColorScheme.myBgColor.withOpacity(0.4),
+          ),
           const SizedBox(height: 16),
           const Text('Нет сообщений', style: TextStyle(fontSize: 18)),
           const SizedBox(height: 8),
@@ -928,7 +1323,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildMessagesList() {
-    // 🔥 Максимальный размер изображения в чате (примерно 2/3 от ширины сообщения)
     final imageMaxWidth = MediaQuery.of(context).size.width * 0.45;
 
     return ListView.builder(
@@ -947,6 +1341,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         final status = msg['status']?.toString() ?? 'read';
         final replyToData = msg['reply_to_message'] as Map<String, dynamic>?;
 
+        // 🔥 Используем выбранную цветовую схему
+        final myBg = _currentColorScheme.myBgColor;
+        final myText = _currentColorScheme.myTextColor;
+        final otherBg = _currentColorScheme.otherBgColor;
+        final otherText = _currentColorScheme.otherTextColor;
+        final bgColor = isMine ? myBg : otherBg;
+        final textColor = isMine ? myText : otherText;
+
         return GestureDetector(
           onLongPress: status == 'failed' ? null : () => _showMessageOptions(msg, isMine),
           child: Padding(
@@ -960,15 +1362,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.all(12),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: status == 'failed'
-                            ? [Colors.red.shade100, Colors.red.shade200]
-                            : isMine
-                            ? [Colors.orange.shade400, Colors.orange.shade600]
-                            : [Colors.white, Colors.grey.shade50],
-                      ),
+                      gradient: status == 'failed'
+                          ? LinearGradient(colors: [Colors.red.shade100, Colors.red.shade200])
+                          : null,
+                      color: status == 'failed' ? null : bgColor,
                       borderRadius: BorderRadius.circular(20).copyWith(
                         topRight: isMine ? const Radius.circular(4) : null,
                         topLeft: !isMine ? const Radius.circular(4) : null,
@@ -991,10 +1388,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: Row(
                                   children: [
-                                    _buildAvatar(senderAvatar, senderName, radius: 15, bgColor: Colors.orange.shade100, textColor: Colors.orange),
+                                    _buildAvatar(senderAvatar, senderName, radius: 15, bgColor: otherBg.withOpacity(0.5), textColor: otherText),
                                     const SizedBox(width: 8),
                                     Text(senderName.isNotEmpty ? senderName : 'Пользователь',
-                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange)),
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: otherText)),
                                   ],
                                 ),
                               ),
@@ -1007,17 +1404,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   color: (isMine ? Colors.white : Colors.black).withOpacity(0.08),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border(
-                                    left: BorderSide(color: (isMine ? Colors.white : Colors.orange).withOpacity(0.6), width: 3),
+                                    left: BorderSide(color: textColor.withOpacity(0.6), width: 3),
                                   ),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(children: [
-                                      Icon(Icons.reply_rounded, size: 14, color: (isMine ? Colors.white : Colors.orange).withOpacity(0.7)),
+                                      Icon(Icons.reply_rounded, size: 14, color: textColor.withOpacity(0.7)),
                                       const SizedBox(width: 4),
                                       Text(replyToData['sender_name'] ?? '',
-                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (isMine ? Colors.white : Colors.orange).withOpacity(0.8))),
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8))),
                                     ]),
                                     const SizedBox(height: 4),
                                     if (replyToData['image_url'] != null && replyToData['image_url'].toString().isNotEmpty)
@@ -1031,12 +1428,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                         ),
                                       ),
                                     Text(replyToData['text'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(fontSize: 13, color: (isMine ? Colors.white : Colors.black87).withOpacity(0.7), fontStyle: FontStyle.italic)),
+                                        style: TextStyle(fontSize: 13, color: textColor.withOpacity(0.7), fontStyle: FontStyle.italic)),
                                   ],
                                 ),
                               ),
 
-                            // 🔥 Фото в сообщении (уменьшенный размер и без рамок у плейсхолдера)
                             if (imageUrl.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 6),
@@ -1054,7 +1450,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                         fit: BoxFit.cover,
                                         width: imageMaxWidth,
                                         placeholder: (_, __) => Container(
-                                          // 🔥 Точно такой же размер как у фото
                                           width: imageMaxWidth,
                                           height: imageMaxWidth * 0.8,
                                           decoration: BoxDecoration(
@@ -1090,7 +1485,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               ),
 
                             if (text.isNotEmpty)
-                              Text(text, style: TextStyle(fontSize: 16, color: isMine ? Colors.white : Colors.black87)),
+                              Text(text, style: TextStyle(fontSize: 16, color: textColor)),
                             const SizedBox(height: 4),
 
                             Align(
@@ -1099,10 +1494,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(_formatTime(time),
-                                      style: TextStyle(fontSize: 11, color: isMine ? Colors.white.withOpacity(0.7) : Colors.grey.shade500)),
+                                      style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.7))),
                                   if (isEdited) ...[
                                     const SizedBox(width: 4),
-                                    Text('изм.', style: TextStyle(fontSize: 10, color: isMine ? Colors.white.withOpacity(0.6) : Colors.grey.shade400)),
+                                    Text('изм.', style: TextStyle(fontSize: 10, color: textColor.withOpacity(0.6))),
                                   ],
                                   if (isMine) ...[
                                     const SizedBox(width: 4),
@@ -1137,7 +1532,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  // 🔥 Полноэкранный просмотр изображения
   void _showFullImage(String url) {
     Navigator.push(
       context,
@@ -1289,7 +1683,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // 🔥 Кнопка фото
                 IconButton(
                   icon: const Icon(Icons.image_rounded, color: Colors.orange),
                   onPressed: _pickAndSendImage,

@@ -22,14 +22,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _svBalance = 0;
   bool _loadingBalance = true;
 
+  // 🔥 Загружаем настройку темы из SharedPreferences
+  bool _isDarkMode = false;
+
   @override
   void initState() {
     super.initState();
+    _loadThemeMode();
     _loadBalance();
-    // 🔥 Перезагружаем профиль при входе
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshProfile();
     });
+  }
+
+  // 🔥 Загружаем настройку темы
+  Future<void> _loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isDarkMode = prefs.getBool('is_dark_mode') ?? false;
+      });
+    }
   }
 
   Future<void> _refreshProfile() async {
@@ -78,31 +91,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Выйти из аккаунта'),
-        content: const Text('Ты уверен, что хочешь выйти?'),
+        title: Text('Выйти из аккаунта', style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black87)),
+        content: Text('Ты уверен, что хочешь выйти?', style: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black54)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Выйти', style: TextStyle(color: Colors.white)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Отмена', style: TextStyle(color: _isDarkMode ? Colors.grey : Colors.grey.shade600)),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Выйти', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
           ),
         ],
       ),
     );
 
     if (confirm == true) {
-      // 🔥 Очищаем ВСЕ провайдеры
       if (mounted) {
         context.read<ProfileProvider>().clearProfile();
         context.read<ItemsProvider>().clearItems();
         context.read<TradesProvider>().clearOffers();
       }
 
-      // 🔥 Очищаем SharedPreferences
       final prefs = await SharedPreferences.getInstance();
+      // 🔥 Не очищаем is_dark_mode при выходе
+      final savedDarkMode = prefs.getBool('is_dark_mode') ?? false;
       await prefs.clear();
+      await prefs.setBool('is_dark_mode', savedDarkMode);
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -174,21 +197,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final successRate = trades.isEmpty ? 0 : (completedTrades / trades.length * 100).round();
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    // 🔥 Адаптивные цвета
+    final backgroundColor = _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+    final surfaceColor = _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
+    final textColor = _isDarkMode ? Colors.white : Colors.black87;
+    final subTextColor = _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+    final cardBorderColor = _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Профиль'),
-        backgroundColor: Colors.orange,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        title: Text(
+          'Профиль',
+          style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Выйти из аккаунта',
-            onPressed: _logout,
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cardBorderColor),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.logout_rounded, color: Colors.red.shade400, size: 20),
+              tooltip: 'Выйти из аккаунта',
+              onPressed: _logout,
+            ),
           ),
         ],
       ),
@@ -202,12 +240,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.orange.shade400, Colors.deepOrange.shade400],
+                gradient: const LinearGradient(
+                  colors: [Colors.orange, Colors.deepOrange],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.orange.withOpacity(0.3),
@@ -231,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         backgroundColor: Colors.white,
                         backgroundImage: profile.avatarUrl.isNotEmpty ? NetworkImage(profile.avatarUrl) : null,
                         child: profile.avatarUrl.isEmpty
-                            ? Icon(Icons.person, size: 60, color: Colors.orange)
+                            ? const Icon(Icons.person, size: 60, color: Colors.orange)
                             : null,
                       ),
                     ),
@@ -253,32 +291,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                   const SizedBox(height: 18),
+                  // SV Balance
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.amber.shade400,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: Colors.amber.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: _loadingBalance
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.stars, color: Colors.white, size: 28),
-                      const SizedBox(width: 8),
-                      Text('$_svBalance SV', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                    ]),
+                        ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                        : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.stars, color: Colors.white, size: 28),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$_svBalance SV',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 14),
+                  // Level
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.deepOrange, borderRadius: BorderRadius.circular(20)),
-                    child: Text('УРОВЕНЬ $level', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    decoration: BoxDecoration(
+                      color: Colors.deepOrange,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'УРОВЕНЬ $level',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 20),
+                  // Progress bar
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Заполненность профиля', style: TextStyle(color: Colors.white.withOpacity(0.9))),
-                      Text('${(completion * 100).round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('Заполненность профиля', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13)),
+                      Text('${(completion * 100).round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                     ]),
                     const SizedBox(height: 6),
                     ClipRRect(
@@ -296,11 +367,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 20),
 
-            // Кнопки
+            // Кнопки действий
             Row(children: [
-              Expanded(child: _ActionButton(icon: Icons.edit, label: 'Редактировать', onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())).then((_) => _refreshProfile()); }, gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange.shade400]))),
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.edit_rounded,
+                  label: 'Редактировать',
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())).then((_) => _refreshProfile());
+                  },
+                  gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _ActionButton(icon: Icons.logout, label: 'Выйти', onPressed: _logout, gradient: LinearGradient(colors: [Colors.red.shade400, Colors.red.shade600]))),
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.logout_rounded,
+                  label: 'Выйти',
+                  onPressed: _logout,
+                  gradient: LinearGradient(colors: [Colors.red.shade400, Colors.red.shade600]),
+                ),
+              ),
             ]),
 
             const SizedBox(height: 24),
@@ -309,17 +396,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: cardBorderColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(_isDarkMode ? 0.15 : 0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Информация', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                Row(
+                  children: [
+                    Container(
+                      width: 3, height: 20,
+                      decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(2)),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('Информация', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
                 const SizedBox(height: 20),
-                _InfoTile(icon: Icons.cake, label: 'Возраст', value: '${profile.age}'),
-                _InfoTile(icon: Icons.category, label: 'Любимая категория', value: profile.favoriteCategory),
-                _InfoTile(icon: Icons.telegram, label: 'Telegram', value: profile.telegram.isEmpty ? 'Не указан' : profile.telegram),
+                _InfoTile(icon: Icons.cake_rounded, label: 'Возраст', value: '${profile.age}', isDark: _isDarkMode),
+                _InfoTile(icon: Icons.category_rounded, label: 'Любимая категория', value: profile.favoriteCategory, isDark: _isDarkMode),
+                _InfoTile(icon: Icons.telegram, label: 'Telegram', value: profile.telegram.isEmpty ? 'Не указан' : profile.telegram, isDark: _isDarkMode),
                 const SizedBox(height: 16),
-                Text('О себе', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text(profile.bio.isEmpty ? 'Нет описания' : profile.bio, style: TextStyle(color: Colors.grey.shade600)),
+                Row(
+                  children: [
+                    Container(
+                      width: 3, height: 16,
+                      decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(2)),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('О себе', style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  profile.bio.isEmpty ? 'Нет описания' : profile.bio,
+                  style: TextStyle(color: subTextColor, fontSize: 14, height: 1.4),
+                ),
               ]),
             ),
 
@@ -327,16 +446,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Статистика
             Row(children: [
-              Expanded(child: _StatCard(title: 'Мои вещи', value: '$myItems', icon: Icons.inventory, color: Colors.blue)),
+              Expanded(child: _StatCard(title: 'Мои вещи', value: '$myItems', icon: Icons.inventory_2_rounded, color: Colors.blue, isDark: _isDarkMode)),
               const SizedBox(width: 12),
-              Expanded(child: _StatCard(title: 'Обмены', value: '${trades.length}', icon: Icons.swap_horiz, color: Colors.orange)),
+              Expanded(child: _StatCard(title: 'Обмены', value: '${trades.length}', icon: Icons.swap_horiz_rounded, color: Colors.orange, isDark: _isDarkMode)),
             ]),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _StatCard(title: 'Успешно', value: '$completedTrades', icon: Icons.check_circle, color: Colors.green)),
+              Expanded(child: _StatCard(title: 'Успешно', value: '$completedTrades', icon: Icons.check_circle_rounded, color: Colors.green, isDark: _isDarkMode)),
               const SizedBox(width: 12),
-              Expanded(child: _StatCard(title: 'Рейтинг', value: '$successRate%', icon: Icons.star, color: Colors.amber)),
+              Expanded(child: _StatCard(title: 'Рейтинг', value: '$successRate%', icon: Icons.star_rounded, color: Colors.amber, isDark: _isDarkMode)),
             ]),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -348,19 +468,34 @@ class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoTile({required this.icon, required this.label, required this.value});
+  final bool isDark;
+  const _InfoTile({required this.icon, required this.label, required this.value, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(children: [
-        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: Colors.orange, size: 20)),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: Colors.orange, size: 20),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: RichText(text: TextSpan(style: DefaultTextStyle.of(context).style, children: [
-          TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-          TextSpan(text: value),
-        ]))),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 14),
+              children: [
+                TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.orange)),
+                TextSpan(text: value),
+              ],
+            ),
+          ),
+        ),
       ]),
     );
   }
@@ -371,19 +506,38 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  const _StatCard({required this.title, required this.value, required this.icon, required this.color});
+  final bool isDark;
+  const _StatCard({required this.title, required this.value, required this.icon, required this.color, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: color.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 6))]),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withOpacity(0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(isDark ? 0.1 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(children: [
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, size: 28, color: color)),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 28, color: color),
+        ),
         const SizedBox(height: 12),
-        Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+        Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
         const SizedBox(height: 4),
-        Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+        Text(title, style: TextStyle(color: isDark ? Colors.grey.shade500 : Colors.grey.shade600, fontSize: 14)),
       ]),
     );
   }
@@ -401,11 +555,32 @@ class _ActionButton extends StatelessWidget {
     return SizedBox(
       height: 52,
       child: DecoratedBox(
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: gradient),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: gradient,
+          boxShadow: [
+            BoxShadow(
+              color: (gradient is LinearGradient ? Colors.orange : Colors.red).withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: ElevatedButton(
           onPressed: onPressed,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, color: Colors.white), const SizedBox(width: 8), Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            ],
+          ),
         ),
       ),
     );
