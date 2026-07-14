@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../widgets/image_gallery_widget.dart';
 import '../item_details/item_details_screen.dart';
@@ -70,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadItems();
   }
 
-  // 🔥 Используем Theme напрямую
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
   Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
@@ -83,32 +81,182 @@ class _HomeScreenState extends State<HomeScreen> {
     final allItems = provider.items;
     final items = _showMyItems ? allItems.where((e) => e.isMine).toList() : allItems;
 
+    // Считаем количество для каждого фильтра
+    final allCount = allItems.length;
+    final myCount = allItems.where((e) => e.isMine).length;
+
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(value: false, label: Text('Все вещи', style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black)), icon: const Icon(Icons.public)),
-                ButtonSegment(value: true, label: Text('Мои вещи', style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black)), icon: const Icon(Icons.inventory)),
-              ],
-              selected: {_showMyItems},
-              onSelectionChanged: (selected) => setState(() => _showMyItems = selected.first),
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  return states.contains(WidgetState.selected) ? Colors.orange : (_isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200);
-                }),
-                foregroundColor: WidgetStateProperty.resolveWith((states) {
-                  return states.contains(WidgetState.selected) ? Colors.white : (_isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black);
-                }),
+        // Стильный минималистичный переключатель
+        _buildFilterBar(allCount, myCount),
+        Expanded(child: _buildBody(provider, items)),
+      ],
+    );
+  }
+
+  // Стильный минималистичный переключатель
+  Widget _buildFilterBar(int allCount, int myCount) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade200,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Кнопка "Все вещи"
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showMyItems = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: !_showMyItems
+                      ? (_isDarkMode ? const Color(0xFF2A2A3E) : Colors.white)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: !_showMyItems
+                      ? [
+                    BoxShadow(
+                      color: _isDarkMode
+                          ? Colors.black.withOpacity(0.2)
+                          : Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.public_rounded,
+                      size: 18,
+                      color: !_showMyItems
+                          ? Colors.orange
+                          : (_isDarkMode ? Colors.white.withOpacity(0.5) : Colors.grey.shade500),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Все',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: !_showMyItems ? FontWeight.w600 : FontWeight.w400,
+                        color: !_showMyItems
+                            ? _textColor
+                            : (_isDarkMode ? Colors.white.withOpacity(0.5) : Colors.grey.shade500),
+                      ),
+                    ),
+                    if (allCount > 0) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: !_showMyItems
+                              ? Colors.orange.withOpacity(0.15)
+                              : (_isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$allCount',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: !_showMyItems
+                                ? Colors.orange
+                                : (_isDarkMode ? Colors.white.withOpacity(0.5) : Colors.grey.shade600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        Expanded(child: _buildBody(provider, items)),
-      ],
+          // Кнопка "Мои вещи"
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showMyItems = true),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _showMyItems
+                      ? (_isDarkMode ? const Color(0xFF2A2A3E) : Colors.white)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: _showMyItems
+                      ? [
+                    BoxShadow(
+                      color: _isDarkMode
+                          ? Colors.black.withOpacity(0.2)
+                          : Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_rounded,
+                      size: 18,
+                      color: _showMyItems
+                          ? Colors.orange
+                          : (_isDarkMode ? Colors.white.withOpacity(0.5) : Colors.grey.shade500),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Мои',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: _showMyItems ? FontWeight.w600 : FontWeight.w400,
+                        color: _showMyItems
+                            ? _textColor
+                            : (_isDarkMode ? Colors.white.withOpacity(0.5) : Colors.grey.shade500),
+                      ),
+                    ),
+                    if (myCount > 0) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _showMyItems
+                              ? Colors.orange.withOpacity(0.15)
+                              : (_isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$myCount',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _showMyItems
+                                ? Colors.orange
+                                : (_isDarkMode ? Colors.white.withOpacity(0.5) : Colors.grey.shade600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -130,7 +278,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() { _retryCount = 0; _loadError = null; });
                 _loadItems();
               },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text('Повторить'),
             ),
           ],
@@ -193,13 +346,17 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: _surfaceColor,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _cardBorderColor),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.15 : 0.08), blurRadius: 12, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isDarkMode ? 0.15 : 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -219,9 +376,19 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    item.title,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _textColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 6),
-                  Text(item.description, style: TextStyle(color: _subTextColor), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(
+                    item.description,
+                    style: TextStyle(color: _subTextColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -238,7 +405,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Icon(Icons.location_on_outlined, size: 14, color: Colors.blue.shade400),
                         const SizedBox(width: 4),
-                        Expanded(child: Text(item.location, style: TextStyle(color: Colors.blue.shade600, fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        Expanded(
+                          child: Text(
+                            item.location,
+                            style: TextStyle(
+                              color: Colors.blue.shade600,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -255,16 +433,48 @@ class _HomeScreenState extends State<HomeScreen> {
     if (text.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 
   Widget _buildSvBadge(int sv) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.all(Radius.circular(16))),
-      child: Text('$sv SV', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x40FF9800),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.auto_awesome, color: Colors.white, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            '$sv SV',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

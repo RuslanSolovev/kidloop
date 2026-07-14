@@ -1403,7 +1403,7 @@ class _PedometerScreenState extends State<PedometerScreen>
             child: const Icon(Icons.directions_walk, color: Colors.white, size: 18),
           ),
           const SizedBox(width: 10),
-          Text('Шагомер',
+          Text('',
               style: TextStyle(
                   color: _textColor,
                   fontSize: 20,

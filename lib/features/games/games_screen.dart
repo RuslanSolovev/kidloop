@@ -1,6 +1,7 @@
+// features/games/games_screen.dart
 import 'package:flutter/material.dart';
 import 'memory_game/memory_game_screen.dart';
-import 'coming_soon_screen.dart';
+import 'chess/chess_game_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -9,7 +10,8 @@ class GamesScreen extends StatefulWidget {
   State<GamesScreen> createState() => _GamesScreenState();
 }
 
-class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStateMixin {
+class _GamesScreenState extends State<GamesScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -38,7 +40,8 @@ class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStat
     final textColor = isDark ? Colors.white : Colors.black87;
     final subTextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
     final surfaceColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-    final backgroundColor = isDark ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+    final backgroundColor =
+    isDark ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
 
     final games = [
       {
@@ -47,34 +50,17 @@ class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStat
         'icon': Icons.memory_rounded,
         'color': Colors.orange,
         'gradient': [Colors.orange, Colors.deepOrange],
+        'image': 'assets/images/cifri.jpeg',
         'screen': const MemoryGameScreen(),
-        'available': true,
       },
       {
-        'title': 'Угадай цену',
-        'subtitle': 'Смотри на вещь и угадывай её стоимость в SV',
-        'icon': Icons.attach_money_rounded,
-        'color': Colors.green,
-        'gradient': [Colors.green, Colors.teal],
-        'screen': const ComingSoonScreen(
-          title: 'Угадай цену',
-          description: 'Смотри на вещь и угадывай её стоимость в SV. Чем ближе к реальной цене — тем больше очков!',
-          icon: Icons.attach_money_rounded,
-        ),
-        'available': false,
-      },
-      {
-        'title': 'Эко-сортировка',
-        'subtitle': 'Сортируй предметы по категориям на скорость',
-        'icon': Icons.recycling_rounded,
-        'color': Colors.blue,
-        'gradient': [Colors.blue, Colors.lightBlue],
-        'screen': const ComingSoonScreen(
-          title: 'Эко-сортировка',
-          description: 'Перетаскивай предметы в правильные контейнеры: пластик, бумага, стекло. Зарабатывай бонусы за скорость!',
-          icon: Icons.recycling_rounded,
-        ),
-        'available': false,
+        'title': 'Шахматы',
+        'subtitle': 'Играй с друзьями онлайн! Отправляй приглашения и соревнуйся',
+        'icon': Icons.sports_esports_rounded,
+        'color': Colors.purple,
+        'gradient': [Colors.purple, Colors.deepPurple],
+        'image': 'assets/images/shahmati.jpeg',
+        'screen': const ChessGameScreen(),
       },
     ];
 
@@ -87,9 +73,15 @@ class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStat
           padding: const EdgeInsets.all(6),
           child: Container(
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+              color: isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.grey.shade200,
+              ),
             ),
             child: IconButton(
               icon: Icon(Icons.arrow_back_rounded, color: textColor, size: 20),
@@ -97,11 +89,13 @@ class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStat
             ),
           ),
         ),
-        title: Text('🎮 Игры', style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 20)),
+        title: Text('🎮 Игры',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, color: textColor, fontSize: 20)),
         centerTitle: true,
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         itemCount: games.length,
         itemBuilder: (context, index) {
           final game = games[index];
@@ -109,11 +103,11 @@ class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStat
             opacity: _animation,
             child: SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0, 0.2),
+                begin: const Offset(0, 0.3),
                 end: Offset.zero,
               ).animate(CurvedAnimation(
                 parent: _controller,
-                curve: Interval(index * 0.2, 1.0, curve: Curves.easeOutCubic),
+                curve: Interval(index * 0.3, 1.0, curve: Curves.easeOutCubic),
               )),
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -121,106 +115,114 @@ class _GamesScreenState extends State<GamesScreen> with SingleTickerProviderStat
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => game['screen'] as Widget),
+                      MaterialPageRoute(
+                          builder: (_) => game['screen'] as Widget),
                     );
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(24),
+                    height: 180,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          (game['gradient'] as List<Color>)[0].withOpacity(isDark ? 0.15 : 0.08),
-                          surfaceColor,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: (game['gradient'] as List<Color>)[0].withOpacity(0.2),
-                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.1 : 0.04),
+                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.1),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: game['gradient'] as List<Color>,
-                            ),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (game['gradient'] as List<Color>)[0].withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Фоновое изображение
+                          Image.asset(
+                            game['image'] as String,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: game['gradient'] as List<Color>,
+                                ),
                               ),
-                            ],
+                            ),
                           ),
-                          child: Icon(
-                            game['icon'] as IconData,
-                            color: Colors.white,
-                            size: 30,
+                          // Градиентное затемнение
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.7),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    game['title'] as String,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  if (game['available'] == false) ...[
-                                    const SizedBox(width: 8),
+                          // Контент
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      width: 48,
+                                      height: 48,
                                       decoration: BoxDecoration(
-                                        color: Colors.amber.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Text(
-                                        'СКОРО',
-                                        style: TextStyle(
-                                          color: Colors.amber,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1,
+                                        gradient: LinearGradient(
+                                          colors: game['gradient'] as List<Color>,
                                         ),
+                                        borderRadius: BorderRadius.circular(14),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (game['gradient'] as List<Color>)[0]
+                                                .withOpacity(0.4),
+                                            blurRadius: 8,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        game['icon'] as IconData,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            game['title'] as String,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 20,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            game['subtitle'] as String,
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.8),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                game['subtitle'] as String,
-                                style: TextStyle(color: subTextColor, fontSize: 13),
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: subTextColor,
-                          size: 28,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

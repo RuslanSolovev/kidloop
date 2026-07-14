@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'core/items_provider.dart';
 import 'core/trades_provider.dart';
 import 'core/profile_provider.dart';
+import 'features/dashboard/dashboard_screen.dart'; // Импортируем ThemeProvider
 import 'features/splash/splash_screen.dart';
 
 void main() async {
@@ -16,6 +17,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ItemsProvider()),
         ChangeNotifierProvider(create: (_) => TradesProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()), // Добавляем ThemeProvider
       ],
       child: const MyApp(),
     ),
@@ -27,14 +29,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Слушаем изменения темы
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDark = themeProvider.isDarkMode;
+
     return MaterialApp(
       title: 'KidLoop',
       debugShowCheckedModeBanner: false,
+
+      // Принудительно задаём тему в зависимости от провайдера
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: const Color(0xFFFF6F00), // Оранжевый
+        colorSchemeSeed: const Color(0xFFFF6F00),
 
-        // Дополнительные настройки для современного вида
         cardTheme: CardThemeData(
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -117,7 +126,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      // Тёмная тема (опционально, можно добавить переключатель)
       darkTheme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFFFF6F00),
@@ -187,8 +195,6 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-
-      themeMode: ThemeMode.system, // Автоматически переключать светлую/тёмную
 
       home: const SplashScreen(),
     );

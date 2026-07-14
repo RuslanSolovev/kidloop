@@ -13,7 +13,7 @@ import '../features/map/map_screen.dart';
 import '../features/feed/presentation/trade_offers_screen.dart';
 import '../features/pedometer/pedometer_screen.dart';
 import '../features/add_item/add_item_screen.dart';
-import '../features/profile/profile_screen.dart';
+import '../features/dashboard/dashboard_screen.dart'; // Импортируем ThemeProvider
 import '../core/items_provider.dart';
 import '../core/trades_provider.dart';
 
@@ -27,9 +27,7 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int currentIndex = 0;
   Timer? _globalTimer;
-  String? _avatarUrl;
   bool _isLoading = true;
-  bool _isDarkMode = false;
 
   DateTime? _lastBackPressTime;
 
@@ -58,8 +56,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAvatar();
-    _loadThemePreference();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
@@ -74,19 +70,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void dispose() {
     _globalTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('is_dark_mode') ?? false;
-    if (mounted) setState(() => _isDarkMode = isDark);
-  }
-
-  Future<void> _toggleTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final newThemeMode = !_isDarkMode;
-    setState(() => _isDarkMode = newThemeMode);
-    await prefs.setBool('is_dark_mode', newThemeMode);
   }
 
   Future<void> _loadInitialData() async {
@@ -110,55 +93,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         context.read<ItemsProvider>().loadItems(),
         context.read<TradesProvider>().loadOffers(),
       ]);
-      await _loadAvatar();
-      _loadGlobalStats(); // без await, чтобы не блокировать
+      _loadGlobalStats();
     } catch (e) {
       print("Ошибка обновления: $e");
-    }
-  }
-
-  Future<void> _loadAvatar() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonString = prefs.getString('user_profile');
-      if (jsonString != null && jsonString.isNotEmpty) {
-        final map = jsonDecode(jsonString);
-        final url = map['avatarUrl'] ?? '';
-        if (mounted) setState(() => _avatarUrl = url.isNotEmpty ? url : null);
-      }
-    } catch (e) {
-      print("Ошибка загрузки аватара: $e");
     }
   }
 
   // Загрузка глобальной статистики
   Future<void> _loadGlobalStats() async {
     try {
-      print('🔄 Загружаем статистику...');
       final response = await http.post(
         Uri.parse(statsApiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"action": "get-global-stats"}),
       ).timeout(const Duration(seconds: 8));
 
-      print('📡 Статус ответа: ${response.statusCode}');
-      print('📡 Тело ответа: ${response.body}');
-
       final data = jsonDecode(response.body);
-      print('📊 Данные: ok=${data['ok']}, stats=${data['stats'] != null ? "есть" : "нет"}');
 
       if (data['ok'] == true && mounted) {
         setState(() {
           _globalStats = data['stats'];
           _statsLoading = false;
         });
-        print('✅ Статистика загружена: ${_globalStats!['completedTrades']} сделок');
       } else {
-        print('❌ Ошибка в ответе: ${data['errorMessage']}');
         if (mounted) setState(() => _statsLoading = false);
       }
     } catch (e) {
-      print('❌ Ошибка загрузки статистики: $e');
+      print('Ошибка загрузки статистики: $e');
       if (mounted) setState(() => _statsLoading = false);
     }
   }
@@ -181,7 +142,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) >= const Duration(seconds: 2)) {
           _lastBackPressTime = now;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Нажмите ещё раз, чтобы выйти'), duration: Duration(seconds: 2), behavior: SnackBarBehavior.floating),
+            const SnackBar(
+              content: Text('Нажмите ещё раз, чтобы выйти'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
         } else {
           SystemNavigator.pop();
@@ -193,137 +158,126 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = _isDarkMode ? Brightness.dark : Brightness.light;
-    final backgroundColor = _isDarkMode ? const Color(0xFF0A0A1A) : Colors.white;
-    final textColor = _isDarkMode ? Colors.white : Colors.black87;
+    // Получаем тему из провайдера
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDark = themeProvider.isDarkMode;
+    final backgroundColor = isDark ? const Color(0xFF0A0A1A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
 
     if (_isLoading) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(brightness: brightness, useMaterial3: true, colorSchemeSeed: Colors.orange),
-        home: _wrapInPopScope(Scaffold(
-          backgroundColor: backgroundColor,
-          appBar: _buildAppBar(textColor, true),
-          body: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.orange)),
-            SizedBox(height: 16),
-            Text("Загрузка...", style: TextStyle(color: Colors.grey)),
-          ])),
-        )),
-      );
+      return _wrapInPopScope(Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: _buildAppBar(textColor),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.orange)),
+              SizedBox(height: 16),
+              Text("Загрузка...", style: TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
+      ));
     }
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: brightness,
-        useMaterial3: true,
-        colorSchemeSeed: Colors.orange,
-        scaffoldBackgroundColor: backgroundColor,
-        appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, foregroundColor: textColor),
-      ),
-      home: _wrapInPopScope(Scaffold(
-        backgroundColor: backgroundColor,
-        extendBody: true,
-        appBar: _buildAppBar(textColor, false),
-        body: IndexedStack(index: currentIndex, children: screens),
-        floatingActionButton: currentIndex == 0
-            ? Padding(
-          padding: const EdgeInsets.only(bottom: 70), // 🔥 Отступ от нижней навигации
-          child: Align(
-            alignment: Alignment.bottomRight, // 🔥 Прижимаем вправо
-            child: Container(
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x66FF9800),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: FloatingActionButton(
-                onPressed: onAddPressed,
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                child: const Icon(Icons.add_rounded, size: 28),
-              ),
+    return _wrapInPopScope(Scaffold(
+      backgroundColor: backgroundColor,
+      extendBody: true,
+      appBar: _buildAppBar(textColor),
+      body: IndexedStack(index: currentIndex, children: screens),
+      floatingActionButton: currentIndex == 0
+          ? Padding(
+        padding: const EdgeInsets.only(bottom: 70),
+        child: Align(
+          alignment: Alignment.bottomRight,
+          child: Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x66FF9800),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              onPressed: onAddPressed,
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              child: const Icon(Icons.add_rounded, size: 28),
             ),
           ),
-        )
-            : null,
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // 🔥 Позиция справа
-        bottomNavigationBar: _buildCreativeNavBar(),
-      )),
-    );
+        ),
+      )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      bottomNavigationBar: _buildCreativeNavBar(isDark),
+    ));
   }
 
-  // AppBar со счётчиком статистики
-  PreferredSizeWidget _buildAppBar(Color textColor, bool isLoading) {
-    // 🔥 Проверяем, есть ли загруженная статистика
+  // В _buildAppBar добавляем leading с кнопкой назад
+  PreferredSizeWidget _buildAppBar(Color textColor) {
     final hasStats = _globalStats != null && !_statsLoading;
-
-    print('🔧 _buildAppBar: hasStats=$hasStats, statsLoading=$_statsLoading, stats=${_globalStats != null ? "есть" : "нет"}');
 
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leading: Padding(
-        padding: const EdgeInsets.all(6),
-        child: GestureDetector(
-          onTap: isLoading ? null : () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())).then((_) => _loadAvatar());
-          },
-          child: Hero(
-            tag: 'profile_avatar',
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.orange.withOpacity(0.5), width: 2),
-                boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 8)],
-              ),
-              child: CircleAvatar(
-                backgroundColor: Colors.orange.shade100,
-                radius: 18,
-                backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty ? NetworkImage(_avatarUrl!) : null,
-                child: _avatarUrl == null || _avatarUrl!.isEmpty
-                    ? const Icon(Icons.person, color: Colors.orange, size: 20)
-                    : null,
-              ),
-            ),
-          ),
-        ),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_rounded, color: textColor),
+        onPressed: () => Navigator.pop(context),
       ),
       title: hasStats
           ? _buildStatsCounter(textColor)
-          : Row(
-        mainAxisSize: MainAxisSize.min,
+          : _statsLoading
+          ? Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('🔄', style: TextStyle(fontSize: 20)),
-          const SizedBox(width: 6),
-          Text('KidLoop', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 1.2, color: textColor)),
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.orange,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Загрузка статистики...',
+            style: TextStyle(
+              color: textColor.withOpacity(0.7),
+              fontSize: 14,
+            ),
+          ),
         ],
+      )
+          : Text(
+        'KidLoop',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          letterSpacing: 1.2,
+          color: textColor,
+        ),
       ),
       centerTitle: true,
-      actions: [_buildThemeToggle()],
     );
   }
 
-  // Виджет счётчика в AppBar
+  // Виджет счётчика в AppBar на всю ширину
   Widget _buildStatsCounter(Color textColor) {
     final stats = _globalStats!;
     final completed = stats['completedTrades'] ?? 0;
     final totalSV = stats['totalSV'] ?? 0;
 
-    print('🔢 Счётчик: completed=$completed, totalSV=$totalSV');
-
     return GestureDetector(
       onTap: () => _showStatsDialog(),
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -338,47 +292,64 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Icon(Icons.swap_horiz_rounded, size: 18, color: Colors.green.shade600),
-            const SizedBox(width: 6),
-            Text(
-              '$completed',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Colors.green.shade700,
-              ),
+            // Сделки
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.swap_horiz_rounded, size: 20, color: Colors.green.shade600),
+                const SizedBox(width: 6),
+                Text(
+                  '$completed',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'сделок',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: textColor.withOpacity(0.7),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 2),
-            Text(
-              'сделок',
-              style: TextStyle(
-                fontSize: 12,
-                color: textColor.withOpacity(0.6),
-              ),
-            ),
-            const SizedBox(width: 8),
+            // Разделитель
             Container(
-              width: 4, height: 4,
-              decoration: BoxDecoration(
-                color: textColor.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
+              width: 1,
+              height: 20,
+              color: textColor.withOpacity(0.2),
             ),
-            const SizedBox(width: 8),
-            Icon(Icons.auto_awesome, size: 14, color: Colors.amber.shade600),
-            const SizedBox(width: 4),
-            Text(
-              '$totalSV',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.amber.shade700,
-              ),
+            // SV
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_awesome, size: 16, color: Colors.amber.shade600),
+                const SizedBox(width: 6),
+                Text(
+                  '$totalSV',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    color: Colors.amber.shade700,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'SV',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: textColor.withOpacity(0.7),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: textColor.withOpacity(0.4)),
+            // Стрелка вниз
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: textColor.withOpacity(0.4)),
           ],
         ),
       ),
@@ -389,7 +360,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void _showStatsDialog() {
     if (_globalStats == null) return;
     final stats = _globalStats!;
-    final isDark = _isDarkMode;
+    final isDark = context.read<ThemeProvider>().isDarkMode;
 
     showDialog(
       context: context,
@@ -723,24 +694,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  String _formatStatsDate(String iso) {
-    if (iso.isEmpty) return '';
-    try {
-      final dt = DateTime.parse(iso);
-      final now = DateTime.now();
-      final diff = now.difference(dt);
-      if (diff.inMinutes < 60) return '${diff.inMinutes} мин. назад';
-      if (diff.inHours < 24) return '${diff.inHours} ч. назад';
-      if (diff.inDays < 7) return '${diff.inDays} дн. назад';
-      return '${dt.day}.${dt.month}.${dt.year}';
-    } catch (_) {
-      return '';
-    }
-  }
-
   // Нижняя навигационная панель
-  Widget _buildCreativeNavBar() {
-    final isDark = _isDarkMode;
+  Widget _buildCreativeNavBar(bool isDark) {
     final bgColor = isDark
         ? Colors.white.withOpacity(0.06)
         : Colors.white.withOpacity(0.05);
@@ -819,55 +774,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               );
             }),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThemeToggle() {
-    return GestureDetector(
-      onTap: _toggleTheme,
-      child: Container(
-        width: 56,
-        height: 30,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          color: _isDarkMode ? const Color(0xFF1A1A2E) : Colors.grey.shade200,
-          border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.15), blurRadius: 8)],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            AnimatedAlign(
-              duration: const Duration(milliseconds: 300),
-              alignment: _isDarkMode ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                width: 26,
-                height: 26,
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: _isDarkMode
-                        ? [const Color(0xFFE94560), const Color(0xFFFF6B6B)]
-                        : [Colors.orange, Colors.orange.shade700],
-                  ),
-                  boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 6)],
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    _isDarkMode ? Icons.nightlight_round : Icons.wb_sunny,
-                    key: ValueKey(_isDarkMode),
-                    color: Colors.white,
-                    size: 15,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
