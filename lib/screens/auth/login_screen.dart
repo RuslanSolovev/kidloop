@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/dashboard/dashboard_screen.dart';
 import 'register_screen.dart';
-import '../../navigation/main_navigation_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -112,9 +113,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         await _loadAndSaveProfile(userId, userName);
 
         if (mounted) {
+          // ИЗМЕНЕНО: переходим на DashboardScreen
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
                 (route) => false,
           );
         }

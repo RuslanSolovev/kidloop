@@ -24,6 +24,12 @@
     <!-- Для точного будильника (Android 12+) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 
+    <!-- Уведомления (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Вибрация для уведомлений -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
     <application
         android:label="KidLoop"
         android:name="${applicationName}"
@@ -49,12 +55,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Фоновый сервис шагомера (только для foreground) -->
+        <!-- 🔥 Фоновый сервис шагомера -->
         <service
             android:name=".StepCounterService"
             android:foregroundServiceType="health|dataSync"
             android:exported="false"
-            android:enabled="true"/>
+            android:enabled="true" />
 
         <!-- Ресивер автозапуска после перезагрузки -->
         <receiver
@@ -66,6 +72,7 @@
             </intent-filter>
         </receiver>
 
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -76,7 +83,16 @@
             android:value="df2ca75a-3f6c-4302-a2a4-8c74299f0573"/>
     </application>
 
+    <!-- Поддержка открытия ссылок -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

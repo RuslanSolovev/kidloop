@@ -1,4 +1,4 @@
-// chat_screen.dart - С ОТПРАВКОЙ ФОТО, ПРАВИЛЬНЫМ ПОРЯДКОМ И НАСТРОЙКАМИ ЦВЕТОВ
+// chat_screen.dart - С ОТПРАВКОЙ ФОТО, ПРАВИЛЬНЫМ ПОРЯДКОМ, НАСТРОЙКАМИ ЦВЕТОВ И PUSH-УВЕДОМЛЕНИЯМИ
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../services/notification_service.dart';
 
 // 🔥 Модель цветовой схемы чата
 class ChatColorScheme {
@@ -207,6 +208,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await prefs.setInt('chat_color_scheme_${widget.chatId}', index);
   }
 
+  // 🔥 Отправка push-уведомления собеседнику
+  void _sendPushNotification(String text, {String? imageUrl}) {
+    final displayText = imageUrl != null && imageUrl.isNotEmpty
+        ? '📷 Фото'
+        : (text.isNotEmpty ? text : 'Новое сообщение');
+
+    NotificationService.sendNotification(
+      targetUserId: widget.otherUserId,
+      type: 'new_message',
+      data: {
+        'chat_id': widget.chatId,
+        'sender_name': _currentUserName ?? 'Пользователь',
+        'text': displayText,
+        'image_url': imageUrl ?? '',
+        'other_user_id': _currentUserId ?? '',
+        'other_name': _currentUserName ?? 'Собеседник',
+        'other_avatar': _currentUserAvatar ?? '',
+      },
+    );
+  }
+
   // 🔥 Диалог выбора цветовой схемы
   void _showColorSchemeDialog() {
     final isDark = _isDarkMode;
@@ -243,7 +265,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 8),
-                // 🔥 Предпросмотр с фоном
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -267,7 +288,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      // Мое сообщение
                       Align(
                         alignment: Alignment.centerRight,
                         child: Container(
@@ -291,7 +311,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Чужое сообщение
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
@@ -318,7 +337,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // 🔥 Сетка с выбором цветов (3 колонки)
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -355,7 +373,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Три цвета: свои, чужие, фон
                             Row(
                               children: [
                                 Expanded(
@@ -419,7 +436,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     );
                   },
                 ),
-                // 🔥 Подсказка
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(10),
@@ -625,6 +641,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (uploadData['ok'] == true) {
         final imageUrl = uploadData['file_url'];
         await _sendImageMessage(imageUrl, text: text.isNotEmpty ? text : null);
+        // 🔥 Отправляем push-уведомление с фото
+        _sendPushNotification(text.isNotEmpty ? text : '', imageUrl: imageUrl);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -830,6 +848,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           }
         });
 
+        // 🔥 Отправляем push-уведомление (только для новых сообщений, не для редактирования)
+        if (!isEditing) {
+          _sendPushNotification(text);
+        }
+
         await _loadMessages();
         _pendingIds.remove(newId);
         await _cacheMessages();
@@ -842,7 +865,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['errorMessage'] ?? 'Ошибка'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(data['errorMessage'] ?? 'Ошибка'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
@@ -966,17 +992,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(height: 150, color: Colors.grey.shade200, child: const Center(child: CircularProgressIndicator())),
-                    errorWidget: (_, __, ___) => Container(height: 150, color: Colors.grey.shade200, child: const Center(child: Icon(Icons.broken_image, size: 40))),
+                    placeholder: (_, __) => Container(
+                      height: 150,
+                      color: Colors.grey.shade200,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      height: 150,
+                      color: Colors.grey.shade200,
+                      child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                    ),
                   )
-                      : Container(height: 150, color: Colors.grey.shade200, child: const Center(child: Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey))),
+                      : Container(
+                    height: 150,
+                    color: Colors.grey.shade200,
+                    child: const Center(
+                      child: Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey),
+                    ),
+                  ),
                 ),
               ),
               if (newImageFile != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: TextButton(
-                    onPressed: () => setDialogState(() { newImageFile = null; newImageUrl = null; }),
+                    onPressed: () => setDialogState(() {
+                      newImageFile = null;
+                      newImageUrl = null;
+                    }),
                     child: const Text('Удалить фото'),
                   ),
                 ),
@@ -1016,7 +1059,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _editImageMessage(String messageId, String text, File? newImageFile, String? currentImageUrl) async {
+  Future<void> _editImageMessage(
+      String messageId,
+      String text,
+      File? newImageFile,
+      String? currentImageUrl,
+      ) async {
     if (!mounted) return;
 
     setState(() => _sending = true);
@@ -1070,7 +1118,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['errorMessage'] ?? 'Ошибка редактирования'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(data['errorMessage'] ?? 'Ошибка редактирования'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
@@ -1129,7 +1180,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     switch (status) {
       case 'sending':
         return const SizedBox(
-          width: 12, height: 12,
+          width: 12,
+          height: 12,
           child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white70),
         );
       case 'sent':
@@ -1159,7 +1211,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               child: Center(
                 child: Text(
                   (name.isNotEmpty ? name[0] : '?').toUpperCase(),
-                  style: TextStyle(fontSize: radius * 0.85, color: textColor ?? Colors.orange, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: radius * 0.85,
+                    color: textColor ?? Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -1168,7 +1224,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               child: Center(
                 child: Text(
                   (name.isNotEmpty ? name[0] : '?').toUpperCase(),
-                  style: TextStyle(fontSize: radius * 0.85, color: textColor ?? Colors.orange, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: radius * 0.85,
+                    color: textColor ?? Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -1181,7 +1241,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       backgroundColor: bgColor ?? Colors.orange.shade100,
       child: Text(
         (name.isNotEmpty ? name[0] : '?').toUpperCase(),
-        style: TextStyle(fontSize: radius * 0.85, color: textColor ?? Colors.orange, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: radius * 0.85,
+          color: textColor ?? Colors.orange,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -1200,15 +1264,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.otherName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  Text('$_totalMessages сообщений', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Text(
+                    widget.otherName,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '$_totalMessages сообщений',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
                 ],
               ),
             ),
           ],
         ),
         actions: [
-          // 🔥 Кнопка настроек цветов
           IconButton(
             icon: Container(
               padding: const EdgeInsets.all(6),
@@ -1224,7 +1293,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ],
       ),
       body: Container(
-        // 🔥 Используем цвет фона из выбранной схемы
         color: _currentColorScheme.backgroundColor,
         child: Column(
           children: [
@@ -1256,18 +1324,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               Flexible(
                 child: Container(
                   padding: const EdgeInsets.all(12),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(16)),
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
                         const CircleAvatar(radius: 16, backgroundColor: Color(0xFFE0E0E0)),
                         const SizedBox(width: 8),
-                        Container(width: 60, height: 12, decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(6))),
+                        Container(
+                          width: 60,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE0E0E0),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
                       ]),
                       const SizedBox(height: 8),
-                      Container(width: 200, height: 16, decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(8))),
+                      Container(
+                        width: 200,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0E0E0),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1291,12 +1378,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ElevatedButton.icon(
             onPressed: () {
               if (!mounted) return;
-              setState(() { _initialLoading = true; _loadError = null; });
+              setState(() {
+                _initialLoading = true;
+                _loadError = null;
+              });
               _loadMessages();
             },
             icon: const Icon(Icons.refresh),
             label: const Text('Повторить'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -1341,7 +1434,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         final status = msg['status']?.toString() ?? 'read';
         final replyToData = msg['reply_to_message'] as Map<String, dynamic>?;
 
-        // 🔥 Используем выбранную цветовую схему
         final myBg = _currentColorScheme.myBgColor;
         final myText = _currentColorScheme.myTextColor;
         final otherBg = _currentColorScheme.otherBgColor;
@@ -1360,7 +1452,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 Flexible(
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                    ),
                     decoration: BoxDecoration(
                       gradient: status == 'failed'
                           ? LinearGradient(colors: [Colors.red.shade100, Colors.red.shade200])
@@ -1388,14 +1482,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: Row(
                                   children: [
-                                    _buildAvatar(senderAvatar, senderName, radius: 15, bgColor: otherBg.withOpacity(0.5), textColor: otherText),
+                                    _buildAvatar(
+                                      senderAvatar,
+                                      senderName,
+                                      radius: 15,
+                                      bgColor: otherBg.withOpacity(0.5),
+                                      textColor: otherText,
+                                    ),
                                     const SizedBox(width: 8),
-                                    Text(senderName.isNotEmpty ? senderName : 'Пользователь',
-                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: otherText)),
+                                    Text(
+                                      senderName.isNotEmpty ? senderName : 'Пользователь',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: otherText,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
-
                             if (replyToData != null)
                               Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -1413,11 +1518,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                     Row(children: [
                                       Icon(Icons.reply_rounded, size: 14, color: textColor.withOpacity(0.7)),
                                       const SizedBox(width: 4),
-                                      Text(replyToData['sender_name'] ?? '',
-                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8))),
+                                      Text(
+                                        replyToData['sender_name'] ?? '',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: textColor.withOpacity(0.8),
+                                        ),
+                                      ),
                                     ]),
                                     const SizedBox(height: 4),
-                                    if (replyToData['image_url'] != null && replyToData['image_url'].toString().isNotEmpty)
+                                    if (replyToData['image_url'] != null &&
+                                        replyToData['image_url'].toString().isNotEmpty)
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
                                         child: CachedNetworkImage(
@@ -1427,12 +1539,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           fit: BoxFit.cover,
                                         ),
                                       ),
-                                    Text(replyToData['text'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(fontSize: 13, color: textColor.withOpacity(0.7), fontStyle: FontStyle.italic)),
+                                    Text(
+                                      replyToData['text'] ?? '',
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: textColor.withOpacity(0.7),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
-
                             if (imageUrl.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 6),
@@ -1471,11 +1590,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                             borderRadius: BorderRadius.circular(12),
                                           ),
                                           child: const Center(
-                                            child: Icon(
-                                              Icons.broken_image,
-                                              size: 30,
-                                              color: Colors.grey,
-                                            ),
+                                            child: Icon(Icons.broken_image, size: 30, color: Colors.grey),
                                           ),
                                         ),
                                       ),
@@ -1483,21 +1598,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                               ),
-
                             if (text.isNotEmpty)
                               Text(text, style: TextStyle(fontSize: 16, color: textColor)),
                             const SizedBox(height: 4),
-
                             Align(
                               alignment: Alignment.bottomRight,
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(_formatTime(time),
-                                      style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.7))),
+                                  Text(
+                                    _formatTime(time),
+                                    style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.7)),
+                                  ),
                                   if (isEdited) ...[
                                     const SizedBox(width: 4),
-                                    Text('изм.', style: TextStyle(fontSize: 10, color: textColor.withOpacity(0.6))),
+                                    Text(
+                                      'изм.',
+                                      style: TextStyle(fontSize: 10, color: textColor.withOpacity(0.6)),
+                                    ),
                                   ],
                                   if (isMine) ...[
                                     const SizedBox(width: 4),
@@ -1510,12 +1628,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ),
                         if (status == 'failed')
                           Positioned(
-                            right: 0, top: 0,
+                            right: 0,
+                            top: 0,
                             child: GestureDetector(
                               onTap: () => _retryMessage(msg),
                               child: Container(
                                 padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                                 child: const Icon(Icons.refresh, size: 16, color: Colors.white),
                               ),
                             ),
@@ -1590,30 +1712,48 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 16),
               ListTile(
                 leading: Icon(Icons.reply_rounded, color: Colors.orange.shade700),
                 title: const Text('Ответить'),
-                onTap: () { Navigator.pop(ctx); _setReplyToMessage(message); },
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setReplyToMessage(message);
+                },
               ),
               if (isMine) ...[
                 ListTile(
                   leading: Icon(Icons.edit_rounded, color: Colors.blue.shade700),
                   title: const Text('Редактировать'),
-                  onTap: () { Navigator.pop(ctx); _startEditMessage(message); },
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _startEditMessage(message);
+                  },
                 ),
                 ListTile(
                   leading: const Icon(Icons.delete_rounded, color: Colors.red),
                   title: const Text('Удалить', style: TextStyle(color: Colors.red)),
-                  onTap: () { Navigator.pop(ctx); _showDeleteConfirmation(message['message_id']); },
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showDeleteConfirmation(message['message_id']);
+                  },
                 ),
               ],
             ],
@@ -1631,9 +1771,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         title: const Text('Удалить сообщение?'),
         content: const Text('Это действие нельзя отменить'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
           FilledButton(
-            onPressed: () { Navigator.pop(ctx); if (mounted) _deleteMessage(messageId); },
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (mounted) _deleteMessage(messageId);
+            },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Удалить'),
           ),
@@ -1652,13 +1798,40 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             color: Colors.orange.withOpacity(0.08),
             child: Row(
               children: [
-                Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.reply_rounded, color: Colors.orange, size: 18)),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.reply_rounded, color: Colors.orange, size: 18),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Ответ на сообщение ${_replyToMessageData!['sender_name'] ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange)),
-                  Text(_replyToMessageData!['text'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                ])),
-                IconButton(icon: const Icon(Icons.close_rounded, size: 20, color: Colors.grey), onPressed: _cancelReply),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ответ на сообщение ${_replyToMessageData!['sender_name'] ?? ''}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      Text(
+                        _replyToMessageData!['text'] ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20, color: Colors.grey),
+                  onPressed: _cancelReply,
+                ),
               ],
             ),
           ),
@@ -1668,7 +1841,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             color: Colors.blue.withOpacity(0.08),
             child: Row(
               children: [
-                Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.edit_rounded, color: Colors.blue, size: 18)),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.edit_rounded, color: Colors.blue, size: 18),
+                ),
                 const SizedBox(width: 10),
                 const Text('Редактирование', style: TextStyle(fontSize: 13, color: Colors.blue)),
                 const Spacer(),
@@ -1678,7 +1858,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, border: Border(top: BorderSide(color: Colors.grey.shade200))),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+          ),
           child: SafeArea(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -1695,8 +1878,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       hintText: _editingMessageId != null ? 'Редактировать...' : 'Сообщение...',
                       filled: true,
                       fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                     onSubmitted: (_) => _handleSendMessage(),
                     textCapitalization: TextCapitalization.sentences,
@@ -1707,8 +1896,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 const SizedBox(width: 8),
                 IconButton(
                   icon: _sending
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))
-                      : Icon(_editingMessageId != null ? Icons.check_rounded : Icons.send_rounded, color: Colors.orange, size: 24),
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.orange,
+                    ),
+                  )
+                      : Icon(
+                    _editingMessageId != null ? Icons.check_rounded : Icons.send_rounded,
+                    color: Colors.orange,
+                    size: 24,
+                  ),
                   onPressed: _sending ? null : _handleSendMessage,
                   padding: const EdgeInsets.only(bottom: 8),
                 ),

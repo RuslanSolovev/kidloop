@@ -1,8 +1,10 @@
+// core/trades_provider.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'trade_offer.dart';
+import '../services/notification_service.dart';
 
 class TradesProvider extends ChangeNotifier {
   final List<TradeOffer> _offers = [];
@@ -13,7 +15,6 @@ class TradesProvider extends ChangeNotifier {
 
   static const String apiUrl = 'https://functions.yandexcloud.net/d4e77rr4t3hlvjo7n77b';
 
-  // 🔥 Очистка при выходе
   void clearOffers() {
     _offers.clear();
     notifyListeners();
@@ -107,6 +108,21 @@ class TradesProvider extends ChangeNotifier {
         );
         _offers.insert(0, newOffer);
         notifyListeners();
+
+        // 🔥 Отправляем push-уведомление получателю
+        final prefs = await SharedPreferences.getInstance();
+        final userName = prefs.getString('user_name') ?? 'Пользователь';
+
+        NotificationService.sendNotification(
+          targetUserId: offer.toUserId,
+          type: 'trade_offer',
+          data: {
+            'trade_id': newOffer.id,
+            'item_title': offer.fromItemTitle,
+            'user_name': userName,
+          },
+        );
+
         return {"ok": true};
       } else {
         return {"ok": false, "error": data['error'] ?? 'unknown'};
@@ -116,6 +132,7 @@ class TradesProvider extends ChangeNotifier {
     }
   }
 
+  // ... остальные методы без изменений ...
   Future<Map<String, dynamic>> updateStatus(String offerId, String status) async {
     try {
       final response = await http.post(

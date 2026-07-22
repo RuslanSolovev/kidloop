@@ -7,6 +7,7 @@ import 'chess_models.dart';
 import 'chess_logic.dart';
 import 'chess_widgets.dart';
 import 'chess_api_service.dart';
+import '../../../services/notification_service.dart';
 
 class ChessBoardScreen extends StatefulWidget {
   final String gameId;
@@ -160,66 +161,122 @@ class _ChessBoardScreenState extends State<ChessBoardScreen>
     final whiteTime = _currentUserId == _game?.whitePlayerId ? _myTimeLeft : _opponentTimeLeft;
     final blackTime = _currentUserId == _game?.blackPlayerId ? _myTimeLeft : _opponentTimeLeft;
 
-    await ChessApiService.makeMove(
+    final success = await ChessApiService.makeMove(
       gameId: widget.gameId, from: from.notation, to: to.notation,
       fen: _logic.currentFen, whiteTimeLeft: whiteTime, blackTimeLeft: blackTime,
     );
+
+    // 🔥 Отправляем push-уведомление противнику
+    if (success && _game != null) {
+      final opponentId = _currentUserId == _game!.whitePlayerId
+          ? _game!.blackPlayerId
+          : _game!.whitePlayerId;
+
+      if (opponentId.isNotEmpty) {
+        NotificationService.sendNotification(
+          targetUserId: opponentId,
+          type: 'game_move',
+          data: {
+            'game_id': widget.gameId,
+            'opponent_name': _currentUserId == _game!.whitePlayerId
+                ? _game!.blackPlayerName
+                : _game!.whitePlayerName,
+            'move_description': '${from.notation} → ${to.notation}',
+          },
+        );
+      }
+    }
   }
 
   void _showGameResult(ChessGameModel game) {
     final isWhite = _currentUserId == game.whitePlayerId;
     final result = game.result;
     final winnerId = game.winnerId;
+    final opponentId = _currentUserId == game.whitePlayerId
+        ? game.blackPlayerId
+        : game.whitePlayerId;
+    final opponentName = _currentUserId == game.whitePlayerId
+        ? game.blackPlayerName
+        : game.whitePlayerName;
 
     print('🔍 Game Over - result: $result, winnerId: $winnerId, isWhite: $isWhite, myId: $_currentUserId');
 
-    // Если есть winner_id, определяем по нему
+    bool iWon = false;
+    bool isDraw = false;
+    String? notificationType;
+
     if (winnerId != null && winnerId.isNotEmpty) {
-      final iWon = winnerId == _currentUserId;
+      iWon = winnerId == _currentUserId;
+      notificationType = iWon ? 'game_won' : 'game_lost';
       final message = iWon ? 'Вы победили! 🎉' : 'Вы проиграли 😢';
+
+      // 🔥 Отправляем уведомление противнику
+      if (opponentId.isNotEmpty) {
+        NotificationService.sendNotification(
+          targetUserId: opponentId,
+          type: notificationType,
+          data: {
+            'game_id': widget.gameId,
+            'opponent_name': opponentName,
+          },
+        );
+      }
+
       _showGameOver(message);
       return;
     }
 
-    // Иначе определяем по result
-    bool iWon;
-    bool isDraw;
-
     switch (result) {
       case GameResult.whiteWin:
         iWon = isWhite;
-        isDraw = false;
         break;
       case GameResult.blackWin:
         iWon = !isWhite;
-        isDraw = false;
         break;
       case GameResult.whiteWinTimeout:
         iWon = isWhite;
-        isDraw = false;
         break;
       case GameResult.blackWinTimeout:
         iWon = !isWhite;
-        isDraw = false;
         break;
       case GameResult.draw:
-        iWon = false;
         isDraw = true;
         break;
       case GameResult.resign:
+        iWon = !isWhite; // Тот кто сдался - проиграл
+        notificationType = 'game_resigned';
+        break;
       case GameResult.timeout:
+        iWon = !isWhite;
+        break;
       case null:
       default:
-      // 🔥 Если result == null или неизвестный — проверяем по цвету и очереди
-      // Если игра завершена и мой ход — я проиграл (таймаут)
-      // Если игра завершена и не мой ход — я выиграл
         if (game.status == GameStatus.completed) {
-          iWon = !_isMyTurn; // Если не мой ход — я выиграл
-          isDraw = false;
+          iWon = !_isMyTurn;
         } else {
-          iWon = false;
           isDraw = true;
         }
+    }
+
+    // Определяем тип уведомления
+    if (isDraw) {
+      notificationType = 'game_draw';
+    } else if (iWon) {
+      notificationType = 'game_won';
+    } else {
+      notificationType = 'game_lost';
+    }
+
+    // 🔥 Отправляем уведомление противнику
+    if (opponentId.isNotEmpty && notificationType != null) {
+      NotificationService.sendNotification(
+        targetUserId: opponentId,
+        type: notificationType,
+        data: {
+          'game_id': widget.gameId,
+          'opponent_name': opponentName,
+        },
+      );
     }
 
     final message = isDraw ? 'Ничья! 🤝' : (iWon ? 'Вы победили! 🎉' : 'Вы проиграли 😢');

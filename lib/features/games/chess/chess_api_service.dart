@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'chess_models.dart';
+import '../../../services/notification_service.dart';
 
 class ChessApiService {
   static const String _apiUrl = 'https://functions.yandexcloud.net/d4edmoonsukf22mq48uo';
@@ -160,7 +161,6 @@ class ChessApiService {
           whitePlayerName: data['white_name'] ?? '',
           blackPlayerName: data['black_name'] ?? '',
           status: _parseStatus(data['status']),
-
           fen: data['fen'] ?? '',
           timeControl: data['time_control'] ?? 0,
           increment: data['increment'] ?? 0,
@@ -169,7 +169,7 @@ class ChessApiService {
           createdAt: DateTime.tryParse(data['created_at'] ?? '') ?? DateTime.now(),
           lastMoveAt: DateTime.tryParse(data['last_move_at'] ?? ''),
           result: _parseResult(data['result']),
-          winnerId: data['winner_id'], // 🔥 Убедись, что это поле есть
+          winnerId: data['winner_id'],
         );
       }
     } catch (_) {}
@@ -229,10 +229,23 @@ class ChessApiService {
       ).timeout(const Duration(seconds: 8));
 
       final data = jsonDecode(response.body);
-      return data['ok'] == true;
-    } catch (_) {
-      return false;
-    }
+      if (data['ok'] == true) {
+        // 🔥 Отправляем push-уведомление получателю приглашения
+        NotificationService.sendNotification(
+          targetUserId: toUserId,
+          type: 'game_invite',
+          data: {
+            'from_id': userId,
+            'from_name': userName,
+            'to_id': toUserId,
+            'to_name': toUserName,
+            'time_control': timeControl,
+          },
+        );
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   static Future<List<ChessChallenge>> getChallenges() async {
@@ -265,6 +278,8 @@ class ChessApiService {
   }
 
   static Future<String?> respondChallenge(String challengeId, bool accept) async {
+    final userName = await _getUserName();
+
     try {
       final response = await http.post(
         Uri.parse(_apiUrl),
@@ -277,7 +292,23 @@ class ChessApiService {
       ).timeout(const Duration(seconds: 8));
 
       final data = jsonDecode(response.body);
-      if (data['ok'] == true && accept) return data['game_id'];
+      if (data['ok'] == true) {
+        // 🔥 Отправляем уведомление отправителю приглашения
+        final fromUserId = data['from_id'];
+        if (fromUserId != null) {
+          NotificationService.sendNotification(
+            targetUserId: fromUserId,
+            type: 'challenge_response',
+            data: {
+              'challenge_id': challengeId,
+              'accepted': accept,
+              'game_id': accept ? data['game_id'] : '',
+              'to_name': userName ?? 'Соперник',
+            },
+          );
+        }
+        if (accept) return data['game_id'];
+      }
     } catch (_) {}
     return null;
   }
@@ -331,7 +362,6 @@ class ChessApiService {
     }
   }
 
-  // В класс ChessApiService добавить:
   static Future<List<ChessGameModel>> getGameHistory(String userId) async {
     try {
       final response = await http.post(
@@ -359,7 +389,7 @@ class ChessApiService {
   }
 
   static GameResult _parseResult(String? result) {
-    if (result == null || result.isEmpty) return GameResult.draw; // На всякий случай
+    if (result == null || result.isEmpty) return GameResult.draw;
     switch (result) {
       case 'white_win': return GameResult.whiteWin;
       case 'black_win': return GameResult.blackWin;

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../services/notification_service.dart';
 import '../messenger/chat_screen.dart';
 
 class PublicProfileScreen extends StatefulWidget {
@@ -302,6 +303,19 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           "friend_id": widget.userId,
         }),
       ).timeout(const Duration(seconds: 5));
+
+      // 🔥 Отправляем push-уведомление
+      final prefs = await SharedPreferences.getInstance();
+      final userName = prefs.getString('user_name') ?? 'Пользователь';
+
+      NotificationService.sendNotification(
+        targetUserId: widget.userId,
+        type: 'friend_request',
+        data: {
+          'user_id': _currentUserId,
+          'user_name': userName,
+        },
+      );
 
       if (mounted) {
         setState(() {

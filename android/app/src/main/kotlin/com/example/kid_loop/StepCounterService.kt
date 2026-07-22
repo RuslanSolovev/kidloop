@@ -1,3 +1,4 @@
+// StepCounterService.kt
 package com.example.kid_loop
 
 import android.app.Notification
@@ -17,15 +18,21 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.onesignal.OneSignal
 import java.text.SimpleDateFormat
 import java.util.*
 
 class StepCounterService : Service(), SensorEventListener {
 
+    companion object {
+        const val TAG = "KidLoop"
+    }
+
     private lateinit var sensorManager: SensorManager
     private var stepSensor: Sensor? = null
-    private var lastStepCount = -1  // Начинаем с -1 для первого определения
+    private var lastStepCount = -1
     private var lastStepTime: Long = 0
     private var walkStartTime: Long = 0
     private var currentSessionSeconds = 0
@@ -42,6 +49,7 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "StepCounterService onCreate")
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
@@ -54,11 +62,44 @@ class StepCounterService : Service(), SensorEventListener {
         startForeground(1, createNotification())
 
         prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-
         loadState()
         startInactivityChecker()
 
-        println("✅ StepCounterService создан")
+        // Логиним пользователя в OneSignal если userId уже есть
+        val userId = prefs.getString("flutter.user_id", null)
+        if (userId != null) {
+            OneSignal.login(userId)
+            Log.d(TAG, "✅ OneSignal login: $userId")
+        }
+
+        Log.i(TAG, "✅ StepCounterService запущен (шагомер + OneSignal)")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.getStringExtra("user_id")?.let { userId ->
+            prefs.edit().putString("flutter.user_id", userId).apply()
+            Log.d(TAG, "🆔 userId обновлён: $userId")
+
+            // Логиним пользователя в OneSignal
+            OneSignal.login(userId)
+            Log.d(TAG, "✅ OneSignal login: $userId")
+        }
+        stepSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        Log.d(TAG, "StepCounterService onDestroy")
+        sensorManager.unregisterListener(this)
+        inactivityRunnable?.let { inactivityHandler?.removeCallbacks(it) }
+        if (::wakeLock.isInitialized) wakeLock.release()
+        saveDailyStats()
+        saveState()
+        super.onDestroy()
     }
 
     private fun loadState() {
@@ -68,8 +109,6 @@ class StepCounterService : Service(), SensorEventListener {
         currentSessionSeconds = prefs.getInt("flutter.current_session_seconds", 0)
         currentSessionSteps = prefs.getInt("flutter.current_session_steps", 0)
         isInWalkSession = prefs.getBoolean("flutter.is_in_walk_session", false)
-
-        println("📂 Загружено: lastStepCount=$lastStepCount")
     }
 
     private fun saveState() {
@@ -84,50 +123,32 @@ class StepCounterService : Service(), SensorEventListener {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        stepSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-            println("✅ Сенсор зарегистрирован")
-        }
-        return START_STICKY
-    }
-
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type != Sensor.TYPE_STEP_COUNTER) return
 
         val currentSteps = event.values[0].toInt()
         val now = System.currentTimeMillis()
 
-        // Первый запуск: запоминаем начальное значение сенсора
         if (lastStepCount == -1) {
             lastStepCount = currentSteps
-            println("🔄 Инициализация сенсора: lastStepCount=$lastStepCount")
             saveState()
             return
         }
 
-        // Сброс сенсора (перезагрузка телефона)
         if (currentSteps < lastStepCount) {
-            println("🔄 Сброс сенсора: было $lastStepCount, стало $currentSteps")
             lastStepCount = currentSteps
             saveState()
             return
         }
 
-        // Нет новых шагов
         if (currentSteps == lastStepCount) return
 
         val newSteps = currentSteps - lastStepCount
-
-        // Слишком много шагов за раз - возможно глюк сенсора
         if (newSteps > 500) {
-            println("⚠️ Слишком много шагов: $newSteps, игнорируем")
             lastStepCount = currentSteps
             saveState()
             return
         }
-
-        println("🚶 +$newSteps шагов (всего сенсор: $currentSteps)")
 
         lastStepCount = currentSteps
 
@@ -145,10 +166,11 @@ class StepCounterService : Service(), SensorEventListener {
 
         currentSessionSteps += newSteps
         lastStepTime = now
-
         updateCounters(newSteps)
         saveState()
     }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun startWalkSession(timestamp: Long) {
         isInWalkSession = true
@@ -156,130 +178,78 @@ class StepCounterService : Service(), SensorEventListener {
         lastStepTime = timestamp
         currentSessionSeconds = 0
         currentSessionSteps = 0
-
-        saveActivityToHistory("🚶 Начало: ${formatTime(timestamp)}")
         saveState()
-        updateNotification("🚶 Идём...")
     }
 
     private fun endWalkSession(timestamp: Long) {
         if (walkStartTime == 0L) return
-
         val durationSeconds = ((timestamp - walkStartTime) / 1000).toInt()
         val totalSeconds = maxOf(currentSessionSeconds, durationSeconds)
         val activeMinutes = if (totalSeconds >= 60) (totalSeconds / 60) else 1
-
-        saveActivityToHistory(
-            "⏹ Конец: ${formatTime(timestamp)} | " +
-                    "Длительность: ${formatDuration(totalSeconds)} | " +
-                    "Шагов: $currentSessionSteps"
-        )
-
         addActiveMinutes(activeMinutes)
         saveDailyStats()
-
         isInWalkSession = false
         walkStartTime = 0L
         currentSessionSeconds = 0
         currentSessionSteps = 0
-
         saveState()
-        updateNotification("✅ Прогулка завершена")
     }
 
     private fun saveDailyStats() {
         val calendar = Calendar.getInstance()
-        val todayKey = "flutter.stats_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH)+1}_${calendar.get(Calendar.DAY_OF_MONTH)}"
-        val currentSteps = prefs.getInt("flutter.today_steps", 0)
-        val currentMinutes = prefs.getInt("flutter.active_minutes", 0)
-
+        val todayKey = "flutter.stats_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}_${calendar.get(Calendar.DAY_OF_MONTH)}"
         prefs.edit()
-            .putInt(todayKey, currentSteps)
-            .putInt("${todayKey}_minutes", currentMinutes)
+            .putInt(todayKey, prefs.getInt("flutter.today_steps", 0))
+            .putInt("${todayKey}_minutes", prefs.getInt("flutter.active_minutes", 0))
             .apply()
-
-        println("📊 Сохранена статистика: $todayKey = $currentSteps шагов, $currentMinutes мин")
     }
 
     private fun updateCounters(newSteps: Int) {
-        val todayDate = getTodayDateString()
+        val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         val lastDate = prefs.getString("flutter.last_date", "") ?: ""
-
-        // Определяем вчерашнюю дату
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.DAY_OF_YEAR, -1)
-        val yesterdayStr = "${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH)+1}_${calendar.get(Calendar.DAY_OF_MONTH)}"
+        val yesterdayStr = "${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}_${calendar.get(Calendar.DAY_OF_MONTH)}"
 
         if (lastDate != todayDate && lastDate.isNotEmpty()) {
-            // Сохраняем итоги вчерашнего дня
-            val yesterdaySteps = prefs.getInt("flutter.today_steps", 0)
-            val yesterdayActive = prefs.getInt("flutter.active_minutes", 0)
             prefs.edit()
-                .putInt("flutter.stats_$yesterdayStr", yesterdaySteps)
-                .putInt("flutter.stats_${yesterdayStr}_minutes", yesterdayActive)
+                .putInt("flutter.stats_$yesterdayStr", prefs.getInt("flutter.today_steps", 0))
+                .putInt("flutter.stats_${yesterdayStr}_minutes", prefs.getInt("flutter.active_minutes", 0))
                 .apply()
-            println("📅 Сохранены итоги вчера: $yesterdayStr — $yesterdaySteps шагов, $yesterdayActive мин")
         }
 
-        // 🔥 ИСПРАВЛЕНИЕ: Явно читаем текущий total_steps
-        val currentTotal = prefs.getInt("flutter.total_steps", 0)
-        val currentToday = prefs.getInt("flutter.today_steps", 0)
-        val currentWeekly = prefs.getInt("flutter.weekly_steps", 0)
+        val newTodaySteps = if (lastDate != todayDate) newSteps else prefs.getInt("flutter.today_steps", 0) + newSteps
 
-        val monthKey = "flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH)+1}"
-        val currentMonthly = prefs.getInt(monthKey, 0)
-
-        // Сброс дневных счётчиков при новом дне
-        var newTodaySteps = if (lastDate != todayDate) newSteps else currentToday + newSteps
-        val newWeeklySteps = currentWeekly + newSteps
-        val newMonthlySteps = currentMonthly + newSteps
-        val newTotalSteps = currentTotal + newSteps  // 👈 Явно прибавляем к прочитанному значению
-
-        // Сброс active_minutes при новом дне
         if (lastDate != todayDate) {
             prefs.edit().putInt("flutter.active_minutes", 0).apply()
         }
 
-        // Сохраняем ВСЕ значения
         prefs.edit().apply {
             putString("flutter.last_date", todayDate)
             putInt("flutter.today_steps", newTodaySteps)
-            putInt("flutter.weekly_steps", newWeeklySteps)
-            putInt(monthKey, newMonthlySteps)
-            putInt("flutter.total_steps", newTotalSteps)  // 👈 Сохраняем новое значение
+            putInt("flutter.weekly_steps", prefs.getInt("flutter.weekly_steps", 0) + newSteps)
+            putInt("flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}",
+                prefs.getInt("flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}", 0) + newSteps)
+            putInt("flutter.total_steps", prefs.getInt("flutter.total_steps", 0) + newSteps)
             apply()
         }
 
-        // 🔥 СОХРАНЯЕМ ТЕКУЩУЮ СТАТИСТИКУ ПРИ КАЖДОМ ОБНОВЛЕНИИ
         saveDailyStats()
-
-        println("📊 today=$newTodaySteps weekly=$newWeeklySteps month=$newMonthlySteps total=$newTotalSteps")
         updateNotification("$newTodaySteps шагов сегодня")
     }
 
     private fun addActiveMinutes(minutes: Int) {
-        val current = prefs.getInt("flutter.active_minutes", 0)
-        prefs.edit().putInt("flutter.active_minutes", current + minutes).apply()
-    }
-
-    private fun saveActivityToHistory(text: String) {
-        val dateStr = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date())
-        val fullText = "$dateStr - $text"
-
-        val history = prefs.getString("flutter.activity_feed", "") ?: ""
-        val list = history.split("\n").filter { it.isNotEmpty() }.toMutableList()
-        list.add(0, fullText)
-        if (list.size > 50) list.removeAt(list.size - 1)
-        prefs.edit().putString("flutter.activity_feed", list.joinToString("\n")).apply()
+        prefs.edit()
+            .putInt("flutter.active_minutes", prefs.getInt("flutter.active_minutes", 0) + minutes)
+            .apply()
     }
 
     private fun startInactivityChecker() {
         inactivityHandler = Handler(Looper.getMainLooper())
         inactivityRunnable = Runnable {
             if (isInWalkSession && lastStepTime > 0) {
-                val now = System.currentTimeMillis()
-                if (now - lastStepTime >= PAUSE_THRESHOLD) {
-                    endWalkSession(now)
+                if (System.currentTimeMillis() - lastStepTime >= PAUSE_THRESHOLD) {
+                    endWalkSession(System.currentTimeMillis())
                 }
             }
             inactivityHandler?.postDelayed(inactivityRunnable!!, INACTIVITY_CHECK_INTERVAL)
@@ -287,41 +257,27 @@ class StepCounterService : Service(), SensorEventListener {
         inactivityHandler?.postDelayed(inactivityRunnable!!, INACTIVITY_CHECK_INTERVAL)
     }
 
-    private fun formatTime(ts: Long) = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ts))
-
-    private fun formatDuration(s: Int): String {
-        val m = s / 60
-        val sec = s % 60
-        return if (m > 0) "${m}мин ${sec}сек" else "${sec}сек"
-    }
-
-    private fun getTodayDateString() = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onDestroy() {
-        sensorManager.unregisterListener(this)
-        inactivityRunnable?.let { inactivityHandler?.removeCallbacks(it) }
-        if (::wakeLock.isInitialized) wakeLock.release()
-        saveDailyStats()
-        saveState()
-        super.onDestroy()
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("step_counter", "Шагомер", NotificationManager.IMPORTANCE_LOW).apply {
+            val channel = NotificationChannel(
+                "step_counter",
+                "Шагомер",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
                 description = "Подсчёт шагов"
             }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
         }
     }
 
     private fun createNotification(): Notification {
-        val pi = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val pi = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, "step_counter")
-            .setContentTitle("KidLoop Шагомер")
+            .setContentTitle("KidLoop")
             .setContentText("Шаги считаются...")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pi)
@@ -331,13 +287,17 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun updateNotification(text: String) {
-        val n = NotificationCompat.Builder(this, "step_counter")
-            .setContentTitle("KidLoop Шагомер")
-            .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-        startForeground(1, n)
+        try {
+            val n = NotificationCompat.Builder(this, "step_counter")
+                .setContentTitle("KidLoop")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+            startForeground(1, n)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка обновления уведомления: ${e.message}")
+        }
     }
 }

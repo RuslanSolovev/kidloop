@@ -1,3 +1,4 @@
+// features/feed/presentation/trade_discussion_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +8,7 @@ import 'dart:convert';
 
 import '../../../core/trades_provider.dart';
 import '../../../core/trade_offer.dart';
+import '../../../services/notification_service.dart';
 import 'chat_widget.dart';
 
 class TradeDiscussionScreen extends StatefulWidget {
@@ -44,7 +46,6 @@ class _TradeDiscussionScreenState extends State<TradeDiscussionScreen> {
   static const String itemsApiUrl = 'https://functions.yandexcloud.net/d4ei9an1aushareidmjc';
   static const String usersApiUrl = 'https://functions.yandexcloud.net/d4e8qq9aaimqibei5ga7';
 
-  // 🔥 Используем Theme напрямую
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
   Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
@@ -67,7 +68,6 @@ class _TradeDiscussionScreenState extends State<TradeDiscussionScreen> {
     });
   }
 
-  // 🔥 Загружаем имя из profiles
   Future<String> _getUserName(String userId) async {
     if (userId.isEmpty) return 'Пользователь';
     if (_nameCache.containsKey(userId)) return _nameCache[userId]!;
@@ -728,6 +728,26 @@ class _TradeDiscussionScreenState extends State<TradeDiscussionScreen> {
         setState(() => _pendingSteps.add(step));
         await provider.confirmStep(offer.id, step);
         setState(() => _pendingSteps.remove(step));
+
+        // 🔥 Если все шаги выполнены — отправляем уведомление
+        final updatedOffer = context.read<TradesProvider>().offers.firstWhere((o) => o.id == offer.id, orElse: () => offer);
+        final fShipped = updatedOffer.fromShipped;
+        final fReceived = updatedOffer.fromReceived;
+        final tShipped = updatedOffer.toShipped;
+        final tReceived = updatedOffer.toReceived;
+        final allDoneNow = fShipped && fReceived && tShipped && tReceived;
+
+        if (allDoneNow) {
+          final opponentId = _isFromUser ? widget.offer.toUserId : widget.offer.fromUserId;
+          NotificationService.sendNotification(
+            targetUserId: opponentId,
+            type: 'trade_completed',
+            data: {
+              'trade_id': widget.offer.id,
+              'user_name': _currentUserName ?? 'Пользователь',
+            },
+          );
+        }
       }
     }
 
@@ -829,7 +849,21 @@ class _TradeDiscussionScreenState extends State<TradeDiscussionScreen> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена', style: TextStyle(color: _subTextColor))),
             Container(
               decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.all(Radius.circular(12))),
-              child: TextButton(onPressed: selectedReason.isEmpty ? null : () { Navigator.pop(ctx); provider.cancelOffer(offer.id, reason: selectedReason); }, child: const Text('Отменить сделку', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+              child: TextButton(onPressed: selectedReason.isEmpty ? null : () {
+                Navigator.pop(ctx);
+                provider.cancelOffer(offer.id, reason: selectedReason).then((_) {
+                  // 🔥 Отправляем уведомление второй стороне
+                  final opponentId = _isFromUser ? widget.offer.toUserId : widget.offer.fromUserId;
+                  NotificationService.sendNotification(
+                    targetUserId: opponentId,
+                    type: 'trade_declined',
+                    data: {
+                      'trade_id': widget.offer.id,
+                      'user_name': _currentUserName ?? 'Пользователь',
+                    },
+                  );
+                });
+              }, child: const Text('Отменить сделку', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
             ),
           ],
         ),

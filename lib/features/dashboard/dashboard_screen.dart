@@ -1,6 +1,7 @@
 // features/dashboard/dashboard_screen.dart
 import 'dart:convert';
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,7 +11,7 @@ import '../../core/items_provider.dart';
 import '../../core/trades_provider.dart';
 import '../../core/item_model.dart';
 import '../../navigation/main_navigation_screen.dart';
-import '../item_details/item_details_screen.dart'; // Добавляем импорт
+import '../item_details/item_details_screen.dart';
 import '../profile/profile_screen.dart';
 import '../add_item/add_item_screen.dart';
 import '../feed/presentation/trade_offers_screen.dart';
@@ -18,8 +19,25 @@ import '../games/games_screen.dart';
 import '../games/memory_game/memory_game_screen.dart';
 import '../games/chess/chess_game_screen.dart';
 import '../pedometer/pedometer_screen.dart';
+import '../messenger/messenger_screen.dart';
+import '../map/map_screen.dart';
 import 'manage_banners_screen.dart';
 import 'banner_detail_screen.dart';
+
+// Миксин для защиты от двойных нажатий
+mixin SingleTapMixin {
+  bool _isProcessing = false;
+
+  Future<void> safeTap(Future<void> Function() action) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+    try {
+      await action();
+    } finally {
+      _isProcessing = false;
+    }
+  }
+}
 
 class ThemeProvider extends ChangeNotifier {
   bool _isDarkMode = false;
@@ -51,7 +69,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, SingleTapMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -115,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         await itemsProvider.loadItems();
       }
     } catch (e) {
-      print("Ошибка загрузки items: $e");
+      debugPrint("Ошибка загрузки items: $e");
     }
 
     _dailyTip = (_tips..shuffle()).first;
@@ -148,18 +166,20 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
       }
     } catch (_) {
-      setState(() {
-        _banners = [
-          BannerAd(
-            id: 'default',
-            imageUrl: '',
-            title: '🔄 Обменивайся вещами!',
-            subtitle: 'Найди нужное и отдай ненужное',
-            description: 'KidLoop — это платформа для обмена детскими вещами.',
-            overlayText: 'KIDLOOP',
-          ),
-        ];
-      });
+      if (mounted) {
+        setState(() {
+          _banners = [
+            BannerAd(
+              id: 'default',
+              imageUrl: '',
+              title: '🔄 Обменивайся вещами!',
+              subtitle: 'Найди нужное и отдай ненужное',
+              description: 'KidLoop — это платформа для обмена детскими вещами.',
+              overlayText: 'KIDLOOP',
+            ),
+          ];
+        });
+      }
     }
   }
 
@@ -170,8 +190,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         final nextIndex = (_currentBannerIndex + 1) % _banners.length;
         _pageController.animateToPage(
           nextIndex,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOutCubic,
         );
         setState(() => _currentBannerIndex = nextIndex);
       }
@@ -222,7 +242,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() => _latestItems = items.take(10).toList());
       }
     } catch (e) {
-      print("Ошибка загрузки последних items: $e");
+      debugPrint("Ошибка загрузки последних items: $e");
     }
   }
 
@@ -230,11 +250,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final isDark = themeProvider.isDarkMode;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1D24);
     final subTextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
-    final surfaceColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-    final backgroundColor =
-    isDark ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
+    final surfaceColor = isDark ? const Color(0xFF1A1D24) : Colors.white;
+    final backgroundColor = isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA);
 
     return Theme(
       data: ThemeData(
@@ -247,21 +266,39 @@ class _DashboardScreenState extends State<DashboardScreen>
         backgroundColor: backgroundColor,
         body: SafeArea(
           child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
             slivers: [
+              // 1. Приветствие
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: _buildWelcomeHeader(isDark),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 8)),
+
+              // 2. Профиль и тема
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: _buildTopActions(isDark, textColor),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 10)),
+
+              // 3. Кнопка "Открыть полную ленту" (обновлена)
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              SliverToBoxAdapter(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _buildOpenAppButton(isDark),
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 4. Баннеры
               if (_banners.isNotEmpty)
                 SliverToBoxAdapter(
                   child: FadeTransition(
@@ -269,53 +306,68 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: _buildBannerCarousel(isDark),
                   ),
                 ),
-              if (_banners.isNotEmpty)
-                SliverToBoxAdapter(child: const SizedBox(height: 14)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 5. Новые объявления (ОБНОВЛЕНО)
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: _buildOpenAppButton(),
-                  ),
+                  child: _buildLatestItemsCarousel(isDark, textColor),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 18)),
-              SliverToBoxAdapter(
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: _buildLatestItemsCarousel(isDark, surfaceColor, textColor),
-                ),
-              ),
-              SliverToBoxAdapter(child: const SizedBox(height: 18)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 6. Быстрые действия (ОБНОВЛЕНО)
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: _buildQuickActions(isDark, textColor),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 18)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 7. Шагомер
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: _buildStepTracker(isDark),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 18)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              // 8. Чаты (с фоном chati.jpeg)
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: _buildGamesSection(isDark, textColor, subTextColor, surfaceColor),
+                  child: _buildChatsBlock(isDark),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 18)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              // 9. Игры (с фоном igri.jpeg)
+              SliverToBoxAdapter(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: _buildGamesBlock(isDark),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 10. Совет дня
               SliverToBoxAdapter(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: _buildDailyTip(isDark, textColor),
                 ),
               ),
-              SliverToBoxAdapter(child: const SizedBox(height: 40)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
             ],
           ),
         ),
@@ -323,10 +375,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // Приветствие
   Widget _buildWelcomeHeader(bool isDark) {
     return Container(
-      height: 160,
+      height: 200,
       decoration: const BoxDecoration(
         image: DecorationImage(
           image: AssetImage('assets/images/vverh.jpeg'),
@@ -339,37 +390,37 @@ class _DashboardScreenState extends State<DashboardScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black.withOpacity(0.3),
-              Colors.black.withOpacity(0.6),
+              Colors.black.withOpacity(0.2),
+              Colors.black.withOpacity(0.7),
             ],
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Spacer(),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  backgroundImage: _avatarUrl != null
-                      ? CachedNetworkImageProvider(_avatarUrl!)
-                      : null,
-                  child: _avatarUrl == null
-                      ? Text(
-                    _userName.isNotEmpty
-                        ? _userName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20),
-                  )
-                      : null,
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+                  ),
+                  child: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white24,
+                    backgroundImage: _avatarUrl != null ? CachedNetworkImageProvider(_avatarUrl!) : null,
+                    child: _avatarUrl == null
+                        ? Text(
+                      _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+                    )
+                        : null,
+                  ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,25 +428,33 @@ class _DashboardScreenState extends State<DashboardScreen>
                       Text(
                         'Привет, $_userName!',
                         style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 3),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [Colors.orange, Colors.deepOrange]),
-                          borderRadius: BorderRadius.circular(8),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
                         ),
-                        child: Text(
-                          'Уровень $_level',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withOpacity(0.3)),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4)),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Уровень $_level',
+                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -405,36 +464,47 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.campaign_rounded,
-                          color: Colors.white, size: 18),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ManageBannersScreen()),
-                      ),
+                      icon: const Icon(Icons.campaign_rounded, color: Colors.white, size: 20),
+                      onPressed: () => safeTap(() async {
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageBannersScreen()));
+                      }),
                       tooltip: 'Управление баннерами',
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: ((_todaySteps % 50000) / 50000).clamp(0.0, 1.0),
-                minHeight: 3,
-                backgroundColor: Colors.white.withOpacity(0.3),
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              'До следующего уровня: ${50000 - (_todaySteps % 50000)} шагов',
-              style:
-              TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 9),
+            const SizedBox(height: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'До уровня ${_level + 1}',
+                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      '${_todaySteps % 50000} / 50000 шагов',
+                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: ((_todaySteps % 50000) / 50000).clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -442,164 +512,288 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // Панель с кнопкой профиля и переключателем темы
   Widget _buildTopActions(bool isDark, Color textColor) {
-    final backgroundColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfileScreen()),
-              ).then((_) => _loadUserData());
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.orange.shade400, Colors.deepOrange.shade400],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1D24) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            InkWell(
+              onTap: () => safeTap(() async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                await _loadUserData();
+              }),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFFF8A3D), Color(0xFFFF6B00)]),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.person_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Профиль',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_rounded, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text('Профиль', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
               ),
             ),
-          ),
-          GestureDetector(
-            onTap: () => context.read<ThemeProvider>().toggleTheme(),
-            child: Container(
-              width: 56,
-              height: 30,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                color: isDark ? const Color(0xFF2A2A3E) : Colors.grey.shade200,
-                border: Border.all(
-                  color: Colors.orange.withOpacity(0.6),
-                  width: 1.5,
+            GestureDetector(
+              onTap: () => context.read<ThemeProvider>().toggleTheme(),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                width: 64,
+                height: 36,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(36),
+                  color: isDark ? const Color(0xFF2A2D35) : Colors.grey.shade200,
+                  border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.transparent),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.2),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  AnimatedAlign(
-                    duration: const Duration(milliseconds: 300),
-                    alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: isDark
-                              ? [const Color(0xFFE94560), const Color(0xFFFF6B6B)]
-                              : [Colors.orange, Colors.orange.shade700],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orange.withOpacity(0.4),
-                            blurRadius: 6,
+                child: Stack(
+                  children: [
+                    AnimatedAlign(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        margin: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: isDark ? [const Color(0xFF3A86FF), const Color(0xFF007AFF)] : [Colors.orange, Colors.orange.shade700],
                           ),
-                        ],
-                      ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          isDark ? Icons.nightlight_round : Icons.wb_sunny,
-                          key: ValueKey(isDark),
-                          color: Colors.white,
-                          size: 15,
+                          boxShadow: [
+                            BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2)),
+                          ],
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                            key: ValueKey(isDark),
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // Баннер
+  // ОБНОВЛЕННАЯ КНОПКА С ФОНОМ И СТИЛЬНЫМ ПЕРЕХОДОМ
+  Widget _buildOpenAppButton(bool isDark) {
+    return GestureDetector(
+      onTap: () => safeTap(_openMainApp),
+      child: Container(
+        height: 230,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          image: const DecorationImage(
+            image: AssetImage('assets/images/veshi.jpeg'),
+            fit: BoxFit.cover,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Colors.black.withOpacity(0.6),
+                Colors.black.withOpacity(0.3),
+                Colors.black.withOpacity(0.6),
+              ],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Анимированные декоративные круги
+              Positioned(
+                right: -20,
+                top: -20,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.orange.withOpacity(0.15),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -30,
+                bottom: -30,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.orange.withOpacity(0.1),
+                  ),
+                ),
+              ),
+              // Основное содержание
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Пульсирующая иконка через TweenAnimationBuilder
+                    TweenAnimationBuilder(
+                      tween: Tween<double>(begin: 1.0, end: 1.2),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Colors.orange, Colors.deepOrange],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withOpacity(0.5),
+                                  blurRadius: 15,
+                                  spreadRadius: 5,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.explore_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 14),
+                    const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Открыть полную ленту',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                            shadows: [
+                              Shadow(color: Colors.black54, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Все объявления в одном месте',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white70,
+                            shadows: [
+                              Shadow(color: Colors.black54, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    // Анимированная стрелка вправо
+                    TweenAnimationBuilder(
+                      tween: Tween<double>(begin: 0, end: 10),
+                      duration: const Duration(milliseconds: 1000),
+                      builder: (context, value, child) {
+                        return Transform.translate(
+                          offset: Offset(value, 0),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBannerCarousel(bool isDark) {
     if (_banners.isEmpty) return const SizedBox.shrink();
     return Column(
       children: [
         SizedBox(
-          height: 150,
+          height: 160,
           child: PageView.builder(
             controller: _pageController,
-            onPageChanged: (index) =>
-                setState(() => _currentBannerIndex = index),
+            onPageChanged: (index) => setState(() => _currentBannerIndex = index),
             itemCount: _banners.length,
             itemBuilder: (context, index) {
               final banner = _banners[index];
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => BannerDetailScreen(banner: banner)),
-                  ),
+                  onTap: () => safeTap(() async {
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => BannerDetailScreen(banner: banner)));
+                  }),
                   child: Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.1),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                          color: (isDark ? Colors.blue : Colors.orange).withOpacity(0.15),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -609,81 +803,59 @@ class _DashboardScreenState extends State<DashboardScreen>
                               fit: BoxFit.cover,
                               placeholder: (_, __) => Container(
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.orange.shade400,
-                                      Colors.deepOrange.shade400
-                                    ],
-                                  ),
+                                  gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange.shade400]),
                                 ),
                               ),
                               errorWidget: (_, __, ___) => Container(
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.orange.shade400,
-                                      Colors.deepOrange.shade400
-                                    ],
-                                  ),
+                                  gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange.shade400]),
                                 ),
                               ),
                             )
                           else
                             Container(
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.orange.shade400,
-                                    Colors.deepOrange.shade400
-                                  ],
-                                ),
+                                gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.deepOrange.shade400]),
                               ),
                             ),
-                          Container(color: Colors.black.withOpacity(0.3)),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
+                              ),
+                            ),
+                          ),
                           Padding(
                             padding: const EdgeInsets.all(20),
                             child: Column(
-                              mainAxisAlignment:
-                              banner.overlayText.isNotEmpty
-                                  ? MainAxisAlignment.center
-                                  : MainAxisAlignment.end,
+                              mainAxisAlignment: banner.overlayText.isNotEmpty ? MainAxisAlignment.center : MainAxisAlignment.end,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (banner.overlayText.isNotEmpty) ...[
                                   Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.white.withOpacity(0.3)),
                                     ),
                                     child: Text(
                                       banner.overlayText,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.5,
-                                      ),
+                                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5),
                                     ),
                                   ),
                                   const SizedBox(height: 12),
                                 ],
                                 Text(
                                   banner.title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.1),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 Text(
                                   banner.subtitle,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 13,
-                                  ),
+                                  style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
                               ],
                             ),
@@ -699,28 +871,23 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         if (_banners.length > 1)
           Padding(
-            padding: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.only(top: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_banners.length, (i) {
                 return GestureDetector(
-                  onTap: () => _pageController.animateToPage(
-                    i,
+                  onTap: () => _pageController.animateToPage(i, duration: const Duration(milliseconds: 400), curve: Curves.easeInOutCubic),
+                  child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
-                  ),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: i == _currentBannerIndex ? 20 : 7,
-                    height: 7,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    width: i == _currentBannerIndex ? 24 : 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: BorderRadius.circular(4),
                       color: i == _currentBannerIndex
-                          ? Colors.orange
-                          : (isDark
-                          ? Colors.white.withOpacity(0.3)
-                          : Colors.grey.shade400),
+                          ? (isDark ? const Color(0xFF3A86FF) : Colors.orange)
+                          : (isDark ? Colors.white.withOpacity(0.2) : Colors.grey.shade300),
                     ),
                   ),
                 );
@@ -731,414 +898,296 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // Новые объявления
-  Widget _buildLatestItemsCarousel(
-      bool isDark, Color surfaceColor, Color textColor) {
+  // НОВЫЕ ОБЪЯВЛЕНИЯ С ФОНОМ-ПОДЛОЖКОЙ
+  Widget _buildLatestItemsCarousel(bool isDark, Color textColor) {
     if (_latestItems.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            '🔥 Новые объявления',
-            style: TextStyle(
-                color: textColor, fontSize: 17, fontWeight: FontWeight.bold),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: isDark
+              ? [
+            const Color(0xFF1A1D24).withOpacity(0.95),
+            const Color(0xFF2A2D35).withOpacity(0.9),
+            const Color(0xFF1A1D24).withOpacity(0.95),
+          ]
+              : [
+            Colors.orange.shade50.withOpacity(0.8),
+            Colors.orange.shade100.withOpacity(0.5),
+            Colors.orange.shade50.withOpacity(0.8),
+          ],
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 140,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            itemCount: _latestItems.length,
-            itemBuilder: (ctx, i) {
-              final item = _latestItems[i];
-              return GestureDetector(
-                // 🔥 Теперь открывает детали именно этого объявления
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ItemDetailsScreen(item: item),
-                    ),
-                  );
-                },
-                child: Container(
-                  width: 130,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: surfaceColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.15 : 0.06),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(14)),
-                          child: item.imagePaths.isNotEmpty
-                              ? CachedNetworkImage(
-                            imageUrl: item.imagePaths.first,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                          )
-                              : Container(color: Colors.grey.shade200),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Text(
-                          item.title,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                              fontSize: 11),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.3) : Colors.orange.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
-        ),
-      ],
-    );
-  }
-
-  // Быстрые действия - БЕЗ ИКОНОК, только текст на фоне
-  Widget _buildQuickActions(bool isDark, Color textColor) {
-    final actions = [
-      {
-        'label': 'Лента',
-        'image': 'assets/images/lenta.jpeg',
-        'route': 'main'
-      },
-      {
-        'label': 'Добавить',
-        'image': 'assets/images/dobavit.jpeg',
-        'route': 'add'
-      },
-      {
-        'label': 'Обмены',
-        'image': 'assets/images/obmen.jpeg',
-        'route': 'trades'
-      },
-      {
-        'label': 'Игры',
-        'image': 'assets/images/igri.jpeg',
-        'route': 'games'
-      },
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+        ],
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '⚡ Быстрые действия',
-            style: TextStyle(
-                color: textColor, fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 1.0,
-            ),
-            itemCount: actions.length,
-            itemBuilder: (ctx, i) {
-              final a = actions[i];
-              return GestureDetector(
-                onTap: () => _handleAction(a['route'] as String),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.2 : 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '🔥 Новые объявления',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Фоновое изображение
-                        Image.asset(
-                          a['image'] as String,
-                          fit: BoxFit.cover,
-                        ),
-                        // Затемнение для читаемости текста
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.7),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Только текст, без иконки
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                a['label'] as String,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                ),
+                TextButton(
+                  onPressed: () => safeTap(_openMainApp),
+                  child: Text(
+                    'Все',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF3A86FF) : Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
                 ),
-              );
-            },
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 170,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _latestItems.length,
+              itemBuilder: (ctx, i) {
+                final item = _latestItems[i];
+                return GestureDetector(
+                  onTap: () => safeTap(() async {
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => ItemDetailsScreen(item: item)));
+                  }),
+                  child: Container(
+                    width: 150,
+                    margin: const EdgeInsets.only(right: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.15),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (item.imagePaths.isNotEmpty)
+                            CachedNetworkImage(
+                              imageUrl: item.imagePaths.first,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => Container(
+                                color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                                  size: 40,
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                              child: Icon(
+                                Icons.image_not_supported,
+                                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                                size: 40,
+                              ),
+                            ),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black.withOpacity(0.8),
+                                  Colors.black.withOpacity(0.3),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                  ),
+                                  child: const Text(
+                                    '🔄 Обмен',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _handleAction(String route) async {
-    switch (route) {
-      case 'main':
-        _openMainApp();
-        break;
-      case 'add':
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const AddItemScreen()));
-        break;
-      case 'trades':
-        try {
-          await context.read<TradesProvider>().loadOffers();
-        } catch (e) {
-          print("Ошибка загрузки обменов: $e");
-        }
-        if (mounted) {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const TradeOffersScreen()));
-        }
-        break;
-      case 'games':
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const GamesScreen()));
-        break;
-    }
-  }
+  // БЫСТРЫЕ ДЕЙСТВИЯ С ФОНОМ-ПОДЛОЖКОЙ
+  Widget _buildQuickActions(bool isDark, Color textColor) {
+    final actions = [
+      {'label': 'Лента', 'image': 'assets/images/lenta.jpeg', 'route': 'main'},
+      {'label': 'Добавить', 'image': 'assets/images/dobavit.jpeg', 'route': 'add'},
+      {'label': 'Обмены', 'image': 'assets/images/obmen.jpeg', 'route': 'trades'},
+      {'label': 'Карта', 'image': 'assets/images/karti.jpeg', 'route': 'map'},
+      {'label': 'Шахматы', 'image': 'assets/images/shahmati.jpeg', 'route': 'chess'},
+      {'label': 'Запомни число', 'image': 'assets/images/cifri.jpeg', 'route': 'memory'},
+    ];
 
-  void _openMainApp() async {
-    try {
-      await Future.wait([
-        context.read<ItemsProvider>().loadItems(),
-        context.read<TradesProvider>().loadOffers(),
-      ]);
-    } catch (e) {
-      print("Ошибка загрузки: $e");
-    }
-
-    if (mounted) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const MainNavigationScreen(),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: isDark
+              ? [
+            const Color(0xFF0F1115).withOpacity(0.95),
+            const Color(0xFF1A1D24).withOpacity(0.9),
+            const Color(0xFF0F1115).withOpacity(0.95),
+          ]
+              : [
+            Colors.blue.shade50.withOpacity(0.8),
+            Colors.purple.shade50.withOpacity(0.5),
+            Colors.blue.shade50.withOpacity(0.8),
+          ],
         ),
-      );
-      await _loadInitialData();
-    }
-  }
-
-  // Шагомер
-  Widget _buildStepTracker(bool isDark) {
-    final progress = (_todaySteps / 10000).clamp(0.0, 1.0);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PedometerScreen()),
-        ),
-        child: Container(
-          height: 90,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.12),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.3) : Colors.purple.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
+        ],
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Positioned.fill(
-                  child: Image.asset(
-                    'assets/images/begom.jpeg',
-                    fit: BoxFit.cover,
+                Text(
+                  '⚡ Быстрые действия',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                Container(color: Colors.black.withOpacity(0.4)),
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 54,
-                        height: 54,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CircularProgressIndicator(
-                              value: progress,
-                              strokeWidth: 4,
-                              color: Colors.white,
-                              backgroundColor: Colors.white.withOpacity(0.3),
-                            ),
-                            Icon(Icons.directions_walk,
-                                size: 22, color: Colors.white),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '$_todaySteps шагов сегодня',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  fontSize: 14),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Цель: 10 000 шагов',
-                              style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.chevron_right_rounded,
-                            color: Colors.white, size: 16),
-                      ),
-                    ],
+                TextButton(
+                  onPressed: () => safeTap(_openMainApp),
+                  child: Text(
+                    'Все',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF3A86FF) : Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  // Игры
-  Widget _buildGamesSection(bool isDark, Color textColor, Color subTextColor,
-      Color surfaceColor) {
-    final games = [
-      {
-        'label': 'Запомни число',
-        'image': 'assets/images/cifri.jpeg',
-        'screen': const MemoryGameScreen(),
-      },
-      {
-        'label': 'Шахматы',
-        'image': 'assets/images/shahmati.jpeg',
-        'screen': const ChessGameScreen(),
-      },
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '🎯 Развлечения',
-            style: TextStyle(
-                color: textColor, fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           SizedBox(
             height: 100,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: games.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              physics: const BouncingScrollPhysics(),
+              itemCount: actions.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (ctx, i) {
-                final g = games[i];
+                final a = actions[i];
                 return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => g['screen'] as Widget),
-                  ),
+                  onTap: () => safeTap(() async {
+                    await _handleAction(a['route'] as String);
+                  }),
                   child: Container(
-                    width: 140,
+                    width: 90,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.1),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
                           Image.asset(
-                            g['image'] as String,
+                            a['image'] as String,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                              child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 30),
+                            ),
                           ),
                           Container(
                             decoration: BoxDecoration(
@@ -1147,18 +1196,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 end: Alignment.bottomCenter,
                                 colors: [
                                   Colors.transparent,
-                                  Colors.black.withOpacity(0.7),
+                                  Colors.black.withOpacity(0.75),
                                 ],
                               ),
                             ),
                           ),
                           Center(
-                            child: Text(
-                              g['label'] as String,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(
+                                a['label'] as String,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ),
@@ -1175,57 +1231,402 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // Совет дня
-  Widget _buildDailyTip(bool isDark, Color textColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.teal.withOpacity(0.1),
-              Colors.blue.withOpacity(0.1),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.teal.withOpacity(0.3)),
+  Future<void> _handleAction(String route) async {
+    switch (route) {
+      case 'main':
+        await _openMainApp();
+        break;
+      case 'add':
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddItemScreen()));
+        break;
+      case 'trades':
+        try {
+          await context.read<TradesProvider>().loadOffers();
+        } catch (e) {
+          debugPrint("Ошибка загрузки обменов: $e");
+        }
+        if (mounted) {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const TradeOffersScreen()));
+        }
+        break;
+      case 'map':
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const MapScreen()));
+        break;
+      case 'chess':
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const ChessGameScreen()));
+        break;
+      case 'memory':
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const MemoryGameScreen()));
+        break;
+    }
+  }
+
+  Future<void> _openMainApp() async {
+    try {
+      await Future.wait([
+        context.read<ItemsProvider>().loadItems(),
+        context.read<TradesProvider>().loadOffers(),
+      ]);
+    } catch (e) {
+      debugPrint("Ошибка загрузки: $e");
+    }
+
+    if (mounted) {
+      await Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const MainNavigationScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOutCubic;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var offsetAnimation = animation.drive(tween);
+            return SlideTransition(
+              position: offsetAnimation,
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 500),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.lightbulb_rounded, size: 20, color: Colors.teal),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _dailyTip,
-                style: TextStyle(color: textColor, fontSize: 12),
-              ),
+      );
+      await _loadInitialData();
+    }
+  }
+
+  Widget _buildStepTracker(bool isDark) {
+    final progress = (_todaySteps / 10000).clamp(0.0, 1.0);
+    return GestureDetector(
+      onTap: () => safeTap(() async {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const PedometerScreen()));
+      }),
+      child: Container(
+        height: 110,
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            colors: isDark ? [const Color(0xFF1A1D24), const Color(0xFF252830)] : [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+          border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? const Color(0xFF3A86FF) : Colors.orange).withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/begom.jpeg',
+                  fit: BoxFit.cover,
+                  colorBlendMode: BlendMode.overlay,
+                  color: Colors.black.withOpacity(0.4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            value: progress,
+                            strokeWidth: 5,
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            valueColor: AlwaysStoppedAnimation<Color>(isDark ? const Color(0xFF3A86FF) : Colors.orange),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withOpacity(0.3)),
+                            ),
+                            child: const Icon(Icons.directions_walk_rounded, size: 26, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$_todaySteps шагов',
+                            style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 20, letterSpacing: 0.5),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Цель: 10 000 шагов • Уровень $_level',
+                            style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Кнопка
-  Widget _buildOpenAppButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: ElevatedButton.icon(
-        onPressed: _openMainApp,
-        icon: const Icon(Icons.explore_rounded, size: 18),
-        label: const Text(
-          'Открыть полную ленту',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+  // ОБНОВЛЕННЫЙ БЛОК ЧАТОВ С ФОНОМ chati.jpeg
+  Widget _buildChatsBlock(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () => safeTap(() async {
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => const MessengerScreen()));
+        }),
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            image: const DecorationImage(
+              image: AssetImage('assets/images/chati.jpeg'),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF06D6A0).withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.black.withOpacity(0.5),
+                  Colors.black.withOpacity(0.3),
+                  Colors.black.withOpacity(0.5),
+                ],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.chat_bubble_rounded, size: 28, color: Colors.white),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          '💬 Чаты',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontSize: 18,
+                            letterSpacing: 0.5,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Общайся с другими пользователями',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange,
-          foregroundColor: Colors.white,
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: 3,
-          shadowColor: Colors.orange.withOpacity(0.4),
+      ),
+    );
+  }
+
+  // ОБНОВЛЕННЫЙ БЛОК ИГР С ФОНОМ igri.jpeg
+  Widget _buildGamesBlock(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () => safeTap(() async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const GamesScreen()));
+        }),
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            image: const DecorationImage(
+              image: AssetImage('assets/images/igri.jpeg'),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF9D4EDD).withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.black.withOpacity(0.5),
+                  Colors.black.withOpacity(0.3),
+                  Colors.black.withOpacity(0.5),
+                ],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.games_rounded, size: 28, color: Colors.white),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          '🎮 Игры',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontSize: 18,
+                            letterSpacing: 0.5,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Играй и зарабатывай бонусы',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyTip(bool isDark, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF1A1D24), const Color(0xFF252830)]
+                : [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.04), blurRadius: 12, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.teal.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.lightbulb_rounded, size: 22, color: Colors.teal),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  _dailyTip,
+                  style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w600, height: 1.4),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
