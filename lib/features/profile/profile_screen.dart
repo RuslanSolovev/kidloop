@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/items_provider.dart';
+import '../../core/level_calculator.dart';
 import '../../core/profile_provider.dart';
 import '../../core/trades_provider.dart';
 
@@ -21,8 +22,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   int _svBalance = 0;
   bool _loadingBalance = true;
-
-  // 🔥 Загружаем настройку темы из SharedPreferences
+  String? _currentUserId;
   bool _isDarkMode = false;
 
   @override
@@ -35,9 +35,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  // 🔥 Загружаем настройку темы
   Future<void> _loadThemeMode() async {
     final prefs = await SharedPreferences.getInstance();
+    _currentUserId = prefs.getString('user_id');
     if (mounted) {
       setState(() {
         _isDarkMode = prefs.getBool('is_dark_mode') ?? false;
@@ -122,7 +122,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final prefs = await SharedPreferences.getInstance();
-      // 🔥 Не очищаем is_dark_mode при выходе
       final savedDarkMode = prefs.getBool('is_dark_mode') ?? false;
       await prefs.clear();
       await prefs.setBool('is_dark_mode', savedDarkMode);
@@ -135,20 +134,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     }
-  }
-
-  int _calculateLevel(int items, int trades) {
-    final score = items * 2 + trades * 3;
-    if (score < 5) return 1;
-    if (score < 10) return 2;
-    if (score < 20) return 3;
-    if (score < 35) return 4;
-    if (score < 55) return 5;
-    if (score < 80) return 6;
-    if (score < 110) return 7;
-    if (score < 150) return 8;
-    if (score < 200) return 9;
-    return 10;
   }
 
   double _profileCompletion({
@@ -181,8 +166,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final myItems = items.where((e) => e.isMine).length;
     final completedTrades = trades.where((e) => e.status == 'completed').length;
+    final sentOffers = trades.where((t) => t.fromUserId == _currentUserId).length;
 
-    final level = _calculateLevel(myItems, completedTrades);
+    // 🔥 ЕДИНЫЙ УРОВЕНЬ через LevelCalculator
+    final level = LevelCalculator.calculateLevel(
+      totalSteps: 0,
+      itemsCount: myItems,
+      completedTrades: completedTrades,
+      sentOffers: sentOffers,
+    );
 
     final completion = _profileCompletion(
       name: profile.name,
@@ -197,7 +189,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final successRate = trades.isEmpty ? 0 : (completedTrades / trades.length * 100).round();
 
-    // 🔥 Адаптивные цвета
     final backgroundColor = _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
     final surfaceColor = _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
     final textColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -336,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'УРОВЕНЬ $level',
+                      'УРОВЕНЬ $level • ${LevelCalculator.getLevelName(level)}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

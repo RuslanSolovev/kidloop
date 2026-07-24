@@ -1,4 +1,3 @@
-// item_model.dart
 import 'package:latlong2/latlong.dart';
 
 class Item {
@@ -14,6 +13,7 @@ class Item {
   final String condition;
   final bool isMine;
   final String status;
+  final String? createdAt;
 
   final double? latitude;
   final double? longitude;
@@ -34,6 +34,7 @@ class Item {
     required this.condition,
     this.isMine = false,
     this.status = 'available',
+    this.createdAt,
     this.latitude,
     this.longitude,
   });
@@ -85,6 +86,7 @@ class Item {
     String? condition,
     bool? isMine,
     String? status,
+    String? createdAt,
     double? latitude,
     double? longitude,
   }) {
@@ -101,6 +103,7 @@ class Item {
       condition: condition ?? this.condition,
       isMine: isMine ?? this.isMine,
       status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
     );
@@ -131,6 +134,7 @@ class Item {
       condition: json['condition']?.toString() ?? '',
       isMine: json['isMine'] == true || json['isMine'] == 'true' || json['isMine'] == 1,
       status: json['status']?.toString() ?? 'available',
+      createdAt: json['created_at']?.toString(),
       latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null,
       longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
     );
@@ -150,6 +154,7 @@ class Item {
       'condition': condition,
       'isMine': isMine,
       'status': status,
+      if (createdAt != null) 'created_at': createdAt,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };

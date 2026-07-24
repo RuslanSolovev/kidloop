@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'trade_offer.dart';
+import 'bundle_model.dart';
 import '../services/notification_service.dart';
 
 class TradesProvider extends ChangeNotifier {
@@ -42,6 +43,24 @@ class TradesProvider extends ChangeNotifier {
       if (data['ok'] == true) {
         final newOffers = <TradeOffer>[];
         for (final o in data['offers']) {
+          // 🔥 Парсим bundle items если есть
+          List<BundleItem>? fromBundleItems;
+          List<BundleItem>? toBundleItems;
+
+          if (o['from_items_json'] != null && o['from_items_json'] is String && o['from_items_json'].isNotEmpty) {
+            try {
+              final itemsList = List<dynamic>.from(jsonDecode(o['from_items_json']));
+              fromBundleItems = itemsList.map((i) => BundleItem.fromJson(i)).toList();
+            } catch (_) {}
+          }
+
+          if (o['to_items_json'] != null && o['to_items_json'] is String && o['to_items_json'].isNotEmpty) {
+            try {
+              final itemsList = List<dynamic>.from(jsonDecode(o['to_items_json']));
+              toBundleItems = itemsList.map((i) => BundleItem.fromJson(i)).toList();
+            } catch (_) {}
+          }
+
           newOffers.add(TradeOffer(
             id: o['id'] ?? '',
             fromUserId: o['from_user_id'] ?? '',
@@ -63,6 +82,13 @@ class TradesProvider extends ChangeNotifier {
             toDeliveryMethod: o['to_delivery_method'] ?? '',
             cancelReason: o['cancel_reason'] ?? '',
             whoCancelled: o['who_cancelled'] ?? '',
+            // 🔥 Bundle поля
+            fromBundleId: o['from_bundle_id'] ?? '',
+            toBundleId: o['to_bundle_id'] ?? '',
+            fromBundleItems: fromBundleItems,
+            toBundleItems: toBundleItems,
+            fromItemsJson: o['from_items_json'] ?? '',
+            toItemsJson: o['to_items_json'] ?? '',
           ));
         }
         _offers.clear();
@@ -79,20 +105,38 @@ class TradesProvider extends ChangeNotifier {
 
   Future<Map<String, dynamic>> createOffer(TradeOffer offer) async {
     try {
+      // 🔥 Формируем тело запроса с учётом bundle
+      final Map<String, Object> body = {
+        "action": "create",
+        "from_user_id": offer.fromUserId,
+        "to_user_id": offer.toUserId,
+        "from_item_id": offer.fromItemId,
+        "to_item_id": offer.toItemId,
+        "from_item_title": offer.fromItemTitle,
+        "to_item_title": offer.toItemTitle,
+        "sv_difference": offer.svDifference,
+      };
+
+      // 🔥 Добавляем bundle-данные если есть
+      if (offer.isFromBundle) {
+        body['from_bundle_id'] = offer.fromBundleId ?? '';
+        body['from_items_json'] = offer.fromItemsJson ?? '[]';
+      }
+      if (offer.isToBundle) {
+        body['to_bundle_id'] = offer.toBundleId ?? '';
+        body['to_items_json'] = offer.toItemsJson ?? '[]';
+      }
+
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "action": "create",
-          "from_user_id": offer.fromUserId,
-          "to_user_id": offer.toUserId,
-          "from_item_id": offer.fromItemId,
-          "to_item_id": offer.toItemId,
-          "from_item_title": offer.fromItemTitle,
-          "to_item_title": offer.toItemTitle,
-          "sv_difference": offer.svDifference,
-        }),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
+
+      // 🔥 ЛОГ ПОЛНОГО ОТВЕТА
+      debugPrint('=== SWAP API RESPONSE ===');
+      debugPrint('Status: ${response.statusCode}');
+      debugPrint('Body: ${response.body}');
 
       final data = jsonDecode(response.body);
       if (data['ok'] == true) {
@@ -105,6 +149,12 @@ class TradesProvider extends ChangeNotifier {
           fromItemTitle: offer.fromItemTitle,
           toItemTitle: offer.toItemTitle,
           svDifference: offer.svDifference,
+          fromBundleId: offer.fromBundleId,
+          toBundleId: offer.toBundleId,
+          fromBundleItems: offer.fromBundleItems,
+          toBundleItems: offer.toBundleItems,
+          fromItemsJson: offer.fromItemsJson,
+          toItemsJson: offer.toItemsJson,
         );
         _offers.insert(0, newOffer);
         notifyListeners();
@@ -125,14 +175,15 @@ class TradesProvider extends ChangeNotifier {
 
         return {"ok": true};
       } else {
-        return {"ok": false, "error": data['error'] ?? 'unknown'};
+        // 🔥 ИСПРАВЛЕНО: проверяем оба поля
+        return {"ok": false, "error": data['error'] ?? data['errorMessage'] ?? 'unknown'};
       }
     } catch (e) {
+      debugPrint('ERROR in createOffer: $e');
       return {"ok": false, "error": e.toString()};
     }
   }
 
-  // ... остальные методы без изменений ...
   Future<Map<String, dynamic>> updateStatus(String offerId, String status) async {
     try {
       final response = await http.post(
@@ -146,7 +197,7 @@ class TradesProvider extends ChangeNotifier {
         await loadOffers();
         return {"ok": true};
       } else {
-        return {"ok": false, "error": data['error'] ?? 'unknown'};
+        return {"ok": false, "error": data['error'] ?? data['errorMessage'] ?? 'unknown'};
       }
     } catch (e) {
       return {"ok": false, "error": e.toString()};
@@ -230,7 +281,7 @@ class TradesProvider extends ChangeNotifier {
           _offers[index].cancelReason = '';
           notifyListeners();
         }
-        return {"ok": false, "error": data['error'] ?? 'unknown'};
+        return {"ok": false, "error": data['error'] ?? data['errorMessage'] ?? 'unknown'};
       }
     } catch (e) {
       if (index != -1) {

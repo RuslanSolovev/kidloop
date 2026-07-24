@@ -1,3 +1,5 @@
+import 'bundle_model.dart';
+
 class TradeOffer {
   final String id;
   final String fromUserId;
@@ -11,21 +13,25 @@ class TradeOffer {
   String deliveryMethod;
   String whoCancelled;
 
-  // Старые поля (оставляем для обратной совместимости)
   bool fromConfirmed;
   bool toConfirmed;
 
-  // Новые поля для 4-шагового подтверждения
-  bool fromShipped;   // Отправитель передал свою вещь
-  bool toReceived;    // Получатель получил вещь отправителя
-  bool toShipped;     // Получатель передал свою вещь
-  bool fromReceived;  // Отправитель получил вещь получателя
+  bool fromShipped;
+  bool toReceived;
+  bool toShipped;
+  bool fromReceived;
 
   String fromDeliveryMethod;
   String toDeliveryMethod;
-
-  // Причина отмены
   String cancelReason;
+
+  // 🔥 Новые поля для Bundle
+  final String? fromBundleId;
+  final String? toBundleId;
+  final List<BundleItem>? fromBundleItems;
+  final List<BundleItem>? toBundleItems;
+  final String? fromItemsJson;
+  final String? toItemsJson;
 
   TradeOffer({
     required this.id,
@@ -48,5 +54,24 @@ class TradeOffer {
     this.toDeliveryMethod = '',
     this.cancelReason = '',
     this.whoCancelled = '',
+    this.fromBundleId,
+    this.toBundleId,
+    this.fromBundleItems,
+    this.toBundleItems,
+    this.fromItemsJson,
+    this.toItemsJson,
   });
+
+  bool get isFromBundle => fromBundleId != null && fromBundleId!.isNotEmpty;
+  bool get isToBundle => toBundleId != null && toBundleId!.isNotEmpty;
+
+  int get fromItemCount {
+    if (isFromBundle && fromBundleItems != null) return fromBundleItems!.length;
+    return fromItemId.isNotEmpty ? 1 : 0;
+  }
+
+  int get toItemCount {
+    if (isToBundle && toBundleItems != null) return toBundleItems!.length;
+    return toItemId.isNotEmpty ? 1 : 0;
+  }
 }

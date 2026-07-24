@@ -47,7 +47,6 @@ class ItemsProvider extends ChangeNotifier {
       if (data['ok'] == true) {
         _items.clear();
         for (final item in data['items']) {
-          // 🔥 Парсим image_paths
           final imagePathsRaw = item['image_paths'];
           List<String> imagePaths = [];
           if (imagePathsRaw is List) {
@@ -72,6 +71,7 @@ class ItemsProvider extends ChangeNotifier {
             condition: item['condition']?.toString() ?? 'Хороший',
             isMine: item['user_id']?.toString() == _currentUserId,
             status: item['status']?.toString() ?? 'available',
+            createdAt: item['created_at']?.toString(),
             latitude: item['latitude'] != null ? (item['latitude'] as num).toDouble() : null,
             longitude: item['longitude'] != null ? (item['longitude'] as num).toDouble() : null,
           ));
@@ -182,6 +182,7 @@ class ItemsProvider extends ChangeNotifier {
       condition: item.condition,
       isMine: true,
       status: 'available',
+      createdAt: DateTime.now().toUtc().toIso8601String(),
     );
 
     _items.insert(0, correctItem);

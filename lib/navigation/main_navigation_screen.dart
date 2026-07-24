@@ -13,6 +13,9 @@ import '../features/add_item/add_item_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../core/items_provider.dart';
 import '../core/trades_provider.dart';
+import '../core/bundle_provider.dart';
+import '../features/subscriptions/subscriptions_screen.dart';
+import '../features/bundles/create_bundle_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -21,7 +24,8 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> with SingleTickerProviderStateMixin {
+class _MainNavigationScreenState extends State<MainNavigationScreen>
+    with SingleTickerProviderStateMixin {
   int currentIndex = 0;
   Timer? _globalTimer;
   bool _isLoading = true;
@@ -32,17 +36,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
 
   final screens = const [HomeScreen(), MapScreen(), TradeOffersScreen()];
   final navItems = const [
-    {'icon': Icons.holiday_village_rounded, 'activeIcon': Icons.holiday_village, 'label': 'Главная'},
-    {'icon': Icons.map_outlined, 'activeIcon': Icons.map, 'label': 'Карта'},
-    {'icon': Icons.swap_horiz_rounded, 'activeIcon': Icons.swap_horiz, 'label': 'Обмены'},
+    {
+      'icon': Icons.holiday_village_rounded,
+      'activeIcon': Icons.holiday_village,
+      'label': 'Главная'
+    },
+    {
+      'icon': Icons.map_outlined,
+      'activeIcon': Icons.map,
+      'label': 'Карта'
+    },
+    {
+      'icon': Icons.swap_horiz_rounded,
+      'activeIcon': Icons.swap_horiz,
+      'label': 'Обмены'
+    },
   ];
 
-  static const String statsApiUrl = 'https://functions.yandexcloud.net/d4ejmhrgofllrks14a7s';
+  static const String statsApiUrl =
+      'https://functions.yandexcloud.net/d4ejmhrgofllrks14a7s';
 
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic),
     );
@@ -61,12 +79,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
     super.dispose();
   }
 
+  // ==================== ЗАГРУЗКА ДАННЫХ ====================
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
     try {
       await Future.wait([
-        context.read<ItemsProvider>().loadItems().timeout(const Duration(seconds: 10)),
-        context.read<TradesProvider>().loadOffers().timeout(const Duration(seconds: 10)),
+        context
+            .read<ItemsProvider>()
+            .loadItems()
+            .timeout(const Duration(seconds: 10)),
+        context
+            .read<TradesProvider>()
+            .loadOffers()
+            .timeout(const Duration(seconds: 10)),
+        context
+            .read<BundleProvider>()
+            .loadAllBundles()
+            .timeout(const Duration(seconds: 10)), // 🔥 ДОБАВЛЕНО
         _loadGlobalStats(),
       ]);
     } catch (e) {
@@ -81,6 +110,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
       await Future.wait([
         context.read<ItemsProvider>().loadItems(),
         context.read<TradesProvider>().loadOffers(),
+        context.read<BundleProvider>().loadAllBundles(), // 🔥 ДОБАВЛЕНО
       ]);
       _loadGlobalStats();
     } catch (e) {
@@ -111,30 +141,318 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
     }
   }
 
+  // ==================== КНОПКА ДОБАВЛЕНИЯ ====================
   void onAddPressed() {
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const AddItemScreen(),
-        transitionsBuilder: (_, animation, __, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            ),
-            child: child,
-          );
-        },
-      ),
-    ).then((_) {
-      context.read<ItemsProvider>().loadItems();
-    });
+    _showAddOptions(context);
   }
 
+  void _showAddOptions(BuildContext parentContext) {
+    final isDark = Theme.of(parentContext).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor =
+    isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final surfaceColor =
+    isDark ? const Color(0xFF1A1A2E) : Colors.white;
+
+    showModalBottomSheet(
+      context: parentContext,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius:
+          const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Полоска-индикатор
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Заголовок
+            Text(
+              'Что хотите добавить?',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Выберите тип объявления',
+              style: TextStyle(
+                fontSize: 14,
+                color: subTextColor,
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Вариант 1: Одиночная вещь
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  parentContext,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) => const AddItemScreen(),
+                    transitionsBuilder: (_, animation, __, child) {
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                        child: child,
+                      );
+                    },
+                  ),
+                ).then((_) {
+                  parentContext.read<ItemsProvider>().loadItems();
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.orange.withOpacity(0.08),
+                      Colors.deepOrange.withOpacity(0.04),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.deepOrange],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Одна вещь',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Добавьте одно объявление',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.orange,
+                      size: 28,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Вариант 2: Набор (Bundle)
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  parentContext,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) =>
+                    const CreateBundleScreen(),
+                    transitionsBuilder: (_, animation, __, child) {
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                        child: child,
+                      );
+                    },
+                  ),
+                ).then((_) {
+                  // 🔥 Обновляем всё после создания набора
+                  parentContext.read<ItemsProvider>().loadItems();
+                  parentContext.read<BundleProvider>().loadAllBundles();
+                  parentContext.read<BundleProvider>().loadMyBundles();
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.purple.withOpacity(0.08),
+                      Colors.blue.withOpacity(0.04),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.purple.withOpacity(0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF7B1FA2), Color(0xFF512DA8)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.purple.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.inventory_2_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Набор вещей (Сет)',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Объедините несколько вещей в один лот',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.purple,
+                      size: 28,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Кнопка отмены
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: subTextColor,
+                  side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text(
+                  'Отмена',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== BUILD ====================
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final isDark = themeProvider.isDarkMode;
-    final backgroundColor = isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA);
+    final backgroundColor =
+    isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA);
     final textColor = isDark ? Colors.white : const Color(0xFF1A1D24);
 
     if (_isLoading) {
@@ -147,10 +465,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
               const SizedBox(
                 width: 48,
                 height: 48,
-                child: CircularProgressIndicator(color: Colors.orange, strokeWidth: 3),
+                child: CircularProgressIndicator(
+                    color: Colors.orange, strokeWidth: 3),
               ),
               const SizedBox(height: 24),
-              Text("Загрузка KidLoop...", style: TextStyle(color: textColor.withOpacity(0.6), fontWeight: FontWeight.w600, fontSize: 15)),
+              Text("Загрузка KidLoop...",
+                  style: TextStyle(
+                      color: textColor.withOpacity(0.6),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15)),
             ],
           ),
         ),
@@ -174,7 +497,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 16, offset: const Offset(0, 6)),
+                BoxShadow(
+                    color: Colors.orange.withOpacity(0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6)),
               ],
             ),
             child: FloatingActionButton(
@@ -193,6 +519,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
     );
   }
 
+  // ==================== APP BAR ====================
   PreferredSizeWidget _buildAppBar(Color textColor, bool isDark) {
     final hasStats = _globalStats != null && !_statsLoading;
 
@@ -202,7 +529,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
       leading: Container(
         margin: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+          color: isDark
+              ? Colors.white.withOpacity(0.05)
+              : Colors.black.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: IconButton(
@@ -216,16 +545,73 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
           ? Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange)),
+          const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.orange)),
           const SizedBox(width: 8),
-          Text('Загрузка...', style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 14, fontWeight: FontWeight.w500)),
+          Text('Загрузка...',
+              style: TextStyle(
+                  color: textColor.withOpacity(0.6),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500)),
         ],
       )
-          : Text('KidLoop', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: 0.5, color: textColor)),
+          : Text('KidLoop',
+          style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              letterSpacing: 0.5,
+              color: textColor)),
       centerTitle: true,
+      actions: [
+        // 🔔 Колокольчик в AppBar
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SubscriptionsScreen(),
+                ),
+              );
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.06),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.notifications_active_rounded,
+                color: Colors.orange,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
+  // ==================== СЧЁТЧИК СТАТИСТИКИ ====================
   Widget _buildStatsCounter(Color textColor, bool isDark) {
     final stats = _globalStats!;
     final completed = stats['completedTrades'] ?? 0;
@@ -239,7 +625,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -248,32 +635,59 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
                 ],
               ),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.06)),
+              border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.06)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.swap_horiz_rounded, size: 18, color: Colors.green.shade600),
+                    Icon(Icons.swap_horiz_rounded,
+                        size: 18, color: Colors.green.shade600),
                     const SizedBox(width: 6),
-                    Text('$completed', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: textColor)),
+                    Text('$completed',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                            color: textColor)),
                     const SizedBox(width: 4),
-                    Text('сделок', style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.6), fontWeight: FontWeight.w500)),
+                    Text('сделок',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: textColor.withOpacity(0.6),
+                            fontWeight: FontWeight.w500)),
                   ],
                 ),
-                Container(width: 1, height: 20, color: textColor.withOpacity(0.15), margin: const EdgeInsets.symmetric(horizontal: 12)),
+                Container(
+                    width: 1,
+                    height: 20,
+                    color: textColor.withOpacity(0.15),
+                    margin:
+                    const EdgeInsets.symmetric(horizontal: 12)),
                 Row(
                   children: [
-                    Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.amber.shade600),
+                    Icon(Icons.auto_awesome_rounded,
+                        size: 16, color: Colors.amber.shade600),
                     const SizedBox(width: 6),
-                    Text('$totalSV', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: textColor)),
+                    Text('$totalSV',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                            color: textColor)),
                     const SizedBox(width: 4),
-                    Text('SV', style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.6), fontWeight: FontWeight.w500)),
+                    Text('SV',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: textColor.withOpacity(0.6),
+                            fontWeight: FontWeight.w500)),
                   ],
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: textColor.withOpacity(0.4)),
+                Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 18, color: textColor.withOpacity(0.4)),
               ],
             ),
           ),
@@ -290,16 +704,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+        insetPadding:
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1A1D24) : Colors.white,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
+            border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.04)),
             boxShadow: [
-              BoxShadow(color: Colors.orange.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10)),
+              BoxShadow(
+                  color: Colors.orange.withOpacity(0.15),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10)),
             ],
           ),
           child: SingleChildScrollView(
@@ -307,42 +728,79 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFFFF8A3D), Color(0xFFFF6B00)]),
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFFFF8A3D), Color(0xFFFF6B00)]),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.analytics_rounded, color: Colors.white, size: 22),
+                      Icon(Icons.analytics_rounded,
+                          color: Colors.white, size: 22),
                       SizedBox(width: 8),
-                      Text('Статистика KidLoop', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+                      Text('Статистика KidLoop',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 17)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 24),
                 Row(
                   children: [
-                    _buildStatItem(icon: Icons.check_circle_rounded, value: '${stats['completedTrades'] ?? 0}', label: 'Успешных', color: Colors.green, isDark: isDark),
+                    _buildStatItem(
+                        icon: Icons.check_circle_rounded,
+                        value: '${stats['completedTrades'] ?? 0}',
+                        label: 'Успешных',
+                        color: Colors.green,
+                        isDark: isDark),
                     const SizedBox(width: 12),
-                    _buildStatItem(icon: Icons.cancel_rounded, value: '${stats['cancelledTrades'] ?? 0}', label: 'Отменено', color: Colors.red, isDark: isDark),
+                    _buildStatItem(
+                        icon: Icons.cancel_rounded,
+                        value: '${stats['cancelledTrades'] ?? 0}',
+                        label: 'Отменено',
+                        color: Colors.red,
+                        isDark: isDark),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildStatItem(icon: Icons.auto_awesome_rounded, value: '${stats['totalSV'] ?? 0}', label: 'SV в сделках', color: Colors.amber, isDark: isDark),
+                    _buildStatItem(
+                        icon: Icons.auto_awesome_rounded,
+                        value: '${stats['totalSV'] ?? 0}',
+                        label: 'SV в сделках',
+                        color: Colors.amber,
+                        isDark: isDark),
                     const SizedBox(width: 12),
-                    _buildStatItem(icon: Icons.people_rounded, value: '${stats['totalUsers'] ?? 0}', label: 'Пользователей', color: Colors.blue, isDark: isDark),
+                    _buildStatItem(
+                        icon: Icons.people_rounded,
+                        value: '${stats['totalUsers'] ?? 0}',
+                        label: 'Пользователей',
+                        color: Colors.blue,
+                        isDark: isDark),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildStatItem(icon: Icons.inventory_2_rounded, value: '${stats['totalItems'] ?? 0}', label: 'Вещей', color: Colors.purple, isDark: isDark),
+                    _buildStatItem(
+                        icon: Icons.inventory_2_rounded,
+                        value: '${stats['totalItems'] ?? 0}',
+                        label: 'Вещей',
+                        color: Colors.purple,
+                        isDark: isDark),
                     const SizedBox(width: 12),
-                    _buildStatItem(icon: Icons.trending_up_rounded, value: '${stats['totalTrades'] ?? 0}', label: 'Всего сделок', color: Colors.teal, isDark: isDark),
+                    _buildStatItem(
+                        icon: Icons.trending_up_rounded,
+                        value: '${stats['totalTrades'] ?? 0}',
+                        label: 'Всего сделок',
+                        color: Colors.teal,
+                        isDark: isDark),
                   ],
                 ),
                 if ((stats['totalTrades'] ?? 0) > 0) ...[
@@ -351,34 +809,54 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [Colors.green.withOpacity(0.1), Colors.teal.withOpacity(0.05)]),
+                      gradient: LinearGradient(colors: [
+                        Colors.green.withOpacity(0.1),
+                        Colors.teal.withOpacity(0.05)
+                      ]),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.green.withOpacity(0.2)),
+                      border: Border.all(
+                          color: Colors.green.withOpacity(0.2)),
                     ),
                     child: Column(
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Успешность сделок', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Colors.white70 : Colors.black87)),
-                            Text('${((stats['completedTrades'] ?? 0) / (stats['totalTrades'] ?? 1) * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Colors.green)),
+                            Text('Успешность сделок',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black87)),
+                            Text(
+                                '${((stats['completedTrades'] ?? 0) / (stats['totalTrades'] ?? 1) * 100).round()}%',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    color: Colors.green)),
                           ],
                         ),
                         const SizedBox(height: 10),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: LinearProgressIndicator(
-                            value: (stats['completedTrades'] ?? 0) / (stats['totalTrades'] ?? 1),
+                            value: (stats['completedTrades'] ?? 0) /
+                                (stats['totalTrades'] ?? 1),
                             minHeight: 8,
-                            backgroundColor: Colors.grey.withOpacity(0.2),
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                            backgroundColor:
+                            Colors.grey.withOpacity(0.2),
+                            valueColor: const AlwaysStoppedAnimation<
+                                Color>(Colors.green),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
-                if (stats['cancelReasons'] != null && (stats['cancelReasons'] as Map).isNotEmpty) ...[
+                if (stats['cancelReasons'] != null &&
+                    (stats['cancelReasons'] as Map).isNotEmpty) ...[
                   const SizedBox(height: 20),
                   Container(
                     width: double.infinity,
@@ -386,37 +864,75 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.red.withOpacity(0.15)),
+                      border: Border.all(
+                          color: Colors.red.withOpacity(0.15)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, size: 18, color: Colors.red.shade400),
+                            Icon(Icons.warning_amber_rounded,
+                                size: 18,
+                                color: Colors.red.shade400),
                             const SizedBox(width: 8),
-                            Text('Причины отмен', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
+                            Text('Причины отмен',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87)),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        ...(stats['cancelReasons'] as Map<String, dynamic>).entries.map((entry) {
-                          final reasonIcon = _getReasonIcon(entry.key);
-                          final reasonColor = _getReasonColor(entry.key);
+                        ...(stats['cancelReasons'] as Map<String, dynamic>)
+                            .entries
+                            .map((entry) {
+                          final reasonIcon =
+                          _getReasonIcon(entry.key);
+                          final reasonColor =
+                          _getReasonColor(entry.key);
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
+                            padding:
+                            const EdgeInsets.only(bottom: 8),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(color: reasonColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                                  child: Icon(reasonIcon, size: 16, color: reasonColor),
+                                  decoration: BoxDecoration(
+                                      color: reasonColor
+                                          .withOpacity(0.1),
+                                      borderRadius:
+                                      BorderRadius.circular(8)),
+                                  child: Icon(reasonIcon,
+                                      size: 16,
+                                      color: reasonColor),
                                 ),
                                 const SizedBox(width: 10),
-                                Expanded(child: Text(entry.key, style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black87))),
+                                Expanded(
+                                    child: Text(entry.key,
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: isDark
+                                                ? Colors.white70
+                                                : Colors.black87))),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(color: reasonColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                                  child: Text('${entry.value}', style: TextStyle(fontWeight: FontWeight.w700, color: reasonColor, fontSize: 13)),
+                                  padding:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3),
+                                  decoration: BoxDecoration(
+                                      color: reasonColor
+                                          .withOpacity(0.1),
+                                      borderRadius:
+                                      BorderRadius.circular(8)),
+                                  child: Text('${entry.value}',
+                                      style: TextStyle(
+                                          fontWeight:
+                                          FontWeight.w700,
+                                          color: reasonColor,
+                                          fontSize: 13)),
                                 ),
                               ],
                             ),
@@ -434,9 +950,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.orange,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
-                    child: const Text('Закрыть', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    child: const Text('Закрыть',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15)),
                   ),
                 ),
               ],
@@ -447,7 +967,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
     );
   }
 
-  Widget _buildStatItem({required IconData icon, required String value, required String label, required Color color, required bool isDark}) {
+  Widget _buildStatItem({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+    required bool isDark,
+  }) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -460,9 +986,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
           children: [
             Icon(icon, color: color, size: 24),
             const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: isDark ? Colors.white : Colors.black87)),
+            Text(value,
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.grey.shade600, fontWeight: FontWeight.w500), textAlign: TextAlign.center),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: isDark
+                        ? Colors.white54
+                        : Colors.grey.shade600,
+                    fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -471,35 +1008,59 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
 
   IconData _getReasonIcon(String reason) {
     switch (reason) {
-      case 'Подозрение на мошенника': return Icons.security_rounded;
-      case 'Скандальный пользователь': return Icons.report_rounded;
-      case 'Товар не соответствует': return Icons.broken_image_rounded;
-      case 'Передумал': return Icons.psychology_rounded;
-      default: return Icons.info_outline_rounded;
+      case 'Подозрение на мошенника':
+        return Icons.security_rounded;
+      case 'Скандальный пользователь':
+        return Icons.report_rounded;
+      case 'Товар не соответствует':
+        return Icons.broken_image_rounded;
+      case 'Передумал':
+        return Icons.psychology_rounded;
+      default:
+        return Icons.info_outline_rounded;
     }
   }
 
   Color _getReasonColor(String reason) {
     switch (reason) {
-      case 'Подозрение на мошенника': return Colors.red;
-      case 'Скандальный пользователь': return Colors.orange;
-      case 'Товар не соответствует': return Colors.amber.shade700;
-      case 'Передумал': return Colors.grey;
-      default: return Colors.grey;
+      case 'Подозрение на мошенника':
+        return Colors.red;
+      case 'Скандальный пользователь':
+        return Colors.orange;
+      case 'Товар не соответствует':
+        return Colors.amber.shade700;
+      case 'Передумал':
+        return Colors.grey;
+      default:
+        return Colors.grey;
     }
   }
 
+  // ==================== НАВИГАЦИОННАЯ ПАНЕЛЬ ====================
   Widget _buildCreativeNavBar(bool isDark) {
     return Container(
       height: 72,
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.06) : Colors.white.withOpacity(0.7),
+        color: isDark
+            ? Colors.white.withOpacity(0.06)
+            : Colors.white.withOpacity(0.7),
         borderRadius: BorderRadius.circular(36),
-        border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.6), width: 1),
+        border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.white.withOpacity(0.6),
+            width: 1),
         boxShadow: [
-          BoxShadow(color: Colors.orange.withOpacity(0.08), blurRadius: 30, offset: const Offset(0, -8)),
-          BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.06), blurRadius: 15, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: Colors.orange.withOpacity(0.08),
+              blurRadius: 30,
+              offset: const Offset(0, -8)),
+          BoxShadow(
+              color:
+              Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+              blurRadius: 15,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: ClipRRect(
@@ -513,7 +1074,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
               final item = navItems[index];
 
               return GestureDetector(
-                onTap: () => setState(() => currentIndex = index),
+                onTap: () {
+                  setState(() => currentIndex = index);
+                  // 🔥 При переключении на Главную — обновляем наборы
+                  if (index == 0) {
+                    context.read<BundleProvider>().loadAllBundles();
+                  }
+                },
                 behavior: HitTestBehavior.opaque,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 400),
@@ -521,13 +1088,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Single
                   width: isSelected ? 56 : 44,
                   height: isSelected ? 56 : 44,
                   decoration: BoxDecoration(
-                    gradient: isSelected ? const LinearGradient(colors: [Color(0xFFFF8A3D), Color(0xFFFF6B00)]) : null,
+                    gradient: isSelected
+                        ? const LinearGradient(colors: [
+                      Color(0xFFFF8A3D),
+                      Color(0xFFFF6B00)
+                    ])
+                        : null,
                     shape: BoxShape.circle,
-                    boxShadow: isSelected ? [BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))] : null,
+                    boxShadow: isSelected
+                        ? [
+                      BoxShadow(
+                          color: Colors.orange.withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4))
+                    ]
+                        : null,
                   ),
                   child: Icon(
-                    isSelected ? item['activeIcon'] as IconData : item['icon'] as IconData,
-                    color: isSelected ? Colors.white : (isDark ? Colors.white.withOpacity(0.5) : Colors.grey.shade500),
+                    isSelected
+                        ? item['activeIcon'] as IconData
+                        : item['icon'] as IconData,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark
+                        ? Colors.white.withOpacity(0.5)
+                        : Colors.grey.shade500),
                     size: isSelected ? 26 : 24,
                   ),
                 ),

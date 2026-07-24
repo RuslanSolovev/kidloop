@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'core/bundle_provider.dart';
 import 'core/items_provider.dart';
+import 'core/subscriptions_provider.dart';
 import 'core/trades_provider.dart';
 import 'core/profile_provider.dart';
 import 'features/dashboard/dashboard_screen.dart';
@@ -28,6 +30,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => TradesProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionsProvider()),
+        ChangeNotifierProvider(create: (_) => BundleProvider()),
         Provider.value(value: notificationService),
       ],
       child: const MyApp(),
