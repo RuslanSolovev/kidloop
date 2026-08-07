@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.kid_loop"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36  // ← ИЗМЕНЕНО: 36 вместо flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,9 +21,10 @@ android {
     defaultConfig {
         applicationId = "com.example.kid_loop"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36  // ← ИЗМЕНЕНО: 36 вместо flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -40,7 +41,8 @@ flutter {
 dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0'
-    implementation 'com.onesignal:OneSignal:5.1.10'  // ← ДОБАВИТЬ
+    implementation 'com.onesignal:OneSignal:5.1.10'
+    implementation 'androidx.multidex:multidex:2.0.1'
 }
 
-apply plugin: 'com.google.gms.google-services'  // ← ДОБАВИТЬ В КОНЦЕ
+apply plugin: 'com.google.gms.google-services'

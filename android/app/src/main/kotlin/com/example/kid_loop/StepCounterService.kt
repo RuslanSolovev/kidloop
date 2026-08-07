@@ -1,4 +1,4 @@
-// StepCounterService.kt
+// android/app/src/main/kotlin/com/example/kid_loop/StepCounterService.kt
 package com.example.kid_loop
 
 import android.app.Notification
@@ -20,7 +20,6 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.onesignal.OneSignal
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -65,24 +64,13 @@ class StepCounterService : Service(), SensorEventListener {
         loadState()
         startInactivityChecker()
 
-        // Логиним пользователя в OneSignal если userId уже есть
-        val userId = prefs.getString("flutter.user_id", null)
-        if (userId != null) {
-            OneSignal.login(userId)
-            Log.d(TAG, "✅ OneSignal login: $userId")
-        }
-
-        Log.i(TAG, "✅ StepCounterService запущен (шагомер + OneSignal)")
+        Log.i(TAG, "✅ StepCounterService запущен (шагомер)")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.getStringExtra("user_id")?.let { userId ->
             prefs.edit().putString("flutter.user_id", userId).apply()
             Log.d(TAG, "🆔 userId обновлён: $userId")
-
-            // Логиним пользователя в OneSignal
-            OneSignal.login(userId)
-            Log.d(TAG, "✅ OneSignal login: $userId")
         }
         stepSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)

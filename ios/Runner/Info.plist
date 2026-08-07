@@ -45,7 +45,8 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- Добавьте этот блок для url_launcher -->
+
+	<!-- ========== URL SCHEMES ДЛЯ url_launcher ========== -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>https</string>
@@ -53,5 +54,31 @@
 		<string>tel</string>
 		<string>mailto</string>
 	</array>
+
+	<!-- ========== РАЗРЕШЕНИЯ ДЛЯ КАМЕРЫ 🔥 ========== -->
+	<key>NSCameraUsageDescription</key>
+	<string>Для эффекта "ЛОХ" нужно использовать камеру</string>
+
+	<!-- ========== РАЗРЕШЕНИЯ ДЛЯ ГЕОЛОКАЦИИ ========== -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Для отображения вашего местоположения на карте</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Для фонового отслеживания местоположения</string>
+
+	<!-- ========== РАЗРЕШЕНИЯ ДЛЯ ШАГОМЕРА ========== -->
+	<key>NSMotionUsageDescription</key>
+	<string>Для отслеживания количества шагов</string>
+
+	<!-- ========== РАЗРЕШЕНИЯ ДЛЯ УВЕДОМЛЕНИЙ ========== -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+		<string>location</string>
+	</array>
+
+	<!-- ========== РАЗРЕШЕНИЯ ДЛЯ ФОТОГАЛЕРЕИ ========== -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Для добавления фотографий к объявлениям</string>
 </dict>
 </plist>

@@ -1,10 +1,13 @@
+// android/build.gradle
 buildscript {
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.gms:google-services:4.4.0'  // ← ДОБАВИТЬ
+        classpath 'com.google.gms:google-services:4.4.0'
+        // 🔥 ДОБАВЛЯЕМ KOTLIN GRADLE PLUGIN
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22"
     }
 }
 

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart'; // 🔥 ДОБАВИТЬ
 
 import 'core/bundle_provider.dart';
 import 'core/items_provider.dart';
@@ -14,12 +15,18 @@ import 'features/games/chess/chess_board_screen.dart';
 import 'features/games/chess/chess_game_screen.dart';
 import 'features/messenger/chat_screen.dart';
 import 'features/splash/splash_screen.dart';
+import 'features/life_navigator/database/life_database.dart';
 import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Инициализация сервиса уведомлений
+  // 🔥 Инициализация русской локали для форматирования дат
+  await initializeDateFormatting('ru', null);
+
+  final lifeDb = LifeDatabase();
+  await lifeDb.database;
+
   final notificationService = NotificationService();
   await notificationService.initialize();
 
@@ -63,7 +70,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _setupNotifications() {
     final notificationService = context.read<NotificationService>();
 
-    // Настройка навигации по клику на уведомление чата
     notificationService.onChatTap = (chatId, otherUserId, otherName) {
       navigatorKey.currentState?.push(
         MaterialPageRoute(
@@ -76,7 +82,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       );
     };
 
-    // Настройка навигации по клику на уведомление игры
     notificationService.onGameTap = (gameId, opponentName) {
       if (gameId.isNotEmpty) {
         navigatorKey.currentState?.push(
@@ -93,7 +98,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
     };
 
-    // Настройка навигации по клику на уведомление обмена
     notificationService.onTradeTap = (tradeId) {
       navigatorKey.currentState?.push(
         MaterialPageRoute(

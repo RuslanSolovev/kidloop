@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Интернет для Yandex Cloud -->
+    <!-- ========== ИНТЕРНЕТ ========== -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- Геолокация -->
+    <!-- ========== ГЕОЛОКАЦИЯ ========== -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
-    <!-- Шагомер -->
+    <!-- ========== ШАГОМЕР ========== -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.BODY_SENSORS"/>
 
-    <!-- Фоновый сервис -->
+    <!-- ========== КАМЕРА 🔥 ДЛЯ ЭФФЕКТА "ЛОХ" ========== -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- ========== ФОНОВЫЙ СЕРВИС ========== -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
@@ -21,13 +25,13 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <!-- Для точного будильника (Android 12+) -->
+    <!-- ========== ДЛЯ ТОЧНОГО БУДИЛЬНИКА (Android 12+) ========== -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 
-    <!-- Уведомления (Android 13+) -->
+    <!-- ========== УВЕДОМЛЕНИЯ (Android 13+) ========== -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- Вибрация для уведомлений -->
+    <!-- ========== ВИБРАЦИЯ ========== -->
     <uses-permission android:name="android.permission.VIBRATE"/>
 
     <application
@@ -55,14 +59,14 @@
             </intent-filter>
         </activity>
 
-        <!-- 🔥 Фоновый сервис шагомера -->
+        <!-- 🔥 ФОНОВЫЙ СЕРВИС ШАГОМЕРА -->
         <service
             android:name=".StepCounterService"
             android:foregroundServiceType="health|dataSync"
             android:exported="false"
             android:enabled="true" />
 
-        <!-- Ресивер автозапуска после перезагрузки -->
+        <!-- РЕСИВЕР АВТОЗАПУСКА ПОСЛЕ ПЕРЕЗАГРУЗКИ -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
@@ -72,18 +76,17 @@
             </intent-filter>
         </receiver>
 
-
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Yandex MapKit API ключ -->
+        <!-- YANDEX MAPKIT API КЛЮЧ -->
         <meta-data
             android:name="com.yandex.mapkit.api_key"
             android:value="df2ca75a-3f6c-4302-a2a4-8c74299f0573"/>
     </application>
 
-    <!-- Поддержка открытия ссылок -->
+    <!-- ========== ПОДДЕРЖКА ОТКРЫТИЯ ССЫЛОК ========== -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW"/>

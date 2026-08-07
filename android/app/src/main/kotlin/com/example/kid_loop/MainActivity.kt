@@ -1,4 +1,3 @@
-// MainActivity.kt
 package com.example.kid_loop
 
 import android.app.NotificationChannel
@@ -34,14 +33,13 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Создаём каналы уведомлений ДО OneSignal
+        // Создаём каналы уведомлений
         createNotificationChannels()
 
         // Инициализация OneSignal
         OneSignal.initWithContext(this, "0083de8f-7ca0-4824-ac88-9c037278237e")
         Log.d(TAG, "✅ OneSignal инициализирован")
 
-        // Логиним пользователя в OneSignal
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         val userId = prefs.getString("flutter.user_id", null)
         if (userId != null) {
@@ -95,6 +93,9 @@ class MainActivity : FlutterActivity() {
                     val payload = call.argument<String>("payload") ?: ""
                     showNotification(id, channelId, title, body, payload)
                     result.success(true)
+                }
+                "areNotificationsEnabled" -> {
+                    result.success(areNotificationsEnabled())
                 }
                 else -> result.notImplemented()
             }
@@ -179,21 +180,50 @@ class MainActivity : FlutterActivity() {
 
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // 🔥 КАНАЛЫ ДЛЯ ВСЕХ ТИПОВ УВЕДОМЛЕНИЙ
             val channels = listOf(
+                // Существующие
                 NotificationChannel("chat", "💬 Сообщения", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "Уведомления о новых сообщениях"
                     enableVibration(true)
+                    setSound(null, null) // Звук по умолчанию
                 },
                 NotificationChannel("game", "🎮 Игры", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "Уведомления о ходе в играх"
                     enableVibration(true)
+                    setSound(null, null)
                 },
                 NotificationChannel("trade", "🔄 Обмены", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "Уведомления об обменах"
+                    enableVibration(true)
+                    setSound(null, null)
+                },
+
+                // 🔥 НОВЫЕ КАНАЛЫ ДЛЯ КАЛЕНДАРЯ И ПРИВЫЧЕК
+                NotificationChannel("calendar_channel", "📅 Календарь", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Напоминания о событиях в календаре"
+                    enableVibration(true)
+                    setSound(null, null)
+                    setShowBadge(true)
+                },
+                NotificationChannel("habit_channel", "💪 Привычки", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Напоминания о привычках"
+                    enableVibration(true)
+                    setSound(null, null)
+                    setShowBadge(true)
+                },
+                NotificationChannel("reminder_channel", "⏰ Отложенные", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Отложенные напоминания"
+                    enableVibration(true)
+                    setSound(null, null)
+                    setShowBadge(true)
                 }
             )
+
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             channels.forEach { manager.createNotificationChannel(it) }
+
+            Log.d(TAG, "✅ Создано ${channels.size} каналов уведомлений")
         }
     }
 
@@ -207,6 +237,15 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun areNotificationsEnabled(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            NotificationManagerCompat.from(this).areNotificationsEnabled()
+        }
+    }
+
     private fun showNotification(id: Int, channelId: String, title: String, body: String, payload: String) {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
@@ -216,19 +255,25 @@ class MainActivity : FlutterActivity() {
             val pendingIntent = PendingIntent.getActivity(
                 this, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
+
             val notification = NotificationCompat.Builder(this, channelId)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_notification)  // ← ИСПОЛЬЗУЕМ
                 .setContentTitle(title)
                 .setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
+                .setVibrate(longArrayOf(0, 500, 200, 500))
+                .setSound(android.net.Uri.parse("content://settings/system/notification_sound"))
                 .build()
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
                     android.content.pm.PackageManager.PERMISSION_GRANTED
                 ) {
                     NotificationManagerCompat.from(this).notify(id, notification)
+                } else {
+                    Log.w(TAG, "⚠️ Нет разрешения на показ уведомления")
                 }
             } else {
                 NotificationManagerCompat.from(this).notify(id, notification)
