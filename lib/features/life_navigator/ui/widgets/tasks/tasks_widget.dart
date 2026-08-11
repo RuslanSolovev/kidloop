@@ -1,26 +1,36 @@
 // features/life_navigator/ui/widgets/tasks/tasks_widget.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../base_life_widget.dart';
 import '../../../models/life_models.dart';
 import '../../../providers/life_provider.dart';
-import 'tasks_filter_bar.dart';
 import 'tasks_card.dart';
 import 'tasks_add_dialog.dart';
+import 'tasks_constants.dart';
 
 class TasksWidget extends BaseLifeWidget {
-  const TasksWidget({super.key, required super.isDark, super.isCompact = true});
+  const TasksWidget(
+      {super.key, required super.isDark, super.isCompact = true});
 
   @override
   State<TasksWidget> createState() => _TasksWidgetState();
 }
 
-class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWidget> {
+class _TasksWidgetState extends State<TasksWidget>
+    with LifeWidgetMixin<TasksWidget> {
   String _filter = 'all';
   String? _selectedTag;
   String _searchQuery = '';
+  bool _isSearching = false;
+  bool _isFilterOpen = false;
   Set<String> _expandedTasks = {};
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,22 +40,28 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
     var filteredTasks = _filterTasks(allTasks);
     filteredTasks = _sortTasks(filteredTasks);
 
-    final rootTasks = filteredTasks.where((t) => t.parentId == null).toList();
+    final rootTasks =
+    filteredTasks.where((t) => t.parentId == null).toList();
     final allTags = _getAllTags(allTasks);
 
     final totalTasks = allTasks.length;
-    final completedTasks = allTasks.where((t) => t.status == 'done').length;
-    final completionRate = totalTasks > 0 ? (completedTasks / totalTasks * 100).round() : 0;
-    final overdueTasks = allTasks.where((t) =>
+    final completedTasks =
+        allTasks.where((t) => t.status == 'done').length;
+    final completionRate = totalTasks > 0
+        ? (completedTasks / totalTasks * 100).round()
+        : 0;
+    final overdueTasks = allTasks
+        .where((t) =>
     t.deadline != null &&
         t.deadline!.isBefore(DateTime.now()) &&
         t.status != 'done' &&
-        t.status != 'postponed').toList();
+        t.status != 'postponed')
+        .toList();
 
     return GestureDetector(
       onTap: widget.isCompact ? openFullScreen : null,
       child: Container(
-        padding: EdgeInsets.all(widget.isCompact ? 16 : 24),
+        padding: EdgeInsets.fromLTRB(2, widget.isCompact ? 16 : 24, 2, widget.isCompact ? 16 : 24),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -56,7 +72,9 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
           ),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: widget.isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+            color: widget.isDark
+                ? Colors.white.withOpacity(0.06)
+                : Colors.black.withOpacity(0.04),
             width: 1.5,
           ),
           boxShadow: [
@@ -72,23 +90,23 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(provider, totalTasks, completedTasks, completionRate, overdueTasks),
-            const SizedBox(height: 16),
-
-            if (allTasks.isNotEmpty) ...[
-              TasksFilterBar(
-                isDark: widget.isDark,
-                currentFilter: _filter,
-                selectedTag: _selectedTag,
-                searchQuery: _searchQuery,
-                overdueCount: overdueTasks.length,
-                allTags: allTags,
-                onFilterChanged: (f) => setState(() => _filter = f),
-                onTagChanged: (t) => setState(() => _selectedTag = t),
-                onSearchChanged: (q) => setState(() => _searchQuery = q),
-              ),
+            _buildHeader(
+              provider,
+              totalTasks,
+              completedTasks,
+              completionRate,
+              overdueTasks,
+              allTags,
+            ),
+            if (_isSearching) ...[
               const SizedBox(height: 12),
+              _buildSearchBar(),
             ],
+            if (_isFilterOpen) ...[
+              const SizedBox(height: 12),
+              _buildFilterPanel(allTags),
+            ],
+            const SizedBox(height: 12),
 
             if (allTasks.isEmpty)
               _buildEmptyState()
@@ -100,13 +118,11 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
                   itemCount: rootTasks.length,
                   itemBuilder: (context, index) {
                     final task = rootTasks[index];
-                    return _buildTaskWithDescendants(task, provider, index == rootTasks.length - 1);
+                    return _buildTaskWithDescendants(
+                        provider, task, index == rootTasks.length - 1);
                   },
                 ),
               ),
-
-            const SizedBox(height: 16),
-            _buildActionButtons(provider),
 
             if (widget.isCompact) ...[
               const SizedBox(height: 10),
@@ -118,58 +134,7 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
     );
   }
 
-  // ==================== РЕКУРСИВНОЕ ПОСТРОЕНИЕ ====================
-
-  Widget _buildTaskWithDescendants(LifeTask task, LifeProvider provider, bool isLast) {
-    final isExpanded = _expandedTasks.contains(task.id);
-    final subtasks = provider.tasks.where((t) => t.parentId == task.id).toList();
-
-    return TasksCard(
-      key: ValueKey(task.id),
-      task: task,
-      isDark: widget.isDark,
-      provider: provider,
-      depth: _getTaskDepth(task),
-      isExpanded: isExpanded,
-      onExpandToggle: subtasks.isNotEmpty
-          ? () {
-        setState(() {
-          if (isExpanded) {
-            _expandedTasks.remove(task.id);
-          } else {
-            _expandedTasks.add(task.id);
-          }
-        });
-      }
-          : null,
-      onStatusChanged: (newStatus) {
-        provider.updateTask(task.copyWith(status: newStatus));
-      },
-      onTaskUpdated: () {
-        setState(() {});
-      },
-      isLastChild: isLast,
-    );
-  }
-
-  int _getTaskDepth(LifeTask task) {
-    int depth = 0;
-    String? currentParentId = task.parentId;
-    final allTasks = context.read<LifeProvider>().tasks;
-
-    while (currentParentId != null) {
-      depth++;
-      final parent = allTasks.firstWhere(
-            (t) => t.id == currentParentId,
-        orElse: () => task,
-      );
-      currentParentId = parent.parentId;
-    }
-
-    return depth;
-  }
-
-  // ==================== ЗАГОЛОВОК ====================
+  // ==================== ЗАГОЛОВОК С КНОПКАМИ ====================
 
   Widget _buildHeader(
       LifeProvider provider,
@@ -177,6 +142,7 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
       int completedTasks,
       int completionRate,
       List<LifeTask> overdueTasks,
+      List<String> allTags,
       ) {
     return Row(
       children: [
@@ -224,7 +190,9 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
                     '$totalTasks задач',
                     style: TextStyle(
                       fontSize: 13,
-                      color: widget.isDark ? Colors.white.withOpacity(0.4) : Colors.grey.shade500,
+                      color: widget.isDark
+                          ? Colors.white.withOpacity(0.4)
+                          : Colors.grey.shade500,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -254,7 +222,7 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
             ],
           ),
         ),
-        if (overdueTasks.isNotEmpty)
+        if (overdueTasks.isNotEmpty) ...[
           Container(
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -264,8 +232,10 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
               border: Border.all(color: Colors.red.withOpacity(0.25)),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.warning_rounded, color: Colors.red.shade400, size: 16),
+                Icon(Icons.warning_rounded,
+                    color: Colors.red.shade400, size: 16),
                 const SizedBox(width: 4),
                 Text(
                   '${overdueTasks.length}',
@@ -278,28 +248,426 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
               ],
             ),
           ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFFFF6B35).withOpacity(0.2),
-                const Color(0xFFFF6B35).withOpacity(0.08),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            '${totalTasks - completedTasks} ост.',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFFFF6B35),
-            ),
-          ),
+        ],
+        _buildHeaderIcon(
+          icon: Icons.search_rounded,
+          isActive: _isSearching,
+          onTap: () {
+            setState(() {
+              _isSearching = !_isSearching;
+              if (!_isSearching) {
+                _searchController.clear();
+                _searchQuery = '';
+              }
+              _isFilterOpen = false;
+            });
+          },
+        ),
+        const SizedBox(width: 4),
+        _buildHeaderIcon(
+          icon: Icons.filter_list_rounded,
+          isActive: _isFilterOpen,
+          hasBadge: _filter != 'all' || _selectedTag != null,
+          onTap: () {
+            setState(() {
+              _isFilterOpen = !_isFilterOpen;
+              _isSearching = false;
+            });
+          },
+        ),
+        const SizedBox(width: 4),
+        _buildHeaderIcon(
+          icon: Icons.add_rounded,
+          isActive: false,
+          isAddButton: true,
+          onTap: () => _showAddTaskDialog(context, provider),
         ),
       ],
     );
+  }
+
+  Widget _buildHeaderIcon({
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+    bool hasBadge = false,
+    bool isAddButton = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? const Color(0xFFFF6B35).withOpacity(0.15)
+              : (widget.isDark
+              ? Colors.white.withOpacity(0.05)
+              : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive
+              ? Border.all(
+              color: const Color(0xFFFF6B35).withOpacity(0.3),
+              width: 1.5)
+              : null,
+        ),
+        child: Stack(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isActive
+                  ? const Color(0xFFFF6B35)
+                  : (widget.isDark
+                  ? Colors.white.withOpacity(0.6)
+                  : Colors.grey.shade600),
+            ),
+            if (hasBadge)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF6B35),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== ПОИСК ====================
+
+  Widget _buildSearchBar() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: widget.isDark
+            ? Colors.white.withOpacity(0.05)
+            : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: widget.isDark
+              ? Colors.white.withOpacity(0.08)
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: TextField(
+        controller: _searchController,
+        autofocus: true,
+        style: TextStyle(
+          color: widget.isDark ? Colors.white : Colors.black87,
+          fontSize: 14,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Поиск задач...',
+          hintStyle: TextStyle(
+            color: widget.isDark
+                ? Colors.white.withOpacity(0.4)
+                : Colors.grey.shade400,
+            fontSize: 13,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 20,
+            color: widget.isDark
+                ? Colors.white.withOpacity(0.4)
+                : Colors.grey.shade400,
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: widget.isDark
+                  ? Colors.white.withOpacity(0.4)
+                  : Colors.grey.shade400,
+            ),
+            onPressed: () {
+              _searchController.clear();
+              setState(() => _searchQuery = '');
+            },
+          )
+              : null,
+          border: InputBorder.none,
+          contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        ),
+        onChanged: (value) => setState(() => _searchQuery = value),
+      ),
+    );
+  }
+
+  // ==================== ПАНЕЛЬ ФИЛЬТРОВ ====================
+
+  Widget _buildFilterPanel(List<String> allTags) {
+    final statuses = [
+      {
+        'id': 'all',
+        'label': 'Все',
+        'emoji': '📋',
+        'color': Colors.grey
+      },
+      {
+        'id': 'formulated',
+        'label': 'Сформулирована',
+        'emoji': '📝',
+        'color': const Color(0xFF4A9EFF)
+      },
+      {
+        'id': 'in_progress',
+        'label': 'В процессе',
+        'emoji': '⚡',
+        'color': const Color(0xFFFF6B35)
+      },
+      {
+        'id': 'done',
+        'label': 'Готово',
+        'emoji': '✅',
+        'color': const Color(0xFF00C853)
+      },
+      {
+        'id': 'postponed',
+        'label': 'Отложено',
+        'emoji': '⏰',
+        'color': const Color(0xFF7C4DFF)
+      },
+      {
+        'id': 'overdue',
+        'label': 'Просрочено',
+        'emoji': '⚠️',
+        'color': Colors.red
+      },
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.isDark
+            ? Colors.white.withOpacity(0.03)
+            : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: widget.isDark
+              ? Colors.white.withOpacity(0.06)
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Статус',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: widget.isDark
+                  ? Colors.white.withOpacity(0.5)
+                  : Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: statuses.map((s) {
+              final isSelected = _filter == s['id'] && _selectedTag == null;
+              final color = s['color'] as Color;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _filter = s['id'] as String;
+                    _selectedTag = null;
+                  });
+                },
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? color.withOpacity(0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? color.withOpacity(0.4)
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(
+                    '${s['emoji']} ${s['label']}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight:
+                      isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected
+                          ? color
+                          : (widget.isDark
+                          ? Colors.white.withOpacity(0.5)
+                          : Colors.grey.shade600),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          if (allTags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Теги',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: widget.isDark
+                    ? Colors.white.withOpacity(0.5)
+                    : Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedTag = null;
+                    if (_filter == 'all') _filter = 'all';
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _selectedTag == null && _filter != 'all'
+                          ? Colors.transparent
+                          : _selectedTag == null
+                          ? const Color(0xFFFF6B35).withOpacity(0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _selectedTag == null && _filter != 'all'
+                            ? Colors.transparent
+                            : _selectedTag == null
+                            ? const Color(0xFFFF6B35).withOpacity(0.4)
+                            : Colors.transparent,
+                      ),
+                    ),
+                    child: Text(
+                      'Все теги',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: _selectedTag == null
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: _selectedTag == null
+                            ? const Color(0xFFFF6B35)
+                            : (widget.isDark
+                            ? Colors.white.withOpacity(0.5)
+                            : Colors.grey.shade600),
+                      ),
+                    ),
+                  ),
+                ),
+                ...allTags.map((tag) {
+                  final isSelected = _selectedTag == tag;
+                  final tagColor = LifeTask.getTagColor(tag);
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedTag = isSelected ? null : tag;
+                        _filter = 'all';
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? tagColor.withOpacity(0.15)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isSelected
+                              ? tagColor.withOpacity(0.4)
+                              : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(
+                        '#$tag',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? tagColor
+                              : (widget.isDark
+                              ? Colors.white.withOpacity(0.5)
+                              : Colors.grey.shade600),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ==================== РЕКУРСИВНОЕ ПОСТРОЕНИЕ ====================
+
+  Widget _buildTaskWithDescendants(
+      LifeProvider provider, LifeTask task, bool isLast) {
+    final isExpanded = _expandedTasks.contains(task.id);
+    final subtasks =
+    provider.tasks.where((t) => t.parentId == task.id).toList();
+
+    return TasksCard(
+      key: ValueKey(task.id),
+      task: task,
+      isDark: widget.isDark,
+      provider: provider,
+      depth: _getTaskDepth(task, provider),
+      isExpanded: isExpanded,
+      onExpandToggle: subtasks.isNotEmpty
+          ? () {
+        setState(() {
+          if (isExpanded) {
+            _expandedTasks.remove(task.id);
+          } else {
+            _expandedTasks.add(task.id);
+          }
+        });
+      }
+          : null,
+      onStatusChanged: (newStatus) {
+        provider.updateTask(task.copyWith(status: newStatus));
+      },
+      onTaskUpdated: () {
+        setState(() {});
+      },
+      isLastChild: isLast,
+    );
+  }
+
+  int _getTaskDepth(LifeTask task, LifeProvider provider) {
+    int depth = 0;
+    String? currentParentId = task.parentId;
+    while (currentParentId != null) {
+      depth++;
+      final parent = provider.tasks.firstWhere(
+            (t) => t.id == currentParentId,
+        orElse: () => task,
+      );
+      currentParentId = parent.parentId;
+    }
+    return depth;
   }
 
   // ==================== ПУСТОЕ СОСТОЯНИЕ ====================
@@ -336,10 +704,12 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
               ),
               const SizedBox(height: 6),
               Text(
-                'Нажмите «Добавить» чтобы создать первую задачу',
+                'Нажмите + чтобы создать первую задачу',
                 style: TextStyle(
                   fontSize: widget.isCompact ? 13 : 15,
-                  color: widget.isDark ? Colors.white.withOpacity(0.3) : Colors.grey.shade400,
+                  color: widget.isDark
+                      ? Colors.white.withOpacity(0.3)
+                      : Colors.grey.shade400,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -347,91 +717,6 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
           ),
         ),
       ),
-    );
-  }
-
-  // ==================== КНОПКИ ДЕЙСТВИЙ ====================
-
-  Widget _buildActionButtons(LifeProvider provider) {
-    return Row(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () => _showAddTaskDialog(context, provider),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF6B35), Color(0xFFF7931E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF6B35).withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_rounded, color: Colors.white, size: widget.isCompact ? 20 : 22),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Добавить',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: widget.isCompact ? 15 : 17,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: GestureDetector(
-            onTap: () => _showQuickAddDialog(context, provider),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: widget.isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: widget.isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200,
-                  width: 1.5,
-                ),
-              ),
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.bolt_rounded,
-                      color: Colors.orange.shade400,
-                      size: widget.isCompact ? 18 : 20,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Быстрая',
-                      style: TextStyle(
-                        color: widget.isDark ? Colors.white.withOpacity(0.7) : Colors.grey.shade700,
-                        fontWeight: FontWeight.w600,
-                        fontSize: widget.isCompact ? 15 : 17,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -478,9 +763,11 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
 
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
-      result = result.where((t) =>
+      result = result
+          .where((t) =>
       t.title.toLowerCase().contains(query) ||
-          (t.description?.toLowerCase().contains(query) ?? false)).toList();
+          (t.description?.toLowerCase().contains(query) ?? false))
+          .toList();
     }
 
     if (_selectedTag != null) {
@@ -497,11 +784,13 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
       case 'postponed':
         return result.where((t) => t.status == 'postponed').toList();
       case 'overdue':
-        return result.where((t) =>
+        return result
+            .where((t) =>
         t.deadline != null &&
             t.deadline!.isBefore(DateTime.now()) &&
             t.status != 'done' &&
-            t.status != 'postponed').toList();
+            t.status != 'postponed')
+            .toList();
       default:
         return result;
     }
@@ -511,10 +800,12 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
     final sorted = List<LifeTask>.from(tasks);
     sorted.sort((a, b) {
       final priorityOrder = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3};
-      final priorityCompare =
-      (priorityOrder[a.priority] ?? 2).compareTo(priorityOrder[b.priority] ?? 2);
+      final priorityCompare = (priorityOrder[a.priority] ?? 2)
+          .compareTo(priorityOrder[b.priority] ?? 2);
       if (priorityCompare != 0) return priorityCompare;
-      if (a.deadline != null && b.deadline != null) return a.deadline!.compareTo(b.deadline!);
+      if (a.deadline != null && b.deadline != null) {
+        return a.deadline!.compareTo(b.deadline!);
+      }
       if (a.deadline != null) return -1;
       if (b.deadline != null) return 1;
       return a.createdAt.compareTo(b.createdAt);
@@ -530,7 +821,7 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
     return tags.toList()..sort();
   }
 
-  // ==================== ДИАЛОГИ ====================
+  // ==================== ДИАЛОГ ====================
 
   void _showAddTaskDialog(BuildContext context, LifeProvider provider) {
     showModalBottomSheet(
@@ -540,82 +831,6 @@ class _TasksWidgetState extends State<TasksWidget> with LifeWidgetMixin<TasksWid
       builder: (ctx) => TasksAddDialog(
         isDark: widget.isDark,
         provider: provider,
-      ),
-    );
-  }
-
-  void _showQuickAddDialog(BuildContext context, LifeProvider provider) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: widget.isDark ? const Color(0xFF1E2233) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.bolt_rounded, color: const Color(0xFFFF6B35), size: 24),
-            const SizedBox(width: 8),
-            Text(
-              '⚡ Быстрая задача',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: widget.isDark ? Colors.white : Colors.black87,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: widget.isDark ? Colors.white : Colors.black87),
-          decoration: InputDecoration(
-            hintText: 'Что нужно сделать?',
-            hintStyle: TextStyle(color: widget.isDark ? Colors.white.withOpacity(0.38) : Colors.grey.shade400),
-            filled: true,
-            fillColor: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFF6B35), width: 2),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Отмена',
-              style: TextStyle(color: widget.isDark ? Colors.white.withOpacity(0.7) : Colors.grey.shade600),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                provider.addTask(title: controller.text);
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('✅ Задача создана'),
-                    backgroundColor: const Color(0xFFFF6B35),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF6B35),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            child: const Text('Добавить'),
-          ),
-        ],
       ),
     );
   }

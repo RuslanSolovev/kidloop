@@ -115,7 +115,7 @@ class _AddIdeaSheetState extends State<AddIdeaSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Новая задача',
+                        'Новая идея - задача',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -123,7 +123,7 @@ class _AddIdeaSheetState extends State<AddIdeaSheet> {
                         ),
                       ),
                       Text(
-                        'Запишите свою задачу',
+                        'Запишите свою идею - задачу',
                         style: TextStyle(
                           fontSize: 12,
                           color: widget.isDark ? Colors.white38 : Colors.grey.shade500,
