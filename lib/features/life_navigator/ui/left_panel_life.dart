@@ -6,10 +6,11 @@ import '../models/life_models.dart';
 import '../providers/life_provider.dart';
 import 'widgets/calendar/calendar_widget.dart';
 import 'widgets/tasks/tasks_widget.dart';
-import 'widgets/habits_widget.dart';
+import 'widgets/habits/habits_widget.dart';
 import 'widgets/notes/notes_widget.dart';
 import 'widgets/ideas/ideas_widget.dart';
 import 'widgets/stats/stats_widget.dart';
+import '../../fitness/fitness_entry.dart';
 
 // ==================== СОВРЕМЕННАЯ СЕТКА 2×N ====================
 
@@ -406,6 +407,14 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
       LifeProvider provider,
       int index,
       ) {
+    // Для фитнес-виджета используем специальную карточку
+    if (widget.type == 'fitness') {
+      return FitnessWidgetCard(
+        isDark: isDark,
+        onTap: () => _openFullscreenWidget(context, widget.type, isDark, provider),
+      );
+    }
+
     final config = _getWidgetConfig(widget.type);
 
     return GestureDetector(
@@ -672,6 +681,14 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
           subtitle: 'Новые',
           count: 4,
         );
+      case 'fitness':
+        return _WidgetConfig(
+          icon: Icons.fitness_center_rounded,
+          color: const Color(0xFFFF6B35),
+          label: 'Фитнес',
+          subtitle: 'Тренировки',
+          count: 0,
+        );
       default:
         return _WidgetConfig(
           icon: Icons.widgets_rounded,
@@ -749,6 +766,9 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
           ),
         );
         break;
+      case 'fitness':
+        screen = FitnessEntry(isDark: isDark);
+        break;
       default:
         return;
     }
@@ -782,6 +802,7 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
       _WidgetType('notes', Icons.note_rounded, 'Заметки', 'Быстрые записи', const Color(0xFFFFCC00)),
       _WidgetType('ideas', Icons.lightbulb_rounded, 'Идеи', 'Мозговой штурм', const Color(0xFFAF52DE)),
       _WidgetType('stats', Icons.analytics_rounded, 'Статистика', 'Аналитика', const Color(0xFF00C7BE)),
+      _WidgetType('fitness', Icons.fitness_center_rounded, 'Фитнес', 'Тренировки и прогресс', const Color(0xFFFF6B35)),
     ];
 
     showModalBottomSheet(

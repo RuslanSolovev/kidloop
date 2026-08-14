@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
-import '../../../../services/notification_service.dart';
-import 'base_life_widget.dart';
-import '../../providers/life_provider.dart';
-import '../../models/life_models.dart';
+import '../../../../../services/notification_service.dart';
+import '../base_life_widget.dart';
+import '../../../providers/life_provider.dart';
+import '../../../models/life_models.dart';
 
 class HabitsWidget extends BaseLifeWidget {
   const HabitsWidget({super.key, required super.isDark, super.isCompact = true});

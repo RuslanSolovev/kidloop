@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/date_symbol_data_local.dart'; // 🔥 ДОБАВИТЬ
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/bundle_provider.dart';
 import 'core/items_provider.dart';
@@ -16,6 +16,7 @@ import 'features/games/chess/chess_game_screen.dart';
 import 'features/messenger/chat_screen.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/life_navigator/database/life_database.dart';
+import 'features/fitness/providers/fitness_provider.dart'; // 🔥 ДОБАВИТЬ
 import 'services/notification_service.dart';
 
 void main() async {
@@ -39,6 +40,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SubscriptionsProvider()),
         ChangeNotifierProvider(create: (_) => BundleProvider()),
+        ChangeNotifierProvider(create: (_) => FitnessProvider()..init()), // 🔥 ДОБАВИТЬ
         Provider.value(value: notificationService),
       ],
       child: const MyApp(),
@@ -46,6 +48,7 @@ void main() async {
   );
 }
 
+// Остальной код без изменений...
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
