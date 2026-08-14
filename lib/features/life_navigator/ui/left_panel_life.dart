@@ -11,6 +11,7 @@ import 'widgets/notes/notes_widget.dart';
 import 'widgets/ideas/ideas_widget.dart';
 import 'widgets/stats/stats_widget.dart';
 import '../../fitness/fitness_entry.dart';
+import '../../fitness/providers/fitness_provider.dart';
 
 // ==================== СОВРЕМЕННАЯ СЕТКА 2×N ====================
 
@@ -67,7 +68,10 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final provider = context.watch<LifeProvider>();
-    final widgets = provider.widgets;
+    // 🔥 Фитнес-провайдер для баннера
+    final fitness = context.watch<FitnessProvider>();
+    // Исключаем фитнес из сетки — теперь он сверху отдельным баннером
+    final widgets = provider.widgets.where((w) => w.type != 'fitness').toList();
     final stats = provider.getStats();
 
     return Container(
@@ -99,6 +103,11 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
                     ),
                   ),
                 ),
+                // 🔥 НОВОЕ: Фитнес-баннер во всю ширину сверху
+                SliverToBoxAdapter(
+                  child: _buildFitnessHero(isDark, fitness),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
                 if (widgets.isEmpty)
                   SliverFillRemaining(child: _buildEmptyState(isDark))
                 else
@@ -141,6 +150,343 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
         ),
       ),
     );
+  }
+
+  // ==================== 🔥 ФИТНЕС-БАННЕР (HERO) ====================
+
+  Widget _buildFitnessHero(bool isDark, FitnessProvider fitness) {
+    final stats = fitness.getStats();
+    final activeSession = fitness.activeSession;
+    final activeProgram = activeSession != null
+        ? fitness.programs
+        .where((p) => p.id == activeSession.programId)
+        .toList()
+        .firstOrNull
+        : null;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        _openFullscreenWidget(
+          context,
+          'fitness',
+          isDark,
+          context.read<LifeProvider>(),
+        );
+      },
+      child: Container(
+        height: 220,
+        margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF6B35).withOpacity(0.3),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: const Color(0xFF00E5FF).withOpacity(0.15),
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 🖼️ Фоновое изображение зала (с фолбэком)
+              Image.asset(
+                'assets/images/kachalka.jpeg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF1A1D24),
+                          Color(0xFF0F1115),
+                          Color(0xFF2A1508),
+                        ],
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.fitness_center_rounded,
+                        size: 72,
+                        color: Color(0xFFFF6B35),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // Затемнение для читаемости текста
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.92),
+                      Colors.black.withOpacity(0.5),
+                      Colors.black.withOpacity(0.15),
+                    ],
+                  ),
+                ),
+              ),
+              // Неоновая полоса сверху (в стиле зала)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 3,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFF00E5FF),
+                        Color(0xFFFF2E9A),
+                        Color(0xFFFF6B35),
+                        Color(0xFFB4FF39),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Контент
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Верхняя строка: GYM + стрик
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF6B35),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF6B35).withOpacity(0.5),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.fitness_center_rounded,
+                                  color: Colors.white, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'GYM',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        if ((stats['currentStreak'] ?? 0) > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.25),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('🔥', style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${stats['currentStreak']}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Spacer(),
+                    // Заголовок
+                    const Text(
+                      'Качалка',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Неоновая сила начинается здесь ⚡',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // Активная программа или статистика
+                    if (activeSession != null && activeProgram != null) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '🎯 ${activeProgram.name}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(activeSession.progressPercent * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: Color(0xFFFF6B35),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: activeSession.progressPercent,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFFFF6B35),
+                          ),
+                          minHeight: 6,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    // Статистика (стеклянные чипы)
+                    Row(
+                      children: [
+                        _buildHeroStatChip(
+                          '💪',
+                          '${stats['workoutsThisWeek'] ?? 0}',
+                          'на неделе',
+                        ),
+                        const SizedBox(width: 8),
+                        _buildHeroStatChip(
+                          '🏋️',
+                          '${stats['totalWorkouts'] ?? 0}',
+                          'всего',
+                        ),
+                        const SizedBox(width: 8),
+                        _buildHeroStatChip(
+                          '⚡',
+                          _formatVolume(stats['totalVolume'] ?? 0.0),
+                          'тоннаж',
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.25),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroStatChip(String emoji, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatVolume(double volume) {
+    if (volume >= 1000) {
+      return '${(volume / 1000).toStringAsFixed(1)}k';
+    }
+    return volume.toStringAsFixed(0);
   }
 
   // ==================== ЗАГОЛОВОК ====================
@@ -407,14 +753,6 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
       LifeProvider provider,
       int index,
       ) {
-    // Для фитнес-виджета используем специальную карточку
-    if (widget.type == 'fitness') {
-      return FitnessWidgetCard(
-        isDark: isDark,
-        onTap: () => _openFullscreenWidget(context, widget.type, isDark, provider),
-      );
-    }
-
     final config = _getWidgetConfig(widget.type);
 
     return GestureDetector(
@@ -681,14 +1019,6 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
           subtitle: 'Новые',
           count: 4,
         );
-      case 'fitness':
-        return _WidgetConfig(
-          icon: Icons.fitness_center_rounded,
-          color: const Color(0xFFFF6B35),
-          label: 'Фитнес',
-          subtitle: 'Тренировки',
-          count: 0,
-        );
       default:
         return _WidgetConfig(
           icon: Icons.widgets_rounded,
@@ -802,7 +1132,6 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
       _WidgetType('notes', Icons.note_rounded, 'Заметки', 'Быстрые записи', const Color(0xFFFFCC00)),
       _WidgetType('ideas', Icons.lightbulb_rounded, 'Идеи', 'Мозговой штурм', const Color(0xFFAF52DE)),
       _WidgetType('stats', Icons.analytics_rounded, 'Статистика', 'Аналитика', const Color(0xFF00C7BE)),
-      _WidgetType('fitness', Icons.fitness_center_rounded, 'Фитнес', 'Тренировки и прогресс', const Color(0xFFFF6B35)),
     ];
 
     showModalBottomSheet(

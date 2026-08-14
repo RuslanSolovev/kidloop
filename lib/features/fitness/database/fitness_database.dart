@@ -1,4 +1,3 @@
-// features/fitness/database/fitness_database.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
@@ -47,7 +46,7 @@ class FitnessDatabase {
     final path = join(directory.path, 'fitness_app.db');
     return await openDatabase(
       path,
-      version: 6, // 🔥 v6: настроение и фото в тренировках
+      version: 7, // 🔥 v7: система следования программам (program_sessions)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -117,6 +116,27 @@ class FitnessDatabase {
       id TEXT PRIMARY KEY, date TEXT NOT NULL, energyLevel INTEGER DEFAULT 5,
       sleepQuality INTEGER DEFAULT 5, motivationLevel INTEGER DEFAULT 5,
       painAreas TEXT DEFAULT '[]', notes TEXT, createdAt TEXT NOT NULL
+    )''');
+
+    // 🔥 v7: Таблица сессий прохождения программ
+    await db.execute('''CREATE TABLE program_sessions (
+      id TEXT PRIMARY KEY,
+      programId TEXT NOT NULL,
+      startDate TEXT NOT NULL,
+      endDate TEXT,
+      currentDayIndex INTEGER DEFAULT 0,
+      difficulty TEXT DEFAULT 'standard',
+      status TEXT DEFAULT 'active',
+      daySessions TEXT DEFAULT '[]',
+      streak INTEGER DEFAULT 0,
+      longestStreak INTEGER DEFAULT 0,
+      totalVolumeCompleted REAL DEFAULT 0,
+      totalWorkoutsCompleted INTEGER DEFAULT 0,
+      totalWorkoutsSkipped INTEGER DEFAULT 0,
+      averageRpe REAL DEFAULT 0,
+      completedAt TEXT,
+      summaryData TEXT DEFAULT '{}',
+      FOREIGN KEY (programId) REFERENCES workout_programs(id) ON DELETE CASCADE
     )''');
 
     await _createIndexes(db);
@@ -192,7 +212,6 @@ class FitnessDatabase {
         }
       }
 
-      // 🔥 v6: Добавляем настроение и фото в workout_logs
       if (oldVersion < 6) {
         debugPrint('🔧 v6: Добавляем настроение и фото в workout_logs');
         final columns = await db.rawQuery('PRAGMA table_info(workout_logs)');
@@ -218,6 +237,36 @@ class FitnessDatabase {
           }
         }
       }
+
+      // 🔥 v7: Добавляем таблицу program_sessions
+      if (oldVersion < 7) {
+        debugPrint('🔧 v7: Добавляем таблицу program_sessions');
+        final tables = await db.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type='table'");
+        final tableNames = tables.map((t) => t['name'] as String).toList();
+
+        if (!tableNames.contains('program_sessions')) {
+          await db.execute('''CREATE TABLE program_sessions (
+            id TEXT PRIMARY KEY,
+            programId TEXT NOT NULL,
+            startDate TEXT NOT NULL,
+            endDate TEXT,
+            currentDayIndex INTEGER DEFAULT 0,
+            difficulty TEXT DEFAULT 'standard',
+            status TEXT DEFAULT 'active',
+            daySessions TEXT DEFAULT '[]',
+            streak INTEGER DEFAULT 0,
+            longestStreak INTEGER DEFAULT 0,
+            totalVolumeCompleted REAL DEFAULT 0,
+            totalWorkoutsCompleted INTEGER DEFAULT 0,
+            totalWorkoutsSkipped INTEGER DEFAULT 0,
+            averageRpe REAL DEFAULT 0,
+            completedAt TEXT,
+            summaryData TEXT DEFAULT '{}'
+          )''');
+          debugPrint('  ✅ Таблица program_sessions создана');
+        }
+      }
     } catch (e) {
       debugPrint('⚠️ Ошибка миграции фитнес БД: $e');
     }
@@ -236,6 +285,11 @@ class FitnessDatabase {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_progress_date ON progress_records(date)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_fitness_photos_date ON fitness_photos(date)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_wellbeing_date ON wellbeing_notes(date)');
+
+      // 🔥 v7: Индексы для program_sessions
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_program_sessions_status ON program_sessions(status)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_program_sessions_program ON program_sessions(programId)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_program_sessions_start ON program_sessions(startDate)');
     } catch (e) {
       debugPrint('⚠️ Ошибка создания индексов фитнес: $e');
     }

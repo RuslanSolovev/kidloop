@@ -16,6 +16,8 @@ import '../../core/bundle_provider.dart';
 import '../../core/bundle_model.dart';
 import '../../navigation/main_navigation_screen.dart';
 import '../bundles/bundle_details_screen.dart';
+import '../fitness/fitness_entry.dart';
+import '../fitness/providers/fitness_provider.dart';
 import '../item_details/item_details_screen.dart';
 import '../profile/profile_screen.dart';
 import '../add_item/add_item_screen.dart';
@@ -31,6 +33,7 @@ import 'manage_banners_screen.dart';
 import 'banner_detail_screen.dart';
 import 'parallax_panel.dart';
 import '../life_navigator/ui/widgets/calendar/calendar_weather.dart';
+
 
 // ==================== MIXINS ====================
 
@@ -191,7 +194,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ==================== DRAG & DROP СОСТОЯНИЕ ====================
   bool _isReorderMode = false;
   int? _draggedIndex;
-  List<int> _containerOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+  List<int> _containerOrder = [0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
   final ScrollController _scrollController = ScrollController();
 
   final List<String> _containerNames = [
@@ -204,7 +209,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     'Быстрые действия',
     'Шагомер',
     'Чаты',
-    'Игры'
+    'Игры',
+    'Фитнес',  // 🔥 НОВОЕ
   ];
 
   // ==================== STATE ====================
@@ -337,7 +343,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _loadContainerOrder() async {
     final prefs = await SharedPreferences.getInstance();
     final savedOrder = prefs.getStringList('container_order');
-    if (savedOrder != null && savedOrder.length == 10) {
+    if (savedOrder != null && savedOrder.length == 11) {
       setState(() {
         _containerOrder = savedOrder.map((e) => int.parse(e)).toList();
       });
@@ -1284,6 +1290,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         isDark: isDark,
         child: _buildChatsBlock(isDark),
       ),
+
+      // 10 - Фитнес (🔥 НОВОЕ)
+          () => _buildDraggableContainer(
+        index: 10,
+        isDark: isDark,
+        child: _buildFitnessHero(isDark),
+      ),
+
       // 9 - Игры
           () => _buildDraggableContainer(
         index: 9,
@@ -1338,6 +1352,473 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
+
+  // ==================== 🔥 ФИТНЕС-БАННЕР (HERO) ====================
+
+  Widget _buildFitnessHero(bool isDark) {
+    FitnessProvider fitness;
+    try {
+      fitness = context.watch<FitnessProvider>();
+    } catch (_) {
+      // Если провайдер не инициализирован — показываем упрощённую версию
+      return _buildFitnessHeroFallback(isDark);
+    }
+
+    final stats = fitness.getStats();
+    final activeSession = fitness.activeSession;
+    final activeProgram = activeSession != null
+        ? fitness.programs
+        .where((p) => p.id == activeSession.programId)
+        .toList()
+        .firstOrNull
+        : null;
+
+    return GestureDetector(
+      onTap: () {
+        lightHaptic();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FitnessEntry(isDark: isDark),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          height: 220,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF6B35).withOpacity(0.3),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: const Color(0xFF00E5FF).withOpacity(0.15),
+                blurRadius: 40,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 🖼️ Фоновое изображение зала
+                Image.asset(
+                  'assets/images/kachalka.jpeg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF1A1D24),
+                            Color(0xFF0F1115),
+                            Color(0xFF2A1508),
+                          ],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.fitness_center_rounded,
+                          size: 72,
+                          color: Color(0xFFFF6B35),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // Затемнение
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.92),
+                        Colors.black.withOpacity(0.5),
+                        Colors.black.withOpacity(0.15),
+                      ],
+                    ),
+                  ),
+                ),
+                // Неоновая полоса сверху
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 3,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xFF00E5FF),
+                          Color(0xFFFF2E9A),
+                          Color(0xFFFF6B35),
+                          Color(0xFFB4FF39),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Контент
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Верхняя строка: GYM + стрик
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF6B35),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFF6B35).withOpacity(0.5),
+                                  blurRadius: 12,
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.fitness_center_rounded,
+                                    color: Colors.white, size: 16),
+                                SizedBox(width: 6),
+                                Text(
+                                  'GYM',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          if ((stats['currentStreak'] ?? 0) > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.25),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('🔥', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${stats['currentStreak']}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      const Spacer(),
+                      // Заголовок
+                      const Text(
+                        'Твой зал ждёт тебя',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Неоновая сила начинается здесь ⚡',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      // Активная программа
+                      if (activeSession != null && activeProgram != null) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '🎯 ${activeProgram.name}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${(activeSession.progressPercent * 100).toInt()}%',
+                              style: const TextStyle(
+                                color: Color(0xFFFF6B35),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: activeSession.progressPercent,
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFFFF6B35),
+                            ),
+                            minHeight: 6,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      // Статистика
+                      Row(
+                        children: [
+                          _buildFitnessHeroStatChip(
+                            '💪',
+                            '${stats['workoutsThisWeek'] ?? 0}',
+                            'на неделе',
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFitnessHeroStatChip(
+                            '🏋️',
+                            '${stats['totalWorkouts'] ?? 0}',
+                            'всего',
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFitnessHeroStatChip(
+                            '⚡',
+                            _formatFitnessVolume(stats['totalVolume'] ?? 0.0),
+                            'тоннаж',
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.25),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+// Фолбэк если провайдер недоступен
+  Widget _buildFitnessHeroFallback(bool isDark) {
+    return GestureDetector(
+      onTap: () {
+        lightHaptic();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FitnessEntry(isDark: isDark),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          height: 160,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF6B35).withOpacity(0.3),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/kachalka.jpeg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: const Color(0xFF1A1D24),
+                    child: const Icon(
+                      Icons.fitness_center_rounded,
+                      size: 72,
+                      color: Color(0xFFFF6B35),
+                    ),
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.9),
+                        Colors.black.withOpacity(0.3),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6B35),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.fitness_center_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Фитнес-зал',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Тренировки и прогресс',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFitnessHeroStatChip(String emoji, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatFitnessVolume(double volume) {
+    if (volume >= 1000) {
+      return '${(volume / 1000).toStringAsFixed(1)}k';
+    }
+    return volume.toStringAsFixed(0);
+  }
+
 
   // ==================== DRAGGABLE CONTAINER WRAPPER ====================
 

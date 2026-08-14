@@ -20,6 +20,9 @@ class FitnessProvider extends ChangeNotifier {
   List<FitnessPhoto> _photos = [];
   List<WellbeingNote> _wellbeingNotes = [];
 
+  // 🔥 v7: Сессии прохождения программ
+  List<ProgramSession> _sessions = [];
+
   WorkoutDay? _activeWorkoutDay;
   WorkoutLog? _activeWorkoutLog;
   int _currentExerciseIndex = 0;
@@ -39,6 +42,22 @@ class FitnessProvider extends ChangeNotifier {
   List<WorkoutTemplate> get templates => _templates;
   List<FitnessPhoto> get photos => _photos;
   List<WellbeingNote> get wellbeingNotes => _wellbeingNotes;
+
+  // 🔥 v7: Геттеры для сессий
+  List<ProgramSession> get sessions => _sessions;
+
+  /// Текущая активная сессия программы (или null если нет активной)
+  ProgramSession? get activeSession {
+    try {
+      return _sessions.firstWhere((s) => s.status == ProgramSessionStatus.active);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// История завершённых сессий
+  List<ProgramSession> get completedSessions =>
+      _sessions.where((s) => s.status == ProgramSessionStatus.completed).toList();
 
   WorkoutDay? get activeWorkoutDay => _activeWorkoutDay;
   WorkoutLog? get activeWorkoutLog => _activeWorkoutLog;
@@ -77,8 +96,10 @@ class FitnessProvider extends ChangeNotifier {
       _loadTemplates(),
       _loadPhotos(),
       _loadWellbeingNotes(),
+      _loadSessions(), // 🔥 v7: Загрузка сессий
     ]);
     debugPrint('✅ FitnessProvider инициализирован');
+    debugPrint('📋 Сессий программ: ${_sessions.length}, активных: ${activeSession != null ? 1 : 0}');
     notifyListeners();
   }
 
@@ -101,13 +122,11 @@ class FitnessProvider extends ChangeNotifier {
   }
 
   Future<void> _loadLogs() async {
-    // Увеличиваем лимит и загружаем все логи
     final data = await _db.query('workout_logs', orderBy: 'date DESC', limit: 1000);
     _logs = data.map((l) => WorkoutLog.fromMap(l)).toList();
   }
 
   Future<void> _loadProgress() async {
-    // Загружаем ВСЕ записи прогресса без ограничений
     final data = await _db.query('progress_records', orderBy: 'date ASC');
     _progressRecords = data.map((p) => ProgressRecord.fromMap(p)).toList();
     debugPrint('📊 Загружено записей прогресса: ${_progressRecords.length}');
@@ -133,6 +152,12 @@ class FitnessProvider extends ChangeNotifier {
   Future<void> _loadWellbeingNotes() async {
     final data = await _db.query('wellbeing_notes', orderBy: 'date DESC');
     _wellbeingNotes = data.map((n) => WellbeingNote.fromMap(n)).toList();
+  }
+
+  // 🔥 v7: Загрузка сессий программ
+  Future<void> _loadSessions() async {
+    final data = await _db.query('program_sessions', orderBy: 'startDate DESC');
+    _sessions = data.map((s) => ProgramSession.fromMap(s)).toList();
   }
 
   Future<void> createProfile(UserFitnessProfile profile) async {
@@ -334,7 +359,6 @@ class FitnessProvider extends ChangeNotifier {
 
     final days = <WorkoutDay>[];
     for (final dayData in daysData) {
-      // Получаем упражнения
       final exercisesData = dayData['exercises'];
       final List<WorkoutExercise> exercises = [];
 
@@ -375,10 +399,6 @@ class FitnessProvider extends ChangeNotifier {
     notifyListeners();
 
     debugPrint('✅ Программа создана: ${updatedProgram.name}, дней: ${updatedProgram.days.length}');
-    for (final d in updatedProgram.days) {
-      debugPrint('   День ${d.dayNumber}: ${d.exercises.length} упражнений');
-    }
-
     return updatedProgram;
   }
 
@@ -411,14 +431,11 @@ class FitnessProvider extends ChangeNotifier {
     );
     await _db.insert('workout_programs', program.toMap());
 
-    // КОПИРУЕМ дни из шаблона
     final days = <WorkoutDay>[];
     for (final templateDay in template.days) {
       debugPrint('📋 День ${templateDay.dayNumber}: ${templateDay.exercises.length} упражнений');
 
-      // Копируем упражнения с новыми ID
       final exercises = templateDay.exercises.map((e) {
-        // Создаём копии подходов
         final sets = e.sets.map((s) => ExerciseSet(
           setNumber: s.setNumber,
           reps: s.reps,
@@ -429,7 +446,7 @@ class FitnessProvider extends ChangeNotifier {
         )).toList();
 
         return WorkoutExercise(
-          id: _uuid.v4(), // НОВЫЙ ID
+          id: _uuid.v4(),
           exerciseId: e.exerciseId,
           order: e.order,
           sets: sets,
@@ -440,7 +457,7 @@ class FitnessProvider extends ChangeNotifier {
       }).toList();
 
       final day = WorkoutDay(
-        id: _uuid.v4(), // НОВЫЙ ID
+        id: _uuid.v4(),
         programId: program.id,
         dayNumber: templateDay.dayNumber,
         isRestDay: templateDay.isRestDay,
@@ -452,7 +469,6 @@ class FitnessProvider extends ChangeNotifier {
       days.add(day);
     }
 
-    // Обновляем программу с днями
     final updatedProgram = program.copyWith(days: days);
     await updateProgram(updatedProgram);
 
@@ -562,6 +578,10 @@ class FitnessProvider extends ChangeNotifier {
     await _updateProgress(exercises);
     final day = _activeWorkoutDay!;
     await updateDay(day.copyWith(status: WorkoutDayStatus.completed));
+
+    // 🔥 v7: Обновляем активную сессию если она есть
+    await _updateSessionAfterWorkout(totalVolume, avgRpe);
+
     _resetWorkoutState();
     notifyListeners();
     return completedLog;
@@ -575,6 +595,10 @@ class FitnessProvider extends ChangeNotifier {
     _logs.insert(0, skippedLog);
     final day = _activeWorkoutDay!;
     await updateDay(day.copyWith(status: WorkoutDayStatus.skipped));
+
+    // 🔥 v7: Обновляем сессию при пропуске
+    await _skipCurrentDayInSession(comment ?? 'Пропущена');
+
     _resetWorkoutState();
     notifyListeners();
   }
@@ -635,10 +659,130 @@ class FitnessProvider extends ChangeNotifier {
       await _db.insert('workout_logs', log.toMap());
       _logs.insert(0, log);
       await _updateProgressFromExercises(log.exercisesLog, log.date);
+
+      // 🔥 ИСПРАВЛЕНО: Обновляем сессию программы если это текущий день
+      await _updateSessionFromLog(log);
+
       notifyListeners();
       debugPrint('✅ Лог тренировки сохранён: ${log.id}');
     } catch (e) {
       debugPrint('❌ Ошибка сохранения лога: $e');
+    }
+  }
+
+  /// 🔥 НОВЫЙ МЕТОД: Обновление сессии из сохранённого лога
+  Future<void> _updateSessionFromLog(WorkoutLog log) async {
+    final session = activeSession;
+    if (session == null) {
+      debugPrint('ℹ️ Нет активной сессии, пропускаем обновление');
+      return;
+    }
+
+    // Проверяем, что это лог для активной программы
+    if (log.programId != session.programId) {
+      debugPrint('ℹ️ Лог для другой программы (${log.programId}), пропускаем');
+      return;
+    }
+
+    if (log.dayNumber == null) {
+      debugPrint('⚠️ У лога нет dayNumber, пропускаем');
+      return;
+    }
+
+    final program = _programs.firstWhere(
+          (p) => p.id == session.programId,
+      orElse: () => _programs.first,
+    );
+
+    // Находим индекс дня по номеру
+    final dayIndex = program.days.indexWhere((d) => d.dayNumber == log.dayNumber);
+    if (dayIndex == -1) {
+      debugPrint('⚠️ День ${log.dayNumber} не найден в программе');
+      return;
+    }
+
+    // Это должен быть текущий день
+    if (dayIndex != session.currentDayIndex) {
+      debugPrint('⚠️ Лог для дня ${log.dayNumber}, но текущий день ${session.currentDayIndex + 1}');
+      return;
+    }
+
+    // Проверяем что день ещё не был помечен как выполненный
+    if (session.daySessions[dayIndex].status == DaySessionStatus.completed) {
+      debugPrint('⚠️ День ${log.dayNumber} уже помечен как выполненный');
+      return;
+    }
+
+    debugPrint('📊 Обновляем сессию из лога: день ${log.dayNumber}');
+
+    // Обновляем текущий день как выполненный
+    final updatedDays = List<DaySession>.from(session.daySessions);
+    updatedDays[dayIndex] = updatedDays[dayIndex].copyWith(
+      status: DaySessionStatus.completed,
+      completedAt: log.endTime ?? DateTime.now(),
+      volumeDone: log.totalVolume,
+      avgRpe: log.avgRpe,
+    );
+
+    // Находим следующий день
+    int nextIndex = dayIndex + 1;
+    bool isProgramComplete = nextIndex >= program.days.length;
+
+    // Автоматически проходим дни отдыха
+    while (nextIndex < program.days.length && program.days[nextIndex].isRestDay) {
+      updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
+        status: DaySessionStatus.completed,
+        completedAt: DateTime.now(),
+        notes: 'Автоматический день отдыха',
+      );
+      nextIndex++;
+      if (nextIndex >= program.days.length) {
+        isProgramComplete = true;
+        break;
+      }
+    }
+
+    // Открываем следующий рабочий день
+    if (!isProgramComplete && nextIndex < program.days.length) {
+      updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
+        status: DaySessionStatus.current,
+      );
+    }
+
+    // Обновляем статистику
+    int newStreak = session.streak + 1;
+    int newLongest = newStreak > session.longestStreak ? newStreak : session.longestStreak;
+    final newCompleted = session.totalWorkoutsCompleted + 1;
+
+    final newAvgRpe = log.avgRpe != null
+        ? (session.averageRpe * session.totalWorkoutsCompleted + log.avgRpe!) / newCompleted
+        : session.averageRpe;
+
+    final updatedSession = session.copyWith(
+      currentDayIndex: isProgramComplete ? session.currentDayIndex : nextIndex,
+      daySessions: updatedDays,
+      streak: newStreak,
+      longestStreak: newLongest,
+      totalVolumeCompleted: session.totalVolumeCompleted + (log.totalVolume ?? 0),
+      totalWorkoutsCompleted: newCompleted,
+      averageRpe: newAvgRpe,
+      status: isProgramComplete ? ProgramSessionStatus.completed : ProgramSessionStatus.active,
+      endDate: isProgramComplete ? DateTime.now() : null,
+      completedAt: isProgramComplete ? DateTime.now() : null,
+    );
+
+    await _db.update('program_sessions', updatedSession.toMap(),
+        where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updatedSession;
+
+    debugPrint('✅ Сессия обновлена: день ${dayIndex + 1}/${program.days.length}, серия: $newStreak, прогресс: ${(updatedSession.progressPercent * 100).toInt()}%');
+
+    // Если программа завершена — генерируем сводку
+    if (isProgramComplete) {
+      debugPrint('🏆 Программа завершена!');
+      await _generateProgramSummary(updatedSession, program);
     }
   }
 
@@ -681,9 +825,6 @@ class FitnessProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ==================== ДЕТАЛЬНАЯ СТАТИСТИКА ПО УПРАЖНЕНИЮ ====================
-
-// В FitnessProvider
   ExerciseDetailedSummary getExerciseDetailedSummary(String exerciseId) {
     final records = getExerciseProgress(exerciseId);
     if (records.isEmpty) {
@@ -897,8 +1038,6 @@ class FitnessProvider extends ChangeNotifier {
     return streak;
   }
 
-  // ==================== ТОННАЖ ПО УПРАЖНЕНИЯМ ====================
-
   Map<String, ExerciseTonnageInfo> getTonnageByExercise() {
     final map = <String, ExerciseTonnageInfo>{};
 
@@ -923,8 +1062,6 @@ class FitnessProvider extends ChangeNotifier {
     return map;
   }
 
-  // ==================== ТОННАЖ ПО МЫШЦАМ ====================
-
   Map<MuscleGroup, MuscleTonnageInfo> getTonnageByMuscle() {
     final map = <MuscleGroup, MuscleTonnageInfo>{};
 
@@ -944,6 +1081,326 @@ class FitnessProvider extends ChangeNotifier {
     }
 
     return map;
+  }
+
+  // ==================== 🔥 СИСТЕМА СЛЕДОВАНИЯ ПРОГРАММАМ ====================
+
+  /// Начать прохождение программы
+  Future<ProgramSession> startProgramSession(
+      String programId, {
+        ProgramDifficulty difficulty = ProgramDifficulty.standard,
+      }) async {
+    // Проверяем, нет ли уже активной сессии
+    if (activeSession != null) {
+      throw Exception('У вас уже есть активная программа "${_programs.firstWhere((p) => p.id == activeSession!.programId).name}". Завершите или приостановите её.');
+    }
+
+    final program = _programs.firstWhere((p) => p.id == programId);
+
+    // Создаём day sessions для каждого дня программы
+    final daySessions = program.days.asMap().entries.map((entry) {
+      final isFirst = entry.key == 0;
+      return DaySession(
+        dayIndex: entry.key,
+        status: isFirst ? DaySessionStatus.current : DaySessionStatus.locked,
+      );
+    }).toList();
+
+    final session = ProgramSession(
+      id: _uuid.v4(),
+      programId: programId,
+      startDate: DateTime.now(),
+      difficulty: difficulty,
+      daySessions: daySessions,
+    );
+
+    await _db.insert('program_sessions', session.toMap());
+    _sessions.insert(0, session);
+    notifyListeners();
+
+    debugPrint('✅ Начата программа: ${program.name} (${program.days.length} дней, сложность: ${difficulty.name})');
+    return session;
+  }
+
+  /// Обновить активную сессию после завершения тренировки
+  Future<void> _updateSessionAfterWorkout(double volume, double? avgRpe) async {
+    final session = activeSession;
+    if (session == null) return;
+
+    final program = _programs.firstWhere((p) => p.id == session.programId);
+
+    // Обновляем текущий день как выполненный
+    final updatedDays = List<DaySession>.from(session.daySessions);
+    updatedDays[session.currentDayIndex] = updatedDays[session.currentDayIndex].copyWith(
+      status: DaySessionStatus.completed,
+      completedAt: DateTime.now(),
+      volumeDone: volume,
+      avgRpe: avgRpe,
+    );
+
+    // Определяем следующий день
+    int nextIndex = session.currentDayIndex + 1;
+    bool isProgramComplete = nextIndex >= program.days.length;
+
+    // Автоматически проходим дни отдыха
+    while (nextIndex < program.days.length && program.days[nextIndex].isRestDay) {
+      updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
+        status: DaySessionStatus.completed,
+        completedAt: DateTime.now(),
+        notes: 'Автоматический день отдыха',
+      );
+      nextIndex++;
+      if (nextIndex >= program.days.length) {
+        isProgramComplete = true;
+        break;
+      }
+    }
+
+    // Открываем следующий рабочий день
+    if (!isProgramComplete && nextIndex < program.days.length) {
+      updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
+        status: DaySessionStatus.current,
+      );
+    }
+
+    // Обновляем статистику
+    int newStreak = session.streak + 1;
+    int newLongest = newStreak > session.longestStreak ? newStreak : session.longestStreak;
+    final newCompleted = session.totalWorkoutsCompleted + 1;
+
+    final newAvgRpe = avgRpe != null
+        ? (session.averageRpe * session.totalWorkoutsCompleted + avgRpe) / newCompleted
+        : session.averageRpe;
+
+    final updatedSession = session.copyWith(
+      currentDayIndex: isProgramComplete ? session.currentDayIndex : nextIndex,
+      daySessions: updatedDays,
+      streak: newStreak,
+      longestStreak: newLongest,
+      totalVolumeCompleted: session.totalVolumeCompleted + volume,
+      totalWorkoutsCompleted: newCompleted,
+      averageRpe: newAvgRpe,
+      status: isProgramComplete ? ProgramSessionStatus.completed : ProgramSessionStatus.active,
+      endDate: isProgramComplete ? DateTime.now() : null,
+      completedAt: isProgramComplete ? DateTime.now() : null,
+    );
+
+    await _db.update('program_sessions', updatedSession.toMap(), where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updatedSession;
+
+    debugPrint('📊 Сессия обновлена: день ${session.currentDayIndex + 1}/${program.days.length}, серия: $newStreak');
+
+    // Если программа завершена — генерируем сводку
+    if (isProgramComplete) {
+      await _generateProgramSummary(updatedSession, program);
+    }
+  }
+
+  /// Пропустить текущий день в активной сессии
+  Future<void> _skipCurrentDayInSession(String reason) async {
+    final session = activeSession;
+    if (session == null) return;
+
+    final program = _programs.firstWhere((p) => p.id == session.programId);
+    final updatedDays = List<DaySession>.from(session.daySessions);
+
+    // В режиме hardcore — сбрасываем текущую неделю
+    if (session.difficulty == ProgramDifficulty.hardcore) {
+      final weekStart = (session.currentDayIndex ~/ 7) * 7;
+      for (int i = weekStart; i < session.currentDayIndex; i++) {
+        if (i < updatedDays.length && updatedDays[i].status == DaySessionStatus.completed) {
+          updatedDays[i] = updatedDays[i].copyWith(
+            status: DaySessionStatus.pending,
+            completedAt: null,
+            volumeDone: null,
+          );
+        }
+      }
+      debugPrint('⚠️ Hardcore режим: сброшена неделя ${weekStart ~/ 7 + 1}');
+    }
+
+    // Помечаем текущий день как пропущенный
+    updatedDays[session.currentDayIndex] = updatedDays[session.currentDayIndex].copyWith(
+      status: DaySessionStatus.skipped,
+      completedAt: DateTime.now(),
+      notes: reason,
+    );
+
+    // Находим следующий день
+    int nextIndex = session.currentDayIndex + 1;
+
+    // Автоматически проходим дни отдыха
+    while (nextIndex < program.days.length && program.days[nextIndex].isRestDay) {
+      updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
+        status: DaySessionStatus.completed,
+        completedAt: DateTime.now(),
+        notes: 'Автоматический день отдыха',
+      );
+      nextIndex++;
+    }
+
+    // Открываем следующий день
+    if (nextIndex < program.days.length) {
+      updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
+        status: DaySessionStatus.current,
+      );
+    }
+
+    // Сбрасываем серию (кроме flexible режима)
+    final newStreak = session.difficulty == ProgramDifficulty.flexible ? session.streak : 0;
+
+    final updatedSession = session.copyWith(
+      currentDayIndex: nextIndex < program.days.length ? nextIndex : session.currentDayIndex,
+      daySessions: updatedDays,
+      streak: newStreak,
+      totalWorkoutsSkipped: session.totalWorkoutsSkipped + 1,
+    );
+
+    await _db.update('program_sessions', updatedSession.toMap(), where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updatedSession;
+
+    debugPrint('⏭️ День пропущен, следующий день: ${nextIndex + 1}');
+  }
+
+  /// Пропустить день вручную (из UI)
+  Future<void> skipCurrentDay({String? reason}) async {
+    await _skipCurrentDayInSession(reason ?? 'Пропущен вручную');
+    notifyListeners();
+  }
+
+  /// Приостановить программу
+  Future<void> pauseProgramSession() async {
+    final session = activeSession;
+    if (session == null) return;
+
+    final updated = session.copyWith(status: ProgramSessionStatus.paused);
+    await _db.update('program_sessions', updated.toMap(), where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updated;
+
+    debugPrint('⏸️ Программа приостановлена');
+    notifyListeners();
+  }
+
+  /// Возобновить программу
+  Future<void> resumeProgramSession(String sessionId) async {
+    final session = _sessions.firstWhere((s) => s.id == sessionId);
+    if (session.status != ProgramSessionStatus.paused) return;
+
+    if (activeSession != null) {
+      throw Exception('Сначала завершите или приостановьте текущую активную программу');
+    }
+
+    final updated = session.copyWith(status: ProgramSessionStatus.active);
+    await _db.update('program_sessions', updated.toMap(), where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updated;
+
+    debugPrint('▶️ Программа возобновлена');
+    notifyListeners();
+  }
+
+  /// Бросить программу (отказаться от прохождения)
+  Future<void> abandonProgramSession(String sessionId) async {
+    final session = _sessions.firstWhere((s) => s.id == sessionId);
+
+    final updated = session.copyWith(
+      status: ProgramSessionStatus.abandoned,
+      endDate: DateTime.now(),
+    );
+    await _db.update('program_sessions', updated.toMap(), where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updated;
+
+    debugPrint('❌ Программа брошена: ${_programs.firstWhere((p) => p.id == session.programId).name}');
+    notifyListeners();
+  }
+
+  /// Генерация сводки по завершённой программе
+  Future<void> _generateProgramSummary(ProgramSession session, WorkoutProgram program) async {
+    debugPrint('🏆 Генерация сводки для: ${program.name}');
+
+    final completedDays = session.daySessions.where((d) => d.status == DaySessionStatus.completed).toList();
+    final skippedDays = session.daySessions.where((d) => d.status == DaySessionStatus.skipped).toList();
+
+    // Собираем данные по упражнениям за время программы
+    final exerciseStats = <String, Map<String, dynamic>>{};
+
+    for (final log in _logs.where((l) => l.date.isAfter(session.startDate))) {
+      for (final exLog in log.exercisesLog) {
+        if (!exerciseStats.containsKey(exLog.exerciseId)) {
+          exerciseStats[exLog.exerciseId] = {
+            'totalVolume': 0.0,
+            'totalSets': 0,
+            'firstWeight': 0.0,
+            'lastWeight': 0.0,
+            'firstReps': 0,
+            'lastReps': 0,
+            'workouts': 0,
+          };
+        }
+
+        final stats = exerciseStats[exLog.exerciseId]!;
+        final volume = exLog.sets.where((s) => s.status == SetStatus.completed && !s.isWarmup)
+            .fold(0.0, (sum, s) => sum + s.volume);
+
+        stats['totalVolume'] = (stats['totalVolume'] as double) + volume;
+        stats['totalSets'] = (stats['totalSets'] as int) + exLog.sets.where((s) => s.status == SetStatus.completed).length;
+        stats['workouts'] = (stats['workouts'] as int) + 1;
+
+        if (stats['workouts'] == 1) {
+          final firstSet = exLog.sets.firstWhere((s) => !s.isWarmup, orElse: () => exLog.sets.first);
+          stats['firstWeight'] = firstSet.weight;
+          stats['firstReps'] = firstSet.reps;
+        }
+
+        final lastSet = exLog.sets.lastWhere((s) => !s.isWarmup, orElse: () => exLog.sets.last);
+        stats['lastWeight'] = lastSet.weight;
+        stats['lastReps'] = lastSet.reps;
+      }
+    }
+
+    final summary = {
+      'programName': program.name,
+      'startDate': session.startDate.toIso8601String(),
+      'endDate': DateTime.now().toIso8601String(),
+      'durationDays': DateTime.now().difference(session.startDate).inDays,
+      'completedDays': completedDays.length,
+      'skippedDays': skippedDays.length,
+      'totalDays': program.days.length,
+      'totalVolume': session.totalVolumeCompleted,
+      'averageRpe': session.averageRpe,
+      'longestStreak': session.longestStreak,
+      'difficulty': session.difficulty.name,
+      'exerciseStats': exerciseStats,
+    };
+
+    final updatedSession = session.copyWith(summaryData: summary);
+    await _db.update('program_sessions', updatedSession.toMap(), where: 'id = ?', whereArgs: [session.id]);
+
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = updatedSession;
+
+    notifyListeners();
+
+    debugPrint('🏆 Сводка сгенерирована: ${completedDays.length}/${program.days.length} дней, тоннаж: ${session.totalVolumeCompleted.toStringAsFixed(0)} кг');
+  }
+
+  /// Получить программу по ID сессии
+  WorkoutProgram? getProgramForSession(String sessionId) {
+    try {
+      final session = _sessions.firstWhere((s) => s.id == sessionId);
+      return _programs.firstWhere((p) => p.id == session.programId);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

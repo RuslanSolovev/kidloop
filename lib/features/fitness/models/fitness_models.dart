@@ -1,4 +1,3 @@
-// features/fitness/models/fitness_models.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'enums.dart';
@@ -1186,5 +1185,294 @@ class WellbeingNote {
       notes: notes ?? this.notes,
       createdAt: createdAt,
     );
+  }
+}
+
+// ==================== НОВОЕ: СИСТЕМА СЛЕДОВАНИЯ ПРОГРАММАМ ====================
+
+/// Статус дня в активной сессии программы
+enum DaySessionStatus {
+  pending,     // Ожидает
+  current,     // Текущий (доступен для выполнения)
+  completed,   // Выполнен
+  skipped,     // Пропущен
+  locked       // Заблокирован (ещё не доступен)
+}
+
+/// Статус сессии программы
+enum ProgramSessionStatus {
+  active,      // В процессе
+  completed,   // Завершена успешно
+  abandoned,   // Брошена
+  paused       // На паузе
+}
+
+/// Уровень сложности программы (влияет на правила пропуска дней)
+enum ProgramDifficulty {
+  flexible,    // Можно пропускать без штрафов
+  standard,    // Пропуск = сброс серии
+  hardcore     // Пропуск = сброс недели
+}
+
+/// Состояние одного дня в активной сессии
+class DaySession {
+  final int dayIndex;
+  final DaySessionStatus status;
+  final DateTime? completedAt;
+  final double? volumeDone;
+  final double? avgRpe;
+  final String? notes;
+
+  DaySession({
+    required this.dayIndex,
+    this.status = DaySessionStatus.pending,
+    this.completedAt,
+    this.volumeDone,
+    this.avgRpe,
+    this.notes,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'dayIndex': dayIndex,
+    'status': status.name,
+    'completedAt': completedAt?.toIso8601String(),
+    'volumeDone': volumeDone,
+    'avgRpe': avgRpe,
+    'notes': notes,
+  };
+
+  factory DaySession.fromMap(Map<String, dynamic> map) => DaySession(
+    dayIndex: map['dayIndex'] ?? 0,
+    status: DaySessionStatus.values.firstWhere(
+          (s) => s.name == map['status'],
+      orElse: () => DaySessionStatus.pending,
+    ),
+    completedAt: map['completedAt'] != null ? DateTime.tryParse(map['completedAt']) : null,
+    volumeDone: map['volumeDone']?.toDouble(),
+    avgRpe: map['avgRpe']?.toDouble(),
+    notes: map['notes'],
+  );
+
+  DaySession copyWith({
+    DaySessionStatus? status,
+    DateTime? completedAt,
+    double? volumeDone,
+    double? avgRpe,
+    String? notes,
+  }) => DaySession(
+    dayIndex: dayIndex,
+    status: status ?? this.status,
+    completedAt: completedAt ?? this.completedAt,
+    volumeDone: volumeDone ?? this.volumeDone,
+    avgRpe: avgRpe ?? this.avgRpe,
+    notes: notes ?? this.notes,
+  );
+
+  /// Эмодзи для отображения статуса
+  String get statusEmoji {
+    switch (status) {
+      case DaySessionStatus.completed: return '✅';
+      case DaySessionStatus.current: return '🔥';
+      case DaySessionStatus.skipped: return '❌';
+      case DaySessionStatus.locked: return '🔒';
+      case DaySessionStatus.pending: return '⏳';
+    }
+  }
+
+  /// Цвет для отображения статуса
+  Color get statusColor {
+    switch (status) {
+      case DaySessionStatus.completed: return const Color(0xFF4CAF50);
+      case DaySessionStatus.current: return const Color(0xFFFF6B35);
+      case DaySessionStatus.skipped: return const Color(0xFFF44336);
+      case DaySessionStatus.locked: return Colors.grey;
+      case DaySessionStatus.pending: return Colors.grey;
+    }
+  }
+}
+
+/// Сессия прохождения программы (активная или завершённая)
+class ProgramSession {
+  final String id;
+  final String programId;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final int currentDayIndex;
+  final ProgramDifficulty difficulty;
+  final ProgramSessionStatus status;
+  final List<DaySession> daySessions;
+
+  // Статистика серии
+  final int streak;                    // Текущая серия выполненных дней
+  final int longestStreak;             // Максимальная серия за всё время
+
+  // Общая статистика
+  final double totalVolumeCompleted;   // Общий тоннаж
+  final int totalWorkoutsCompleted;    // Выполнено тренировок
+  final int totalWorkoutsSkipped;      // Пропущено тренировок
+  final double averageRpe;             // Средний RPE
+
+  // Для завершённых программ
+  final DateTime? completedAt;
+  final Map<String, dynamic> summaryData;
+
+  ProgramSession({
+    required this.id,
+    required this.programId,
+    required this.startDate,
+    this.endDate,
+    this.currentDayIndex = 0,
+    this.difficulty = ProgramDifficulty.standard,
+    this.status = ProgramSessionStatus.active,
+    this.daySessions = const [],
+    this.streak = 0,
+    this.longestStreak = 0,
+    this.totalVolumeCompleted = 0,
+    this.totalWorkoutsCompleted = 0,
+    this.totalWorkoutsSkipped = 0,
+    this.averageRpe = 0,
+    this.completedAt,
+    this.summaryData = const {},
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'programId': programId,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate?.toIso8601String(),
+      'currentDayIndex': currentDayIndex,
+      'difficulty': difficulty.name,
+      'status': status.name,
+      'daySessions': jsonEncode(daySessions.map((d) => d.toMap()).toList()),
+      'streak': streak,
+      'longestStreak': longestStreak,
+      'totalVolumeCompleted': totalVolumeCompleted,
+      'totalWorkoutsCompleted': totalWorkoutsCompleted,
+      'totalWorkoutsSkipped': totalWorkoutsSkipped,
+      'averageRpe': averageRpe,
+      'completedAt': completedAt?.toIso8601String(),
+      'summaryData': jsonEncode(summaryData),
+    };
+  }
+
+  factory ProgramSession.fromMap(Map<String, dynamic> map) {
+    List<DaySession> days = [];
+    if (map['daySessions'] != null) {
+      try {
+        dynamic data = map['daySessions'];
+        if (data is String) data = jsonDecode(data);
+        if (data is List) {
+          days = data.map((d) {
+            final Map<String, dynamic> dayMap = {};
+            (d as Map).forEach((key, value) {
+              dayMap[key.toString()] = value;
+            });
+            return DaySession.fromMap(dayMap);
+          }).toList();
+        }
+      } catch (_) {}
+    }
+
+    Map<String, dynamic> summary = {};
+    if (map['summaryData'] != null) {
+      try {
+        dynamic data = map['summaryData'];
+        if (data is String) {
+          summary = jsonDecode(data) as Map<String, dynamic>;
+        } else if (data is Map) {
+          summary = Map<String, dynamic>.from(data);
+        }
+      } catch (_) {}
+    }
+
+    return ProgramSession(
+      id: map['id'] ?? '',
+      programId: map['programId'] ?? '',
+      startDate: DateTime.parse(map['startDate']),
+      endDate: map['endDate'] != null ? DateTime.tryParse(map['endDate']) : null,
+      currentDayIndex: map['currentDayIndex'] ?? 0,
+      difficulty: ProgramDifficulty.values.firstWhere(
+            (d) => d.name == map['difficulty'],
+        orElse: () => ProgramDifficulty.standard,
+      ),
+      status: ProgramSessionStatus.values.firstWhere(
+            (s) => s.name == map['status'],
+        orElse: () => ProgramSessionStatus.active,
+      ),
+      daySessions: days,
+      streak: map['streak'] ?? 0,
+      longestStreak: map['longestStreak'] ?? 0,
+      totalVolumeCompleted: (map['totalVolumeCompleted'] ?? 0).toDouble(),
+      totalWorkoutsCompleted: map['totalWorkoutsCompleted'] ?? 0,
+      totalWorkoutsSkipped: map['totalWorkoutsSkipped'] ?? 0,
+      averageRpe: (map['averageRpe'] ?? 0).toDouble(),
+      completedAt: map['completedAt'] != null ? DateTime.tryParse(map['completedAt']) : null,
+      summaryData: summary,
+    );
+  }
+
+  ProgramSession copyWith({
+    DateTime? endDate,
+    int? currentDayIndex,
+    ProgramDifficulty? difficulty,
+    ProgramSessionStatus? status,
+    List<DaySession>? daySessions,
+    int? streak,
+    int? longestStreak,
+    double? totalVolumeCompleted,
+    int? totalWorkoutsCompleted,
+    int? totalWorkoutsSkipped,
+    double? averageRpe,
+    DateTime? completedAt,
+    Map<String, dynamic>? summaryData,
+  }) {
+    return ProgramSession(
+      id: id,
+      programId: programId,
+      startDate: startDate,
+      endDate: endDate ?? this.endDate,
+      currentDayIndex: currentDayIndex ?? this.currentDayIndex,
+      difficulty: difficulty ?? this.difficulty,
+      status: status ?? this.status,
+      daySessions: daySessions ?? this.daySessions,
+      streak: streak ?? this.streak,
+      longestStreak: longestStreak ?? this.longestStreak,
+      totalVolumeCompleted: totalVolumeCompleted ?? this.totalVolumeCompleted,
+      totalWorkoutsCompleted: totalWorkoutsCompleted ?? this.totalWorkoutsCompleted,
+      totalWorkoutsSkipped: totalWorkoutsSkipped ?? this.totalWorkoutsSkipped,
+      averageRpe: averageRpe ?? this.averageRpe,
+      completedAt: completedAt ?? this.completedAt,
+      summaryData: summaryData ?? this.summaryData,
+    );
+  }
+
+  /// Процент выполнения программы (0.0 - 1.0)
+  double get progressPercent {
+    if (daySessions.isEmpty) return 0;
+    final completed = daySessions.where((d) => d.status == DaySessionStatus.completed).length;
+    return completed / daySessions.length;
+  }
+
+  /// Эмодзи статуса сессии
+  String get statusEmoji {
+    switch (status) {
+      case ProgramSessionStatus.active: return '🔥';
+      case ProgramSessionStatus.completed: return '🏆';
+      case ProgramSessionStatus.abandoned: return '❌';
+      case ProgramSessionStatus.paused: return '⏸️';
+    }
+  }
+
+  /// Активна ли сессия
+  bool get isActive => status == ProgramSessionStatus.active;
+
+  /// Завершена ли сессия
+  bool get isCompleted => status == ProgramSessionStatus.completed;
+
+  /// Длительность сессии в днях
+  int get durationDays {
+    final end = endDate ?? DateTime.now();
+    return end.difference(startDate).inDays;
   }
 }
