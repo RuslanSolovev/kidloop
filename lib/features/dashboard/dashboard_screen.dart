@@ -34,12 +34,9 @@ import 'banner_detail_screen.dart';
 import 'parallax_panel.dart';
 import '../life_navigator/ui/widgets/calendar/calendar_weather.dart';
 
-
 // ==================== MIXINS ====================
-
 mixin SingleTapMixin {
   bool _isProcessing = false;
-
   Future<void> safeTap(Future<void> Function() action) async {
     if (_isProcessing) return;
     _isProcessing = true;
@@ -59,7 +56,6 @@ mixin HapticFeedbackMixin {
 }
 
 // ==================== THEME PROVIDER ====================
-
 class ThemeProvider extends ChangeNotifier {
   bool _isDarkMode = false;
   bool get isDarkMode => _isDarkMode;
@@ -83,7 +79,6 @@ class ThemeProvider extends ChangeNotifier {
 }
 
 // ==================== BANNER AD MODEL ====================
-
 class BannerAd {
   final String id;
   final String imageUrl;
@@ -129,7 +124,6 @@ class BannerAd {
 }
 
 // ==================== RECOMMENDATION ENGINE ====================
-
 class RecommendationEngine {
   final List<String> _viewHistory = [];
   final Map<String, double> _itemScores = {};
@@ -166,7 +160,6 @@ class RecommendationEngine {
 }
 
 // ==================== DASHBOARD SCREEN ====================
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -176,9 +169,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin, SingleTapMixin, HapticFeedbackMixin {
-
   // ==================== CONTROLLERS & ANIMATIONS ====================
-
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   late AnimationController _pulseController;
@@ -194,9 +185,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ==================== DRAG & DROP СОСТОЯНИЕ ====================
   bool _isReorderMode = false;
   int? _draggedIndex;
-
   List<int> _containerOrder = [0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
   final ScrollController _scrollController = ScrollController();
 
   final List<String> _containerNames = [
@@ -210,11 +199,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     'Шагомер',
     'Чаты',
     'Игры',
-    'Фитнес',  // 🔥 НОВОЕ
+    'Фитнес',
   ];
 
   // ==================== STATE ====================
-
   String _userName = 'Друг';
   String? _avatarUrl;
   String? _currentUserId;
@@ -237,8 +225,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isOnline = true;
   String _statusMessage = 'Сегодня активен';
 
-  // ==================== CONSTANTS ====================
+  // ==================== СОСТОЯНИЕ ДЛЯ ВЫЕЗЖАЮЩЕЙ ПАНЕЛИ ====================
+  bool _isPanelOpen = false;
+  final Duration _panelAnimationDuration = const Duration(milliseconds: 300);
+  late AnimationController _panelController;
+  late Animation<double> _panelAnimation;
 
+  // ==================== CONSTANTS ====================
   final List<String> _tips = [
     'Меняйся игрушками — спасай планету! 🌍',
     'Каждая ненужная вещь может стать сокровищем для другого 👶',
@@ -256,10 +249,20 @@ class _DashboardScreenState extends State<DashboardScreen>
       'https://functions.yandexcloud.net/d4e9bd6bmvqmife91gf4';
 
   // ==================== LIFECYCLE ====================
-
   @override
   void initState() {
     super.initState();
+
+    // 🔒 ИСПРАВЛЕНО: Простая инициализация (0 = закрыто, 1 = открыто)
+    _panelController = AnimationController(
+      vsync: this,
+      duration: _panelAnimationDuration,
+      value: 0.0,
+    );
+    _panelAnimation = CurvedAnimation(
+      parent: _panelController,
+      curve: Curves.easeOutCubic,
+    );
 
     _parallaxPageController = PageController(
       viewportFraction: 1.0,
@@ -287,11 +290,29 @@ class _DashboardScreenState extends State<DashboardScreen>
     _bannerPageController.dispose();
     _parallaxPageController.dispose();
     _scrollController.dispose();
+    _panelController.dispose();
     super.dispose();
   }
 
-  // ==================== ANIMATIONS INIT ====================
+  // ==================== 🆕 МЕТОДЫ УПРАВЛЕНИЯ ПАНЕЛЬЮ ====================
 
+  void _openPanel() {
+    if (!_isPanelOpen) {
+      setState(() => _isPanelOpen = true);
+      _panelController.forward();
+    }
+  }
+
+  void _closePanel() {
+    if (_isPanelOpen) {
+      setState(() => _isPanelOpen = false);
+      _panelController.reverse();
+    }
+  }
+
+  void _togglePanel() => _isPanelOpen ? _closePanel() : _openPanel();
+
+  // ==================== ANIMATIONS INIT ====================
   void _initAnimations() {
     _fadeController = AnimationController(
       vsync: this,
@@ -320,14 +341,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== DATA LOADING ====================
-
   Future<void> _loadInitialData() async {
     await _loadUserData();
     await _loadTodaySteps();
     await _loadCounters();
+
     try {
       final itemsProvider = context.read<ItemsProvider>();
       if (itemsProvider.items.isEmpty) await itemsProvider.loadItems();
+
       final bundleProvider = context.read<BundleProvider>();
       if (bundleProvider.allBundles.isEmpty) {
         await bundleProvider.loadAllBundles();
@@ -335,6 +357,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     } catch (e) {
       debugPrint("Ошибка загрузки: $e");
     }
+
     _dailyTip = (_tips..shuffle()).first;
     _loadLatestItems();
     _generateRecommendations();
@@ -379,6 +402,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final prefs = await SharedPreferences.getInstance();
     _currentUserId = prefs.getString('user_id');
     final jsonString = prefs.getString('user_profile');
+
     if (jsonString != null && jsonString.isNotEmpty) {
       try {
         final map = jsonDecode(jsonString) as Map<String, dynamic>;
@@ -487,8 +511,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       final items = context.read<ItemsProvider>().items;
       final bundles = context.read<BundleProvider>().allBundles;
-
       final List<dynamic> allItems = [...items, ...bundles];
+
       allItems.sort((a, b) {
         DateTime? dateA;
         DateTime? dateB;
@@ -524,7 +548,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _startBannerAutoScroll() {
     _bannerTimer?.cancel();
     if (_banners.isEmpty) return;
-
     _bannerTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (_banners.isNotEmpty && mounted) {
         final nextIndex = (_currentBannerIndex + 1) % _banners.length;
@@ -539,13 +562,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== РЕЖИМ ПЕРЕМЕЩЕНИЯ ====================
-
   void _handleTwoFingerTap() {
     if (_isPanModeActive) {
       _isPanModeActive = false;
       heavyHaptic();
       _playClickSound();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('📍 Позиция зафиксирована'),
@@ -557,7 +578,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       _isPanModeActive = true;
       mediumHaptic();
       _playClickSound();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('👆 Перемещайте экран пальцем'),
@@ -627,7 +647,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== REFRESH ====================
-
   Future<void> _refreshData() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
@@ -655,7 +674,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== NAVIGATION ====================
-
   Future<void> _openMainApp() async {
     lightHaptic();
     try {
@@ -797,7 +815,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
             const SizedBox(height: 28),
-
             GestureDetector(
               onTap: () {
                 heavyHaptic();
@@ -875,9 +892,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             GestureDetector(
               onTap: () {
                 heavyHaptic();
@@ -957,9 +972,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -990,7 +1003,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== BUILD ====================
-
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -999,8 +1011,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,  // ← ТЁМНЫЕ иконки (для светлого фона)
-        statusBarBrightness: Brightness.light,      // ← СВЕТЛЫЙ статус-бар
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
       ),
     );
 
@@ -1030,164 +1042,268 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Scaffold(
         backgroundColor: Colors.transparent,
         extendBodyBehindAppBar: true,
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: backgroundGradient,
-          ),
-          child: Stack(
-            children: [
-              // ========== ПАРАЛЛАКС PAGE VIEW ==========
-              PageView(
-                controller: _parallaxPageController,
-                physics: _isPanModeActive
-                    ? const ClampingScrollPhysics()
-                    : const NeverScrollableScrollPhysics(),
-                children: [
-                  const LeftPanel(),
-                  _buildMainDashboard(isDark),
-                  const RightPanel(),
-                ],
-              ),
-
-              // ========== ИНДИКАТОР СТРАНИЦ ==========
+        body: Stack(
+          children: [
+            // ========== ПАРАЛЛАКС PAGE VIEW ==========
+            PageView(
+              controller: _parallaxPageController,
+              physics: _isPanModeActive
+                  ? const ClampingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              children: [
+                const LeftPanel(),
+                _buildMainDashboard(isDark),
+                const RightPanel(),
+              ],
+            ),
+            // ========== ИНДИКАТОР СТРАНИЦ ==========
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              child: _buildPageIndicator(isDark),
+            ),
+            // ========== ВЫЕЗЖАЮЩАЯ ПАНЕЛЬ УПРАВЛЕНИЯ ==========
+            _buildSlideOutPanel(isDark),
+            // ========== ИНДИКАТОР РЕЖИМА ПЕРЕТАСКИВАНИЯ ==========
+            if (_isReorderMode)
               Positioned(
-                bottom: 20,
+                top: 60,
                 left: 0,
                 right: 0,
-                child: _buildPageIndicator(isDark),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.withOpacity(0.4),
+                        blurRadius: 15,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.drag_indicator_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'Зажмите и перетащите контейнер',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-
-              // ========== КНОПКИ УПРАВЛЕНИЯ ==========
+            // ========== ИНДИКАТОР РЕЖИМА ПАНОРАМИРОВАНИЯ ==========
+            if (_isPanModeActive && !_isReorderMode)
               Positioned(
-                bottom: 80,
-                right: 24,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Кнопка перетаскивания контейнеров
-                    AnimatedScale(
-                      scale: _isReorderMode ? 1.1 : 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: FloatingActionButton(
-                        heroTag: 'reorder',
-                        onPressed: _toggleReorderMode,
-                        backgroundColor: _isReorderMode ? Colors.purple : Colors.blue,
-                        mini: true,
-                        elevation: 6,
-                        shape: const CircleBorder(),
-                        child: Icon(
-                          _isReorderMode ? Icons.check_rounded : Icons.reorder_rounded,
+                top: 60,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.drag_handle_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'Режим перемещения активен',
+                        style: TextStyle(
                           color: Colors.white,
-                          size: 24,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Кнопка режима панорамирования
-                    AnimatedScale(
-                      scale: _pulseAnimation.value,
-                      duration: const Duration(milliseconds: 300),
-                      child: FloatingActionButton(
-                        heroTag: 'pan',
-                        onPressed: _handleTwoFingerTap,
-                        backgroundColor: _isPanModeActive ? Colors.red : Colors.orange,
-                        elevation: 8,
-                        shape: const CircleBorder(),
-                        child: Icon(
-                          _isPanModeActive ? Icons.lock_rounded : Icons.open_with_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // ========== ИНДИКАТОР РЕЖИМА ПЕРЕТАСКИВАНИЯ ==========
-              if (_isReorderMode)
-                Positioned(
-                  top: 60,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withOpacity(0.4),
-                          blurRadius: 15,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Row(
+  // ==================== 🔒 ВЫЕЗЖАЮЩАЯ ПАНЕЛЬ УПРАВЛЕНИЯ (ИСПРАВЛЕНА) ====================
+  Widget _buildSlideOutPanel(bool isDark) {
+    // 🔒 Геометрия: ручка 26px + контент 112px = 138px всего
+    const double handleWidth = 26;
+    const double contentWidth = 112;          // 8 + 44 + 8 + 44 + 8 (кнопки!)
+    const double rightOpen = 8;               // открыта: полностью на экране
+    const double rightClosed = rightOpen - contentWidth; // закрыта: видна только ручка
+
+    return AnimatedBuilder(
+      animation: _panelAnimation,
+      builder: (context, child) {
+        final double t = _panelAnimation.value; // 0 = закрыто, 1 = открыто
+        final double right = rightClosed + (rightOpen - rightClosed) * t;
+
+        return Positioned(
+          right: right,
+          top: MediaQuery.of(context).size.height / 2 - 70,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _togglePanel, // ✅ тап по ручке тоже работает
+            onHorizontalDragEnd: (details) {
+              // ✅ Надёжный свайп по скорости, а не по delta
+              final double v = details.primaryVelocity ?? 0;
+              if (v < -100) {
+                _openPanel();   // свайп влево → открыть
+              } else if (v > 100) {
+                _closePanel();  // свайп вправо → закрыть
+              }
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1A1D24).withOpacity(0.97)
+                    : Colors.white.withOpacity(0.97),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ====== РУЧКА С ПОЛОСКАМИ (всегда видна) ======
+                  SizedBox(
+                    width: handleWidth,
+                    height: 70,
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.drag_indicator_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Зажмите и перетащите контейнер',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          width: 4,
+                          height: _isPanelOpen ? 16 : 22,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade400,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.orange.withOpacity(0.8),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          width: 4,
+                          height: _isPanelOpen ? 22 : 16,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade400,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.orange.withOpacity(0.8),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-
-              // ========== ИНДИКАТОР РЕЖИМА ПАНОРАМИРОВАНИЯ ==========
-              if (_isPanModeActive && !_isReorderMode)
-                Positioned(
-                  top: 60,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.drag_handle_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Режим перемещения активен',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                  // ====== КОНТЕНТ (фиксированная ширина — кнопки НЕ обрезаются!) ======
+                  SizedBox(
+                    width: contentWidth,
+                    child: Opacity(
+                      opacity: t,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(width: 8),
+                          _buildPanelButton(
+                            icon: _isReorderMode
+                                ? Icons.check_rounded
+                                : Icons.reorder_rounded,
+                            color: _isReorderMode ? Colors.purple : Colors.blue,
+                            onTap: _toggleReorderMode,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          _buildPanelButton(
+                            icon: _isPanModeActive
+                                ? Icons.lock_rounded
+                                : Icons.open_with_rounded,
+                            color: _isPanModeActive ? Colors.green : Colors.orange,
+                            onTap: _handleTwoFingerTap,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPanelButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: color.withOpacity(0.4),
+            width: 1.5,
+          ),
+        ),
+        child: Icon(
+          icon,
+          color: color,
+          size: 20,
         ),
       ),
     );
   }
 
   // ==================== ИНДИКАТОР СТРАНИЦ ====================
-
   Widget _buildPageIndicator(bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1221,25 +1337,20 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== ОСНОВНОЙ DASHBOARD ====================
-
   Widget _buildMainDashboard(bool isDark) {
     final textColor = isDark ? Colors.white : const Color(0xFF1A1D24);
 
-    // Создаем список виджетов в соответствии с порядком
     final List<Widget Function()> containerBuilders = [
-      // 0 - Приветствие с погодой
           () => _buildDraggableContainer(
         index: 0,
         isDark: isDark,
         child: _buildWelcomeHeaderWithWeather(isDark),
       ),
-      // 1 - Действия
           () => _buildDraggableContainer(
         index: 1,
         isDark: isDark,
         child: _buildTopActions(isDark, textColor),
       ),
-      // 2 - Открыть ленту
           () => _buildDraggableContainer(
         index: 2,
         isDark: isDark,
@@ -1248,7 +1359,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: _buildOpenAppButton(isDark),
         ),
       ),
-      // 3 - Баннеры
           () {
         if (_banners.isEmpty) return const SizedBox.shrink();
         return _buildDraggableContainer(
@@ -1257,7 +1367,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: _buildBannerCarousel(isDark),
         );
       },
-      // 4 - Рекомендации
           () {
         if (_recommendedItems.isEmpty) return const SizedBox.shrink();
         return _buildDraggableContainer(
@@ -1266,39 +1375,31 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: _buildRecommendations(isDark, textColor),
         );
       },
-      // 5 - Новые объявления
           () => _buildDraggableContainer(
         index: 5,
         isDark: isDark,
         child: _buildLatestItemsCarousel(isDark, textColor),
       ),
-      // 6 - Быстрые действия
           () => _buildDraggableContainer(
         index: 6,
         isDark: isDark,
         child: _buildQuickActions(isDark, textColor),
       ),
-      // 7 - Шагомер
           () => _buildDraggableContainer(
         index: 7,
         isDark: isDark,
         child: _buildStepTracker(isDark),
       ),
-      // 8 - Чаты
           () => _buildDraggableContainer(
         index: 8,
         isDark: isDark,
         child: _buildChatsBlock(isDark),
       ),
-
-      // 10 - Фитнес (🔥 НОВОЕ)
           () => _buildDraggableContainer(
         index: 10,
         isDark: isDark,
         child: _buildFitnessHero(isDark),
       ),
-
-      // 9 - Игры
           () => _buildDraggableContainer(
         index: 9,
         isDark: isDark,
@@ -1306,20 +1407,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     ];
 
-    // Строим список слайверов в соответствии с порядком
     List<Widget> slivers = [];
     for (int i = 0; i < _containerOrder.length; i++) {
       final containerIndex = _containerOrder[i];
       final widget = containerBuilders[containerIndex]();
-      slivers.add(SliverToBoxAdapter(child: widget));
-
-      // Добавляем отступы между контейнерами
+      slivers.add(
+        SliverToBoxAdapter(
+          key: ValueKey('container_$containerIndex'),
+          child: widget,
+        ),
+      );
       if (i < _containerOrder.length - 1) {
         slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 24)));
       }
     }
 
-    // Добавляем совет дня в конец
     slivers.add(
       SliverToBoxAdapter(
         child: Padding(
@@ -1340,11 +1442,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         backgroundColor: isDark ? const Color(0xFF1A1D24) : Colors.white,
         child: CustomScrollView(
           controller: _scrollController,
-          physics: _isReorderMode
-              ? const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          )
-              : const BouncingScrollPhysics(
+          physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
           ),
           slivers: slivers,
@@ -1353,14 +1451,184 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ==================== 🔥 ФИТНЕС-БАННЕР (HERO) ====================
+  // ==================== 🔒 DRAGGABLE CONTAINER WRAPPER (ИСПРАВЛЕН) ====================
+  Widget _buildDraggableContainer({
+    required int index,
+    required bool isDark,
+    required Widget child,
+  }) {
+    if (!_isReorderMode) {
+      return FadeTransition(
+        key: ValueKey('container_$index'),
+        opacity: _fadeAnimation,
+        child: child,
+      );
+    }
 
+    final bool isDragging = _draggedIndex == index;
+
+    return FadeTransition(
+      key: ValueKey('container_$index'),
+      opacity: _fadeAnimation,
+      child: LongPressDraggable<int>(
+        data: index,
+        delay: const Duration(milliseconds: 250),
+        onDragStarted: () {
+          mediumHaptic();
+          setState(() => _draggedIndex = index);
+        },
+        onDragUpdate: (details) => _handleDragScroll(details.globalPosition),
+        onDragEnd: (_) {
+          setState(() => _draggedIndex = null);
+          _saveContainerOrder();
+        },
+        onDraggableCanceled: (velocity, offset) {
+          setState(() => _draggedIndex = null);
+          _saveContainerOrder();
+        },
+        feedback: Material(
+          elevation: 12,
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: MediaQuery.of(context).size.width - 32,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A1D24) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.purple.withOpacity(0.8), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Opacity(opacity: 0.9, child: child),
+          ),
+        ),
+        childWhenDragging: Opacity(
+          opacity: 0.3,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.purple.withOpacity(0.4),
+                width: 1.5,
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: child,
+          ),
+        ),
+        // 🔒 DragTarget ВНУТРИ draggable: живая перестановка при наведении
+        // 🔒 DragTarget ВНУТРИ draggable: живая перестановка при наведении
+        child: DragTarget<int>(
+          // ✅ ИСПРАВЛЕНО: Убрали onDragEnter, логика перенесена в onWillAccept
+          onWillAccept: (data) {
+            if (data != null && data != index) {
+              _reorderLive(index); // 🔥 Запускаем живую перестановку при наведении
+              return true;
+            }
+            return false;
+          },
+          onAccept: (_) {
+            selectionHaptic();
+            _saveContainerOrder();
+          },
+          builder: (context, candidateData, rejectedData) {
+            final bool isTarget =
+                candidateData.isNotEmpty && candidateData.first != null;
+            return Stack(
+              children: [
+                child,
+                // Подсветка цели, над которой держим
+                if (isTarget && !isDragging)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.purple, width: 2),
+                          color: Colors.purple.withOpacity(0.08),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Значок «можно тащить»
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.drag_indicator_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // 🔥 ЖИВАЯ перестановка: контейнеры меняются местами прямо во время перетаскивания
+  void _reorderLive(int targetIndex) {
+    final int? dragged = _draggedIndex;
+    if (dragged == null || dragged == targetIndex) return;
+
+    final int from = _containerOrder.indexOf(dragged);
+    final int to = _containerOrder.indexOf(targetIndex);
+    if (from == -1 || to == -1 || from == to) return;
+
+    setState(() {
+      _containerOrder.removeAt(from);
+      // 🔒 ГЛАВНЫЙ ФИКС: после removeAt вставляем именно в `to`,
+      // а не в `to - 1` — иначе дроп на соседний снизу ничего не делал
+      _containerOrder.insert(to, dragged);
+    });
+    selectionHaptic();
+  }
+
+  void _handleDragScroll(Offset globalPosition) {
+    if (!_isReorderMode || !_scrollController.hasClients) return;
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final Offset localPosition = renderBox.globalToLocal(globalPosition);
+    final double screenHeight = renderBox.size.height;
+
+    final double topZone = screenHeight * 0.15;
+    final double bottomZone = screenHeight * 0.85;
+
+    double scrollSpeed = 0;
+    if (localPosition.dy < topZone) {
+      scrollSpeed = -((topZone - localPosition.dy) / topZone) * 15;
+    } else if (localPosition.dy > bottomZone) {
+      scrollSpeed = ((localPosition.dy - bottomZone) / (screenHeight - bottomZone)) * 15;
+    }
+
+    if (scrollSpeed != 0) {
+      final newOffset = _scrollController.offset + scrollSpeed;
+      _scrollController.jumpTo(
+        newOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      );
+    }
+  }
+
+  // ==================== 🔥 ФИТНЕС-БАННЕР (HERO) ====================
   Widget _buildFitnessHero(bool isDark) {
     FitnessProvider fitness;
     try {
       fitness = context.watch<FitnessProvider>();
     } catch (_) {
-      // Если провайдер не инициализирован — показываем упрощённую версию
       return _buildFitnessHeroFallback(isDark);
     }
 
@@ -1407,7 +1675,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 🖼️ Фоновое изображение зала
                 Image.asset(
                   'assets/images/kachalka.jpeg',
                   fit: BoxFit.cover,
@@ -1434,7 +1701,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                     );
                   },
                 ),
-                // Затемнение
                 DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -1448,7 +1714,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                 ),
-                // Неоновая полоса сверху
                 Positioned(
                   top: 0,
                   left: 0,
@@ -1467,13 +1732,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                 ),
-                // Контент
                 Padding(
                   padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Верхняя строка: GYM + стрик
                       Row(
                         children: [
                           Container(
@@ -1542,7 +1805,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ],
                       ),
                       const Spacer(),
-                      // Заголовок
                       const Text(
                         'Твой зал ждёт тебя',
                         style: TextStyle(
@@ -1563,7 +1825,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                       ),
                       const SizedBox(height: 14),
-                      // Активная программа
                       if (activeSession != null && activeProgram != null) ...[
                         Row(
                           children: [
@@ -1604,7 +1865,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         const SizedBox(height: 12),
                       ],
-                      // Статистика
                       Row(
                         children: [
                           _buildFitnessHeroStatChip(
@@ -1653,7 +1913,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-// Фолбэк если провайдер недоступен
   Widget _buildFitnessHeroFallback(bool isDark) {
     return GestureDetector(
       onTap: () {
@@ -1819,206 +2078,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return volume.toStringAsFixed(0);
   }
 
-
-  // ==================== DRAGGABLE CONTAINER WRAPPER ====================
-
-  Widget _buildDraggableContainer({
-    required int index,
-    required bool isDark,
-    required Widget child,
-  }) {
-    if (!_isReorderMode) {
-      return FadeTransition(
-        opacity: _fadeAnimation,
-        child: child,
-      );
-    }
-
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: LongPressDraggable<int>(
-        data: index,
-        delay: Duration(milliseconds: 300),
-        onDragStarted: () {
-          mediumHaptic();
-          setState(() {
-            _draggedIndex = index;
-          });
-        },
-        onDragUpdate: (details) {
-          // НОВОЕ: Автоматический скролл при перетаскивании
-          _handleDragScroll(details.globalPosition);
-        },
-        onDragEnd: (details) {
-          setState(() {
-            _draggedIndex = null;
-          });
-          _saveContainerOrder();
-        },
-        onDraggableCanceled: (velocity, offset) {
-          setState(() {
-            _draggedIndex = null;
-          });
-        },
-        feedback: Material(
-          elevation: 12,
-          borderRadius: BorderRadius.circular(20),
-          shadowColor: Colors.purple.withOpacity(0.5),
-          child: Container(
-            width: MediaQuery.of(context).size.width - 32,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.purple.withOpacity(0.8),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: Opacity(
-              opacity: 0.85,
-              child: child,
-            ),
-          ),
-        ),
-        childWhenDragging: Opacity(
-          opacity: 0.4,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.purple.withOpacity(0.3),
-                width: 2,
-                style: BorderStyle.solid,
-              ),
-            ),
-            child: child,
-          ),
-        ),
-        child: DragTarget<int>(
-          onWillAcceptWithDetails: (details) {
-            return details.data != index;
-          },
-          onAcceptWithDetails: (details) {
-            heavyHaptic();
-            final fromIndex = details.data;
-            final toIndex = _containerOrder.indexOf(index);
-            final fromOrderIndex = _containerOrder.indexOf(fromIndex);
-
-            setState(() {
-              final item = _containerOrder.removeAt(fromOrderIndex);
-              _containerOrder.insert(toIndex, item);
-            });
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '✅ "${_containerNames[fromIndex]}" перемещён',
-                  style: TextStyle(fontSize: 13),
-                ),
-                duration: Duration(milliseconds: 800),
-                backgroundColor: Colors.purple.shade600,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
-          builder: (context, candidateData, rejectedData) {
-            final isHovering = candidateData.isNotEmpty;
-            return AnimatedContainer(
-              duration: Duration(milliseconds: 200),
-              margin: EdgeInsets.symmetric(
-                vertical: isHovering ? 8.0 : 0.0,
-                horizontal: isHovering ? 4.0 : 0.0,
-              ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: isHovering
-                    ? Border.all(
-                  color: Colors.purple.withOpacity(0.8),
-                  width: 2.5,
-                )
-                    : _draggedIndex == index
-                    ? Border.all(
-                  color: Colors.purple.withOpacity(0.5),
-                  width: 2,
-                )
-                    : null,
-                boxShadow: isHovering
-                    ? [
-                  BoxShadow(
-                    color: Colors.purple.withOpacity(0.4),
-                    blurRadius: 15,
-                    spreadRadius: 3,
-                  ),
-                ]
-                    : null,
-              ),
-              child: Stack(
-                children: [
-                  child,
-                  if (_isReorderMode)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.drag_indicator_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-// НОВЫЙ МЕТОД: Автоматический скролл при перетаскивании
-  void _handleDragScroll(Offset globalPosition) {
-    if (!_isReorderMode || !_scrollController.hasClients) return;
-
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset localPosition = renderBox.globalToLocal(globalPosition);
-    final double screenHeight = renderBox.size.height;
-
-    // Зоны активации скролла (верхние и нижние 15% экрана)
-    final double topZone = screenHeight * 0.15;
-    final double bottomZone = screenHeight * 0.85;
-
-    double scrollSpeed = 0;
-
-    if (localPosition.dy < topZone) {
-      // Ближе к верху - скроллим вверх
-      scrollSpeed = -((topZone - localPosition.dy) / topZone) * 15;
-    } else if (localPosition.dy > bottomZone) {
-      // Ближе к низу - скроллим вниз
-      scrollSpeed = ((localPosition.dy - bottomZone) / (screenHeight - bottomZone)) * 15;
-    }
-
-    if (scrollSpeed != 0) {
-      final newOffset = _scrollController.offset + scrollSpeed;
-      _scrollController.jumpTo(
-        newOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-      );
-    }
-  }
-
   // ==================== WELCOME HEADER С ПОГОДОЙ ====================
-
   Widget _buildWelcomeHeaderWithWeather(bool isDark) {
     return Container(
       margin: EdgeInsets.zero,
@@ -2096,9 +2156,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ],
                 ),
-
                 const SizedBox(width: 14),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2184,7 +2242,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ],
                   ),
                 ),
-
                 if (_currentUserId == '68a878d2-0c31-46f9-917a-898ff9403311')
                   Container(
                     decoration: BoxDecoration(
@@ -2214,9 +2271,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2232,7 +2287,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ),
                     Text(
-                      '${_levelProgress} / $_maxLevelProgress',
+                      '$_levelProgress / $_maxLevelProgress',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 11,
@@ -2260,13 +2315,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             // ========== ВСТРОЕННЫЙ БЛОК ПОГОДЫ ==========
             Container(
               width: double.infinity,
-              height: 100,
+              height: 140,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 image: const DecorationImage(
@@ -2289,8 +2342,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 padding: const EdgeInsets.all(12),
                 child: const CalendarWeather(
                   isDark: true,
-                  transparent: true,  // ← ВКЛЮЧАЕМ прозрачный режим
-                  compact: false,      // ← КРУПНЫЙ текст
+                  transparent: true,
+                  compact: false,
                 ),
               ),
             ),
@@ -2301,7 +2354,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== TOP ACTIONS ====================
-
   Widget _buildTopActions(bool isDark, Color textColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2366,7 +2418,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
             ),
-
             GestureDetector(
               onTap: () {
                 lightHaptic();
@@ -2427,7 +2478,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== OPEN APP BUTTON ====================
-
   Widget _buildOpenAppButton(bool isDark) {
     return GestureDetector(
       onTap: () => safeTap(_openMainApp),
@@ -2526,7 +2576,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== BANNER CAROUSEL ====================
-
   Widget _buildBannerCarousel(bool isDark) {
     if (_banners.isEmpty) return const SizedBox.shrink();
 
@@ -2609,7 +2658,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 ),
                               ),
                             ),
-
                           Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
@@ -2622,7 +2670,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                               ),
                             ),
                           ),
-
                           Padding(
                             padding: const EdgeInsets.all(20),
                             child: Column(
@@ -2683,7 +2730,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             },
           ),
         ),
-
         if (_banners.length > 1)
           Padding(
             padding: const EdgeInsets.only(top: 16),
@@ -2721,7 +2767,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== RECOMMENDATIONS ====================
-
   Widget _buildRecommendations(bool isDark, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -3035,7 +3080,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== LATEST ITEMS ====================
-
   Widget _buildLatestItemsCarousel(bool isDark, Color textColor) {
     if (_latestItems.isEmpty && _latestBundles.isEmpty) {
       return const SizedBox.shrink();
@@ -3299,7 +3343,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== ITEM GRID ====================
-
   Widget _buildItemGrid(List<BundleItem> items) {
     final showItems = items.take(6).toList();
     final remaining = items.length - 6;
@@ -3393,7 +3436,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== QUICK ACTIONS ====================
-
   Widget _buildQuickActions(bool isDark, Color textColor) {
     final actions = [
       {'label': 'Лента', 'image': 'assets/images/lenta.jpeg', 'route': 'main'},
@@ -3506,7 +3548,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== STEP TRACKER ====================
-
   Widget _buildStepTracker(bool isDark) {
     final progress = (_todaySteps / 10000).clamp(0.0, 1.0);
 
@@ -3631,7 +3672,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== CHATS BLOCK ====================
-
   Widget _buildChatsBlock(bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -3758,7 +3798,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== GAMES BLOCK ====================
-
   Widget _buildGamesBlock(bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -3853,7 +3892,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ==================== DAILY TIP ====================
-
   Widget _buildDailyTip(bool isDark, Color textColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),

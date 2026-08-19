@@ -48,6 +48,10 @@ class _WorkoutExecutionScreenState
   String? _workoutPhotoPath;
   final ImagePicker _imagePicker = ImagePicker();
 
+  // 🔒 ЗАЩИТА ОТ ДУБЛИРОВАНИЯ ЗАПИСЕЙ В ЖУРНАЛЕ
+  bool _isFinishing = false;
+  String? _savedLogId;
+
   @override
   void initState() {
     super.initState();
@@ -773,10 +777,16 @@ class _WorkoutExecutionScreenState
   Widget _buildActiveScreen(
       bool isDark, FitnessProvider provider) {
     final currentConfig = _getCurrentConfig();
+
+    // 🔒 ИСПРАВЛЕНО: Убрали вызов _finishWorkout() из build-метода!
+    // Раньше здесь было: if (currentConfig == null) { _finishWorkout(); ... }
+    // Это вызывало дублирование при каждом rebuild.
     if (currentConfig == null) {
-      _finishWorkout();
+      // Если тренировка завершена, просто показываем экран завершения
+      // БЕЗ вызова _finishWorkout() (он уже был вызван один раз в _moveToNext или _skipSet/_skipExercise)
       return _buildCompletedScreen(isDark);
     }
+
     final exData = provider.exercises.firstWhere(
           (e) => e.id == currentConfig.exercise.exerciseId,
       orElse: () =>
@@ -1294,6 +1304,8 @@ class _WorkoutExecutionScreenState
         _currentSetIndex = 0;
         _currentExIndex++;
         if (_getCurrentConfig() == null) {
+          // 🔒 Тренировка завершена - вызываем _finishWorkout ОДИН РАЗ
+          // Защита от повторного вызова внутри _finishWorkout через флаг _isFinishing
           _finishWorkout();
         } else {
           _phase = WorkoutPhase.rest;
@@ -1772,6 +1784,18 @@ class _WorkoutExecutionScreenState
                     color: isDark
                         ? Colors.white
                         : Colors.black87)),
+            if (_savedLogId != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'ID: $_savedLogId',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? Colors.white38 : Colors.grey.shade500,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
             _buildDetailedCompletionStats(isDark),
             const SizedBox(height: 32),
@@ -2127,6 +2151,7 @@ class _WorkoutExecutionScreenState
     return _config[_currentExIndex];
   }
 
+  // 🔒 ИСПРАВЛЕНО: Пропуск подхода + проверка завершения тренировки
   void _skipSet() {
     HapticFeedback.lightImpact();
     final config = _getCurrentConfig();
@@ -2140,14 +2165,23 @@ class _WorkoutExecutionScreenState
         _currentExIndex++;
       }
     });
+    // 🔒 Проверка завершения тренировки после пропуска
+    if (_getCurrentConfig() == null) {
+      _finishWorkout();
+    }
   }
 
+  // 🔒 ИСПРАВЛЕНО: Пропуск упражнения + проверка завершения тренировки
   void _skipExercise() {
     HapticFeedback.mediumImpact();
     setState(() {
       _currentExIndex++;
       _currentSetIndex = 0;
     });
+    // 🔒 Проверка завершения тренировки после пропуска упражнения
+    if (_getCurrentConfig() == null) {
+      _finishWorkout();
+    }
   }
 
   int _totalCompletedSets() {
@@ -2168,100 +2202,119 @@ class _WorkoutExecutionScreenState
     return total;
   }
 
+  // 🔒 ИСПРАВЛЕНО: Добавлена защита от повторного вызова!
   Future<void> _finishWorkout() async {
-    if (_completedData.isEmpty) {
-      if (mounted)
-        setState(
-                () => _phase = WorkoutPhase.completed);
+    // 🔒 Защита 1: Если уже в процессе завершения - выходим
+    if (_isFinishing) {
+      debugPrint('⚠️ _finishWorkout уже выполняется, пропускаем повторный вызов');
       return;
     }
 
-    final provider =
-    context.read<FitnessProvider>();
+    // 🔒 Защита 2: Если тренировка уже завершена - выходим
+    if (_phase == WorkoutPhase.completed) {
+      debugPrint('⚠️ Тренировка уже завершена, пропускаем');
+      return;
+    }
 
-    final List<WorkoutExercise> exercisesLog = [];
-    for (final config in _config) {
-      final exerciseId =
-          config.exercise.exerciseId;
-      final completedSets =
-          _completedData[exerciseId] ?? [];
-      final List<ExerciseSet> sets = [];
+    // 🔒 Защита 3: Если уже есть сохранённый лог - выходим
+    if (_savedLogId != null) {
+      debugPrint('⚠️ Лог уже сохранён ($_savedLogId), пропускаем');
+      return;
+    }
 
-      for (int i = 0;
-      i < config.sets.length;
-      i++) {
-        final planned = config.sets[i];
-        final actual = completedSets.firstWhere(
-              (cs) => cs.setIndex == i,
-          orElse: () => CompletedSetData(
-            exerciseIndex: 0,
-            setIndex: i,
-            reps: planned.reps,
-            weight: planned.weight,
-            duration: planned.duration,
-            intensity: planned.intensity,
-            rpe: 0,
-            isWarmup: planned.isWarmup,
-          ),
-        );
+    // Если данных нет - просто показываем экран завершения
+    if (_completedData.isEmpty) {
+      if (mounted) {
+        setState(() => _phase = WorkoutPhase.completed);
+      }
+      return;
+    }
 
-        sets.add(ExerciseSet(
-          setNumber: i + 1,
-          reps: actual.reps,
-          weight: actual.weight,
-          rpe: actual.rpe,
-          isWarmup: actual.isWarmup,
-          status: completedSets.any(
-                  (cs) => cs.setIndex == i)
-              ? SetStatus.completed
-              : SetStatus.skipped,
+    // 🔒 Блокируем повторные вызовы
+    _isFinishing = true;
+
+    try {
+      final provider = context.read<FitnessProvider>();
+
+      final List<WorkoutExercise> exercisesLog = [];
+      for (final config in _config) {
+        final exerciseId = config.exercise.exerciseId;
+        final completedSets = _completedData[exerciseId] ?? [];
+        final List<ExerciseSet> sets = [];
+
+        for (int i = 0; i < config.sets.length; i++) {
+          final planned = config.sets[i];
+          final actual = completedSets.firstWhere(
+                (cs) => cs.setIndex == i,
+            orElse: () => CompletedSetData(
+              exerciseIndex: 0,
+              setIndex: i,
+              reps: planned.reps,
+              weight: planned.weight,
+              duration: planned.duration,
+              intensity: planned.intensity,
+              rpe: 0,
+              isWarmup: planned.isWarmup,
+            ),
+          );
+
+          sets.add(ExerciseSet(
+            setNumber: i + 1,
+            reps: actual.reps,
+            weight: actual.weight,
+            rpe: actual.rpe,
+            isWarmup: actual.isWarmup,
+            status: completedSets.any((cs) => cs.setIndex == i)
+                ? SetStatus.completed
+                : SetStatus.skipped,
+          ));
+        }
+
+        exercisesLog.add(WorkoutExercise(
+          id: config.exercise.id,
+          exerciseId: exerciseId,
+          order: config.exercise.order,
+          sets: sets,
+          groupType: config.exercise.groupType,
+          restBetweenSeconds: config.exercise.restBetweenSeconds,
         ));
       }
 
-      exercisesLog.add(WorkoutExercise(
-        id: config.exercise.id,
-        exerciseId: exerciseId,
-        order: config.exercise.order,
-        sets: sets,
-        groupType: config.exercise.groupType,
-        restBetweenSeconds:
-        config.exercise.restBetweenSeconds,
-      ));
-    }
+      final totalVolume = _calculateTotalVolume();
+      final logId = DateTime.now().millisecondsSinceEpoch.toString();
+      final log = WorkoutLog(
+        id: logId,
+        date: DateTime.now(),
+        programId: widget.day.programId,
+        dayNumber: widget.day.dayNumber,
+        status: WorkoutDayStatus.completed,
+        startTime: _startTime,
+        endTime: DateTime.now(),
+        exercisesLog: exercisesLog,
+        totalRestTime: null,
+        totalVolume: totalVolume,
+        avgRpe: null,
+        bodyWeight: null,
+        moodEnergy: _moodEnergy,
+        moodSleep: _moodSleep,
+        moodMotivation: _moodMotivation,
+        moodNotes: _moodNotes,
+        workoutPhotoPath: _workoutPhotoPath,
+      );
 
-    final totalVolume = _calculateTotalVolume();
-    final log = WorkoutLog(
-      id: DateTime.now()
-          .millisecondsSinceEpoch
-          .toString(),
-      date: DateTime.now(),
-      programId: widget.day.programId,
-      dayNumber: widget.day.dayNumber,
-      status: WorkoutDayStatus.completed,
-      startTime: _startTime,
-      endTime: DateTime.now(),
-      exercisesLog: exercisesLog,
-      totalRestTime: null,
-      totalVolume: totalVolume,
-      avgRpe: null,
-      bodyWeight: null,
-      moodEnergy: _moodEnergy,
-      moodSleep: _moodSleep,
-      moodMotivation: _moodMotivation,
-      moodNotes: _moodNotes,
-      workoutPhotoPath: _workoutPhotoPath,
-    );
-
-    try {
+      // 🔒 СОХРАНЯЕМ ТОЛЬКО ОДИН РАЗ
       await provider.saveWorkoutLogDirect(log);
-      if (mounted)
-        setState(
-                () => _phase = WorkoutPhase.completed);
+      _savedLogId = logId;  // 🔒 Запоминаем ID сохранённого лога
+      debugPrint('✅ Тренировка сохранена (ОДИН РАЗ): $logId, упражнений: ${exercisesLog.length}');
+
+      if (mounted) {
+        setState(() => _phase = WorkoutPhase.completed);
+      }
     } catch (e) {
-      debugPrint('Ошибка сохранения лога: $e');
-      if (mounted)
-        setState(
-                () => _phase = WorkoutPhase.completed);
+      debugPrint('❌ Ошибка сохранения лога: $e');
+      if (mounted) {
+        setState(() => _phase = WorkoutPhase.completed);
+      }
     }
   }
 

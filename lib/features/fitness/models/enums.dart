@@ -238,3 +238,102 @@ extension FitnessGoalExtension on FitnessGoal {
   }
 }
 
+// ==================== 🎯 ЦЕЛИ (TARGETS) ====================
+
+/// Тип фитнес-цели
+enum FitnessTargetType {
+  strengthMax,        // Максимальный вес (1ПМ): пожать 100 кг
+  strengthReps,       // Вес × повторения: 50 кг × 50 раз
+  bodyweightReps,     // Собственный вес: подтянуться 10 раз
+  cardioDistance,     // Дистанция: пробежать 5 км
+  cardioTime,         // Время на дистанцию: 5 км за 25 мин
+  endurance,          // Выносливость: планка 3 мин
+  bodyMeasurement,    // Обхват: бицепс 40 см
+  bodyWeight,         // Вес тела: похудеть до 75 кг
+  volume,             // Объём за тренировку: 10 тонн
+  custom,             // Своя цель
+}
+
+/// Статус фитнес-цели
+enum FitnessTargetStatus {
+  active,      // В процессе
+  completed,   // Достигнута
+  paused,      // На паузе
+  abandoned,   // Отменена
+}
+
+extension FitnessTargetTypeExtension on FitnessTargetType {
+  String get displayName {
+    switch (this) {
+      case FitnessTargetType.strengthMax: return 'Максимальный вес';
+      case FitnessTargetType.strengthReps: return 'Вес × повторения';
+      case FitnessTargetType.bodyweightReps: return 'Свой вес';
+      case FitnessTargetType.cardioDistance: return 'Дистанция';
+      case FitnessTargetType.cardioTime: return 'Время на дистанции';
+      case FitnessTargetType.endurance: return 'Выносливость';
+      case FitnessTargetType.bodyMeasurement: return 'Обхват тела';
+      case FitnessTargetType.bodyWeight: return 'Вес тела';
+      case FitnessTargetType.volume: return 'Объём тренировки';
+      case FitnessTargetType.custom: return 'Своя цель';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case FitnessTargetType.strengthMax: return '🏋️';
+      case FitnessTargetType.strengthReps: return '💪';
+      case FitnessTargetType.bodyweightReps: return '🤸';
+      case FitnessTargetType.cardioDistance: return '🏃';
+      case FitnessTargetType.cardioTime: return '⏱️';
+      case FitnessTargetType.endurance: return '⚡';
+      case FitnessTargetType.bodyMeasurement: return '📏';
+      case FitnessTargetType.bodyWeight: return '⚖️';
+      case FitnessTargetType.volume: return '📊';
+      case FitnessTargetType.custom: return '🎯';
+    }
+  }
+
+  String get defaultUnit {
+    switch (this) {
+      case FitnessTargetType.strengthMax: return 'кг';
+      case FitnessTargetType.strengthReps: return 'кг×раз';
+      case FitnessTargetType.bodyweightReps: return 'раз';
+      case FitnessTargetType.cardioDistance: return 'км';
+      case FitnessTargetType.cardioTime: return 'мин';
+      case FitnessTargetType.endurance: return 'сек';
+      case FitnessTargetType.bodyMeasurement: return 'см';
+      case FitnessTargetType.bodyWeight: return 'кг';
+      case FitnessTargetType.volume: return 'кг';
+      case FitnessTargetType.custom: return '';
+    }
+  }
+}
+
+extension FitnessTargetStatusExtension on FitnessTargetStatus {
+  String get displayName {
+    switch (this) {
+      case FitnessTargetStatus.active: return 'В процессе';
+      case FitnessTargetStatus.completed: return 'Достигнута';
+      case FitnessTargetStatus.paused: return 'На паузе';
+      case FitnessTargetStatus.abandoned: return 'Отменена';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case FitnessTargetStatus.active: return const Color(0xFFFF6B35);
+      case FitnessTargetStatus.completed: return const Color(0xFF4CAF50);
+      case FitnessTargetStatus.paused: return Colors.orange;
+      case FitnessTargetStatus.abandoned: return Colors.grey;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case FitnessTargetStatus.active: return Icons.bolt_rounded;
+      case FitnessTargetStatus.completed: return Icons.emoji_events_rounded;
+      case FitnessTargetStatus.paused: return Icons.pause_circle_rounded;
+      case FitnessTargetStatus.abandoned: return Icons.close_rounded;
+    }
+  }
+}

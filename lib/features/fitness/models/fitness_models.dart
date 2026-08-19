@@ -120,8 +120,6 @@ class Exercise {
   }
 }
 
-// ==================== ПОДХОД ====================
-
 class ExerciseSet {
   final int setNumber;
   final int reps;
@@ -130,6 +128,7 @@ class ExerciseSet {
   final bool isWarmup;
   final SetStatus status;
   final String? notes;
+  final int? restSeconds;  // 🔥 НОВОЕ: индивидуальный отдых для подхода
 
   ExerciseSet({
     required this.setNumber,
@@ -139,6 +138,7 @@ class ExerciseSet {
     this.isWarmup = false,
     this.status = SetStatus.pending,
     this.notes,
+    this.restSeconds,  // 🔥 НОВОЕ
   });
 
   Map<String, dynamic> toMap() {
@@ -150,15 +150,14 @@ class ExerciseSet {
       'isWarmup': isWarmup ? 1 : 0,
       'status': status.name,
       'notes': notes,
+      'restSeconds': restSeconds,  // 🔥 НОВОЕ
     };
   }
 
   factory ExerciseSet.fromMap(Map<String, dynamic> map) {
     SetStatus status = SetStatus.pending;
     try {
-      status = SetStatus.values.firstWhere(
-            (s) => s.name == map['status'],
-      );
+      status = SetStatus.values.firstWhere((s) => s.name == map['status']);
     } catch (_) {}
 
     return ExerciseSet(
@@ -169,6 +168,7 @@ class ExerciseSet {
       isWarmup: (map['isWarmup'] ?? 0) == 1,
       status: status,
       notes: map['notes'],
+      restSeconds: (map['restSeconds'] as num?)?.toInt(),  // 🔥 НОВОЕ
     );
   }
 
@@ -179,6 +179,7 @@ class ExerciseSet {
     bool? isWarmup,
     SetStatus? status,
     String? notes,
+    int? restSeconds,  // 🔥 НОВОЕ
   }) {
     return ExerciseSet(
       setNumber: setNumber,
@@ -188,6 +189,7 @@ class ExerciseSet {
       isWarmup: isWarmup ?? this.isWarmup,
       status: status ?? this.status,
       notes: notes ?? this.notes,
+      restSeconds: restSeconds ?? this.restSeconds,  // 🔥 НОВОЕ
     );
   }
 
@@ -371,6 +373,8 @@ class WorkoutDay {
   }
 
   WorkoutDay copyWith({
+    String? id,             // 👈 ДОБАВЬ ЭТО
+    String? programId,      // 👈 ДОБАВЬ ЭТО
     int? dayNumber,
     DateTime? date,
     List<WorkoutExercise>? exercises,
@@ -379,8 +383,8 @@ class WorkoutDay {
     WorkoutDayStatus? status,
   }) {
     return WorkoutDay(
-      id: id,
-      programId: programId,
+      id: id ?? this.id,                       // 👈 ИЗМЕНИ ЗДЕСЬ
+      programId: programId ?? this.programId,  // 👈 И ЗДЕСЬ
       dayNumber: dayNumber ?? this.dayNumber,
       date: date ?? this.date,
       exercises: exercises ?? this.exercises,
@@ -403,6 +407,13 @@ class WorkoutProgram {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // 🔥 НОВЫЕ ПОЛЯ из мастера создания
+  final String emoji;
+  final int accentColorValue;
+  final String difficulty;      // 'easy' | 'medium' | 'hardcore'
+  final String goal;             // 'lose' | 'gain' | 'strength' | 'general'
+  final int sessionDurationMinutes;
+
   WorkoutProgram({
     required this.id,
     required this.name,
@@ -412,8 +423,17 @@ class WorkoutProgram {
     this.description,
     DateTime? createdAt,
     DateTime? updatedAt,
+    // 🔥 НОВЫЕ параметры
+    this.emoji = '💪',
+    this.accentColorValue = 0xFFFF6B35,
+    this.difficulty = 'medium',
+    this.goal = 'general',
+    this.sessionDurationMinutes = 60,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
+
+  // Удобный геттер для Color
+  Color get accentColor => Color(accentColorValue);
 
   Map<String, dynamic> toMap() {
     return {
@@ -425,6 +445,12 @@ class WorkoutProgram {
       'description': description,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      // 🔥 НОВЫЕ поля
+      'emoji': emoji,
+      'accentColorValue': accentColorValue,
+      'difficulty': difficulty,
+      'goal': goal,
+      'sessionDurationMinutes': sessionDurationMinutes,
     };
   }
 
@@ -452,9 +478,7 @@ class WorkoutProgram {
 
     ProgramType type = ProgramType.weekly;
     try {
-      type = ProgramType.values.firstWhere(
-            (t) => t.name == map['type'],
-      );
+      type = ProgramType.values.firstWhere((t) => t.name == map['type']);
     } catch (_) {}
 
     return WorkoutProgram(
@@ -466,6 +490,12 @@ class WorkoutProgram {
       description: map['description'],
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
+      // 🔥 НОВЫЕ поля с fallback на значения по умолчанию
+      emoji: map['emoji'] as String? ?? '💪',
+      accentColorValue: (map['accentColorValue'] as num?)?.toInt() ?? 0xFFFF6B35,
+      difficulty: map['difficulty'] as String? ?? 'medium',
+      goal: map['goal'] as String? ?? 'general',
+      sessionDurationMinutes: (map['sessionDurationMinutes'] as num?)?.toInt() ?? 60,
     );
   }
 
@@ -476,6 +506,12 @@ class WorkoutProgram {
     String? templateName,
     String? description,
     DateTime? updatedAt,
+    // 🔥 НОВЫЕ
+    String? emoji,
+    int? accentColorValue,
+    String? difficulty,
+    String? goal,
+    int? sessionDurationMinutes,
   }) {
     return WorkoutProgram(
       id: id,
@@ -486,6 +522,11 @@ class WorkoutProgram {
       description: description ?? this.description,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      emoji: emoji ?? this.emoji,
+      accentColorValue: accentColorValue ?? this.accentColorValue,
+      difficulty: difficulty ?? this.difficulty,
+      goal: goal ?? this.goal,
+      sessionDurationMinutes: sessionDurationMinutes ?? this.sessionDurationMinutes,
     );
   }
 }
@@ -1474,5 +1515,280 @@ class ProgramSession {
   int get durationDays {
     final end = endDate ?? DateTime.now();
     return end.difference(startDate).inDays;
+  }
+}
+
+// ==================== 📝 ЗАПИСЬ ПРОГРЕССА ЦЕЛИ ====================
+
+/// 🔥 НОВОЕ: Запись в журнале прогресса фитнес-цели
+class FitnessTargetEntry {
+  final DateTime date;
+  final double value;
+  final String? note;
+  final double? bodyWeight; // вес тела на момент записи (опционально)
+
+  FitnessTargetEntry({
+    required this.date,
+    required this.value,
+    this.note,
+    this.bodyWeight,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'date': date.toIso8601String(),
+    'value': value,
+    'note': note,
+    'bodyWeight': bodyWeight,
+  };
+
+  factory FitnessTargetEntry.fromMap(Map<String, dynamic> map) => FitnessTargetEntry(
+    date: DateTime.tryParse(map['date'] ?? '') ?? DateTime.now(),
+    value: (map['value'] ?? 0).toDouble(),
+    note: map['note'] as String?,
+    bodyWeight: (map['bodyWeight'] as num?)?.toDouble(),
+  );
+}
+
+// ==================== 🎯 ФИТНЕС-ЦЕЛЬ (TARGET) ====================
+
+class FitnessTarget {
+  final String id;
+  final String name;
+  final String description;
+  final FitnessTargetType type;
+  final String? exerciseId;           // Привязка к упражнению (опционально)
+  final double targetValue;           // Целевое значение
+  final double currentValue;          // Текущее значение (автообновляется)
+  final double startValue;            // Значение на момент создания
+  final String unit;                  // Единица измерения
+  final DateTime? deadline;           // Дедлайн (опционально)
+  final DateTime createdAt;
+  final DateTime? completedAt;
+  final FitnessTargetStatus status;
+  final Color accentColor;            // Акцентный цвет для карточки
+  final Map<String, dynamic> extra;   // Дополнительные параметры (напр. {reps: 50} для strengthReps)
+  final List<FitnessTargetEntry> entries; // 🔥 НОВОЕ: журнал прогресса
+
+  FitnessTarget({
+    required this.id,
+    required this.name,
+    this.description = '',
+    required this.type,
+    this.exerciseId,
+    required this.targetValue,
+    this.currentValue = 0,
+    this.startValue = 0,
+    required this.unit,
+    this.deadline,
+    DateTime? createdAt,
+    this.completedAt,
+    this.status = FitnessTargetStatus.active,
+    Color? accentColor,
+    this.extra = const {},
+    this.entries = const [], // 🔥 НОВОЕ
+  })  : createdAt = createdAt ?? DateTime.now(),
+        accentColor = accentColor ?? const Color(0xFFFF6B35);
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'type': type.name,
+      'exerciseId': exerciseId,
+      'targetValue': targetValue,
+      'currentValue': currentValue,
+      'startValue': startValue,
+      'unit': unit,
+      'deadline': deadline?.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
+      'status': status.name,
+      'accentColor': accentColor.value,
+      'extra': jsonEncode(extra),
+      'entries': jsonEncode(entries.map((e) => e.toMap()).toList()), // 🔥 НОВОЕ
+    };
+  }
+
+  factory FitnessTarget.fromMap(Map<String, dynamic> map) {
+    FitnessTargetType type = FitnessTargetType.custom;
+    try {
+      type = FitnessTargetType.values.firstWhere((t) => t.name == map['type']);
+    } catch (_) {}
+
+    FitnessTargetStatus status = FitnessTargetStatus.active;
+    try {
+      status = FitnessTargetStatus.values.firstWhere((s) => s.name == map['status']);
+    } catch (_) {}
+
+    Map<String, dynamic> extra = {};
+    if (map['extra'] != null) {
+      try {
+        final raw = map['extra'];
+        if (raw is String) {
+          extra = jsonDecode(raw) as Map<String, dynamic>;
+        } else if (raw is Map) {
+          extra = Map<String, dynamic>.from(raw);
+        }
+      } catch (_) {}
+    }
+
+    // 🔥 НОВОЕ: парсинг entries
+    List<FitnessTargetEntry> entries = [];
+    if (map['entries'] != null) {
+      try {
+        final raw = map['entries'];
+        final list = raw is String ? jsonDecode(raw) as List : raw as List;
+        entries = list.map((e) {
+          final m = e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
+          return FitnessTargetEntry.fromMap(m);
+        }).toList();
+      } catch (_) {
+        entries = [];
+      }
+    }
+
+    Color color = const Color(0xFFFF6B35);
+    if (map['accentColor'] != null) {
+      try {
+        color = Color(map['accentColor'] as int);
+      } catch (_) {}
+    }
+
+    return FitnessTarget(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      description: map['description'] ?? '',
+      type: type,
+      exerciseId: map['exerciseId'],
+      targetValue: (map['targetValue'] ?? 0).toDouble(),
+      currentValue: (map['currentValue'] ?? 0).toDouble(),
+      startValue: (map['startValue'] ?? 0).toDouble(),
+      unit: map['unit'] ?? '',
+      deadline: map['deadline'] != null ? DateTime.tryParse(map['deadline']) : null,
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : DateTime.now(),
+      completedAt: map['completedAt'] != null ? DateTime.tryParse(map['completedAt']) : null,
+      status: status,
+      accentColor: color,
+      extra: extra,
+      entries: entries, // 🔥 НОВОЕ
+    );
+  }
+
+  FitnessTarget copyWith({
+    String? name,
+    String? description,
+    FitnessTargetType? type,
+    String? exerciseId,
+    double? targetValue,
+    double? currentValue,
+    double? startValue,
+    String? unit,
+    DateTime? deadline,
+    DateTime? completedAt,
+    FitnessTargetStatus? status,
+    Color? accentColor,
+    Map<String, dynamic>? extra,
+    List<FitnessTargetEntry>? entries, // 🔥 НОВОЕ
+  }) {
+    return FitnessTarget(
+      id: id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      type: type ?? this.type,
+      exerciseId: exerciseId ?? this.exerciseId,
+      targetValue: targetValue ?? this.targetValue,
+      currentValue: currentValue ?? this.currentValue,
+      startValue: startValue ?? this.startValue,
+      unit: unit ?? this.unit,
+      deadline: deadline ?? this.deadline,
+      createdAt: createdAt,
+      completedAt: completedAt ?? this.completedAt,
+      status: status ?? this.status,
+      accentColor: accentColor ?? this.accentColor,
+      extra: extra ?? this.extra,
+      entries: entries ?? this.entries, // 🔥 НОВОЕ
+    );
+  }
+
+  /// Процент выполнения (0.0 - 1.0+)
+  double get progressPercent {
+    if (targetValue <= 0) return 0;
+    return (currentValue / targetValue).clamp(0.0, 1.0);
+  }
+
+  /// Осталось до цели (абсолютное значение)
+  double get remaining {
+    return (targetValue - currentValue).abs();
+  }
+
+  /// Достигнута ли цель (учитывает направление)
+  bool get isCompleted {
+    if (isAscending) {
+      return currentValue >= targetValue;
+    } else {
+      return currentValue <= targetValue;
+    }
+  }
+
+  /// 🔥 НОВОЕ: Направление прогресса (true = рост значения, false = убывание)
+  /// Например: жим 100 кг = рост, похудение до 70 кг = убывание
+  bool get isAscending => targetValue >= startValue;
+
+  /// Дней до дедлайна (null если нет дедлайна)
+  int? get daysUntilDeadline {
+    if (deadline == null) return null;
+    return deadline!.difference(DateTime.now()).inDays;
+  }
+
+  /// Просрочена ли цель
+  bool get isOverdue {
+    if (deadline == null) return false;
+    return deadline!.isBefore(DateTime.now()) && status == FitnessTargetStatus.active;
+  }
+
+  /// 🔥 НОВОЕ: Последняя запись в журнале
+  FitnessTargetEntry? get latestEntry {
+    if (entries.isEmpty) return null;
+    return entries.reduce((a, b) => a.date.isAfter(b.date) ? a : b);
+  }
+
+  /// 🔥 НОВОЕ: Изменение с последней записи (может быть отрицательным)
+  /// Полезно для отображения "улучшения" или "ухудшения"
+  double get lastImprovement {
+    if (entries.length < 2) return 0;
+    final sorted = List<FitnessTargetEntry>.from(entries)
+      ..sort((a, b) => a.date.compareTo(b.date));
+    return sorted.last.value - sorted[sorted.length - 2].value;
+  }
+
+  /// Отображаемое текущее значение
+  String get formattedCurrent {
+    if (type == FitnessTargetType.strengthReps && extra.containsKey('reps')) {
+      final reps = extra['reps'] as int? ?? 0;
+      return '${currentValue.toStringAsFixed(0)}×$reps';
+    }
+    if (currentValue == currentValue.roundToDouble()) {
+      return currentValue.toStringAsFixed(0);
+    }
+    return currentValue.toStringAsFixed(1);
+  }
+
+  String get formattedTarget {
+    if (type == FitnessTargetType.strengthReps && extra.containsKey('reps')) {
+      final reps = extra['reps'] as int? ?? 0;
+      return '${targetValue.toStringAsFixed(0)}×$reps';
+    }
+    if (targetValue == targetValue.roundToDouble()) {
+      return targetValue.toStringAsFixed(0);
+    }
+    return targetValue.toStringAsFixed(1);
+  }
+
+  /// 🔥 НОВОЕ: Оставшееся значение для отображения
+  String get formattedRemaining {
+    final rem = remaining;
+    if (rem == rem.roundToDouble()) return rem.toStringAsFixed(0);
+    return rem.toStringAsFixed(1);
   }
 }

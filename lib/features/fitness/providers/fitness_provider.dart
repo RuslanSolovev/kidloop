@@ -23,6 +23,9 @@ class FitnessProvider extends ChangeNotifier {
   // 🔥 v7: Сессии прохождения программ
   List<ProgramSession> _sessions = [];
 
+  // 🔥 v8: Фитнес-цели
+  List<FitnessTarget> _targets = [];
+
   WorkoutDay? _activeWorkoutDay;
   WorkoutLog? _activeWorkoutLog;
   int _currentExerciseIndex = 0;
@@ -45,6 +48,13 @@ class FitnessProvider extends ChangeNotifier {
 
   // 🔥 v7: Геттеры для сессий
   List<ProgramSession> get sessions => _sessions;
+
+  // 🔥 v8: Геттеры для целей
+  List<FitnessTarget> get targets => _targets;
+  List<FitnessTarget> get activeTargets =>
+      _targets.where((t) => t.status == FitnessTargetStatus.active).toList();
+  List<FitnessTarget> get completedTargets =>
+      _targets.where((t) => t.status == FitnessTargetStatus.completed).toList();
 
   /// Текущая активная сессия программы (или null если нет активной)
   ProgramSession? get activeSession {
@@ -97,9 +107,11 @@ class FitnessProvider extends ChangeNotifier {
       _loadPhotos(),
       _loadWellbeingNotes(),
       _loadSessions(), // 🔥 v7: Загрузка сессий
+      _loadTargets(),  // 🔥 v8: Загрузка целей
     ]);
     debugPrint('✅ FitnessProvider инициализирован');
     debugPrint('📋 Сессий программ: ${_sessions.length}, активных: ${activeSession != null ? 1 : 0}');
+    debugPrint('🎯 Целей: ${_targets.length}, активных: ${activeTargets.length}');
     notifyListeners();
   }
 
@@ -160,6 +172,12 @@ class FitnessProvider extends ChangeNotifier {
     _sessions = data.map((s) => ProgramSession.fromMap(s)).toList();
   }
 
+  // 🔥 v8: Загрузка фитнес-целей
+  Future<void> _loadTargets() async {
+    final data = await _db.query('fitness_targets', orderBy: 'createdAt DESC');
+    _targets = data.map((t) => FitnessTarget.fromMap(t)).toList();
+  }
+
   Future<void> createProfile(UserFitnessProfile profile) async {
     await _db.insert('user_fitness_profile', profile.toMap());
     _profile = profile;
@@ -170,6 +188,8 @@ class FitnessProvider extends ChangeNotifier {
     await _db.update('user_fitness_profile', profile.toMap(),
         where: 'id = ?', whereArgs: [profile.id]);
     _profile = profile;
+    // 🔥 v8: Обновляем цели по весу тела
+    await _updateTargetsProgress();
     notifyListeners();
   }
 
@@ -181,6 +201,8 @@ class FitnessProvider extends ChangeNotifier {
     final updatedHistory = List<BodyWeightEntry>.from(_profile!.bodyWeightHistory)..add(entry);
     final updatedProfile = _profile!.copyWith(bodyWeightHistory: updatedHistory);
     await updateProfile(updatedProfile);
+    // 🔥 v8: Обновляем цели по весу тела
+    await _updateTargetsProgress();
   }
 
   Future<Exercise> addExercise({
@@ -348,12 +370,24 @@ class FitnessProvider extends ChangeNotifier {
     required String name,
     required ProgramType type,
     required List<Map<String, dynamic>> daysData,
+    String? description,
+    // 🔥 НОВЫЕ параметры
+    String emoji = '💪',
+    int accentColorValue = 0xFFFF6B35,
+    String difficulty = 'medium',
+    String goal = 'general',
+    int sessionDurationMinutes = 60,
   }) async {
     final program = WorkoutProgram(
       id: _uuid.v4(),
       name: name,
       type: type,
-      description: '',
+      description: description,            // ✅ исправлено
+      emoji: emoji,                         // ✅ добавлено
+      accentColorValue: accentColorValue,   // ✅ добавлено
+      difficulty: difficulty,               // ✅ добавлено
+      goal: goal,                           // ✅ добавлено
+      sessionDurationMinutes: sessionDurationMinutes, // ✅ добавлено
     );
     await _db.insert('workout_programs', program.toMap());
 
@@ -582,6 +616,9 @@ class FitnessProvider extends ChangeNotifier {
     // 🔥 v7: Обновляем активную сессию если она есть
     await _updateSessionAfterWorkout(totalVolume, avgRpe);
 
+    // 🔥 v8: Обновляем прогресс целей
+    await _updateTargetsProgress();
+
     _resetWorkoutState();
     notifyListeners();
     return completedLog;
@@ -663,6 +700,9 @@ class FitnessProvider extends ChangeNotifier {
       // 🔥 ИСПРАВЛЕНО: Обновляем сессию программы если это текущий день
       await _updateSessionFromLog(log);
 
+      // 🔥 v8: Обновляем прогресс целей
+      await _updateTargetsProgress();
+
       notifyListeners();
       debugPrint('✅ Лог тренировки сохранён: ${log.id}');
     } catch (e) {
@@ -678,7 +718,6 @@ class FitnessProvider extends ChangeNotifier {
       return;
     }
 
-    // Проверяем, что это лог для активной программы
     if (log.programId != session.programId) {
       debugPrint('ℹ️ Лог для другой программы (${log.programId}), пропускаем');
       return;
@@ -694,20 +733,17 @@ class FitnessProvider extends ChangeNotifier {
       orElse: () => _programs.first,
     );
 
-    // Находим индекс дня по номеру
     final dayIndex = program.days.indexWhere((d) => d.dayNumber == log.dayNumber);
     if (dayIndex == -1) {
       debugPrint('⚠️ День ${log.dayNumber} не найден в программе');
       return;
     }
 
-    // Это должен быть текущий день
     if (dayIndex != session.currentDayIndex) {
       debugPrint('⚠️ Лог для дня ${log.dayNumber}, но текущий день ${session.currentDayIndex + 1}');
       return;
     }
 
-    // Проверяем что день ещё не был помечен как выполненный
     if (session.daySessions[dayIndex].status == DaySessionStatus.completed) {
       debugPrint('⚠️ День ${log.dayNumber} уже помечен как выполненный');
       return;
@@ -715,7 +751,6 @@ class FitnessProvider extends ChangeNotifier {
 
     debugPrint('📊 Обновляем сессию из лога: день ${log.dayNumber}');
 
-    // Обновляем текущий день как выполненный
     final updatedDays = List<DaySession>.from(session.daySessions);
     updatedDays[dayIndex] = updatedDays[dayIndex].copyWith(
       status: DaySessionStatus.completed,
@@ -724,11 +759,9 @@ class FitnessProvider extends ChangeNotifier {
       avgRpe: log.avgRpe,
     );
 
-    // Находим следующий день
     int nextIndex = dayIndex + 1;
     bool isProgramComplete = nextIndex >= program.days.length;
 
-    // Автоматически проходим дни отдыха
     while (nextIndex < program.days.length && program.days[nextIndex].isRestDay) {
       updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
         status: DaySessionStatus.completed,
@@ -742,14 +775,12 @@ class FitnessProvider extends ChangeNotifier {
       }
     }
 
-    // Открываем следующий рабочий день
     if (!isProgramComplete && nextIndex < program.days.length) {
       updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
         status: DaySessionStatus.current,
       );
     }
 
-    // Обновляем статистику
     int newStreak = session.streak + 1;
     int newLongest = newStreak > session.longestStreak ? newStreak : session.longestStreak;
     final newCompleted = session.totalWorkoutsCompleted + 1;
@@ -779,7 +810,6 @@ class FitnessProvider extends ChangeNotifier {
 
     debugPrint('✅ Сессия обновлена: день ${dayIndex + 1}/${program.days.length}, серия: $newStreak, прогресс: ${(updatedSession.progressPercent * 100).toInt()}%');
 
-    // Если программа завершена — генерируем сводку
     if (isProgramComplete) {
       debugPrint('🏆 Программа завершена!');
       await _generateProgramSummary(updatedSession, program);
@@ -948,6 +978,8 @@ class FitnessProvider extends ChangeNotifier {
     );
     await _db.insert('fitness_photos', photo.toMap());
     _photos.insert(0, photo);
+    // 🔥 v8: Обновляем цели по обхватам
+    await _updateTargetsProgress();
     notifyListeners();
     return photo;
   }
@@ -956,6 +988,8 @@ class FitnessProvider extends ChangeNotifier {
     await _db.update('fitness_photos', photo.toMap(), where: 'id = ?', whereArgs: [photo.id]);
     final index = _photos.indexWhere((p) => p.id == photo.id);
     if (index != -1) _photos[index] = photo;
+    // 🔥 v8: Обновляем цели по обхватам
+    await _updateTargetsProgress();
     notifyListeners();
   }
 
@@ -985,6 +1019,22 @@ class FitnessProvider extends ChangeNotifier {
     _wellbeingNotes.insert(0, note);
     notifyListeners();
     return note;
+  }
+
+  Future<void> updateWellbeingNote(WellbeingNote note) async {
+    await _db.update('wellbeing_notes', note.toMap(),
+        where: 'id = ?', whereArgs: [note.id]);
+    final index = _wellbeingNotes.indexWhere((n) => n.id == note.id);
+    if (index != -1) _wellbeingNotes[index] = note;
+    notifyListeners();
+  }
+
+
+  Future<void> deleteWellbeingNote(String id) async {
+    await _db.delete('wellbeing_notes', where: 'id = ?', whereArgs: [id]);
+    _wellbeingNotes.removeWhere((note) => note.id == id);
+    notifyListeners();
+    debugPrint('🗑️ Запись самочувствия удалена: $id');
   }
 
   WellbeingNote? getTodayWellbeing() {
@@ -1083,21 +1133,18 @@ class FitnessProvider extends ChangeNotifier {
     return map;
   }
 
-  // ==================== 🔥 СИСТЕМА СЛЕДОВАНИЯ ПРОГРАММАМ ====================
+  // ==================== 🔥 v7: СИСТЕМА СЛЕДОВАНИЯ ПРОГРАММАМ ====================
 
-  /// Начать прохождение программы
   Future<ProgramSession> startProgramSession(
       String programId, {
         ProgramDifficulty difficulty = ProgramDifficulty.standard,
       }) async {
-    // Проверяем, нет ли уже активной сессии
     if (activeSession != null) {
       throw Exception('У вас уже есть активная программа "${_programs.firstWhere((p) => p.id == activeSession!.programId).name}". Завершите или приостановите её.');
     }
 
     final program = _programs.firstWhere((p) => p.id == programId);
 
-    // Создаём day sessions для каждого дня программы
     final daySessions = program.days.asMap().entries.map((entry) {
       final isFirst = entry.key == 0;
       return DaySession(
@@ -1122,14 +1169,12 @@ class FitnessProvider extends ChangeNotifier {
     return session;
   }
 
-  /// Обновить активную сессию после завершения тренировки
   Future<void> _updateSessionAfterWorkout(double volume, double? avgRpe) async {
     final session = activeSession;
     if (session == null) return;
 
     final program = _programs.firstWhere((p) => p.id == session.programId);
 
-    // Обновляем текущий день как выполненный
     final updatedDays = List<DaySession>.from(session.daySessions);
     updatedDays[session.currentDayIndex] = updatedDays[session.currentDayIndex].copyWith(
       status: DaySessionStatus.completed,
@@ -1138,11 +1183,9 @@ class FitnessProvider extends ChangeNotifier {
       avgRpe: avgRpe,
     );
 
-    // Определяем следующий день
     int nextIndex = session.currentDayIndex + 1;
     bool isProgramComplete = nextIndex >= program.days.length;
 
-    // Автоматически проходим дни отдыха
     while (nextIndex < program.days.length && program.days[nextIndex].isRestDay) {
       updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
         status: DaySessionStatus.completed,
@@ -1156,14 +1199,12 @@ class FitnessProvider extends ChangeNotifier {
       }
     }
 
-    // Открываем следующий рабочий день
     if (!isProgramComplete && nextIndex < program.days.length) {
       updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
         status: DaySessionStatus.current,
       );
     }
 
-    // Обновляем статистику
     int newStreak = session.streak + 1;
     int newLongest = newStreak > session.longestStreak ? newStreak : session.longestStreak;
     final newCompleted = session.totalWorkoutsCompleted + 1;
@@ -1192,13 +1233,11 @@ class FitnessProvider extends ChangeNotifier {
 
     debugPrint('📊 Сессия обновлена: день ${session.currentDayIndex + 1}/${program.days.length}, серия: $newStreak');
 
-    // Если программа завершена — генерируем сводку
     if (isProgramComplete) {
       await _generateProgramSummary(updatedSession, program);
     }
   }
 
-  /// Пропустить текущий день в активной сессии
   Future<void> _skipCurrentDayInSession(String reason) async {
     final session = activeSession;
     if (session == null) return;
@@ -1206,7 +1245,6 @@ class FitnessProvider extends ChangeNotifier {
     final program = _programs.firstWhere((p) => p.id == session.programId);
     final updatedDays = List<DaySession>.from(session.daySessions);
 
-    // В режиме hardcore — сбрасываем текущую неделю
     if (session.difficulty == ProgramDifficulty.hardcore) {
       final weekStart = (session.currentDayIndex ~/ 7) * 7;
       for (int i = weekStart; i < session.currentDayIndex; i++) {
@@ -1221,17 +1259,14 @@ class FitnessProvider extends ChangeNotifier {
       debugPrint('⚠️ Hardcore режим: сброшена неделя ${weekStart ~/ 7 + 1}');
     }
 
-    // Помечаем текущий день как пропущенный
     updatedDays[session.currentDayIndex] = updatedDays[session.currentDayIndex].copyWith(
       status: DaySessionStatus.skipped,
       completedAt: DateTime.now(),
       notes: reason,
     );
 
-    // Находим следующий день
     int nextIndex = session.currentDayIndex + 1;
 
-    // Автоматически проходим дни отдыха
     while (nextIndex < program.days.length && program.days[nextIndex].isRestDay) {
       updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
         status: DaySessionStatus.completed,
@@ -1241,14 +1276,12 @@ class FitnessProvider extends ChangeNotifier {
       nextIndex++;
     }
 
-    // Открываем следующий день
     if (nextIndex < program.days.length) {
       updatedDays[nextIndex] = updatedDays[nextIndex].copyWith(
         status: DaySessionStatus.current,
       );
     }
 
-    // Сбрасываем серию (кроме flexible режима)
     final newStreak = session.difficulty == ProgramDifficulty.flexible ? session.streak : 0;
 
     final updatedSession = session.copyWith(
@@ -1266,13 +1299,11 @@ class FitnessProvider extends ChangeNotifier {
     debugPrint('⏭️ День пропущен, следующий день: ${nextIndex + 1}');
   }
 
-  /// Пропустить день вручную (из UI)
   Future<void> skipCurrentDay({String? reason}) async {
     await _skipCurrentDayInSession(reason ?? 'Пропущен вручную');
     notifyListeners();
   }
 
-  /// Приостановить программу
   Future<void> pauseProgramSession() async {
     final session = activeSession;
     if (session == null) return;
@@ -1287,7 +1318,6 @@ class FitnessProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Возобновить программу
   Future<void> resumeProgramSession(String sessionId) async {
     final session = _sessions.firstWhere((s) => s.id == sessionId);
     if (session.status != ProgramSessionStatus.paused) return;
@@ -1306,7 +1336,6 @@ class FitnessProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Бросить программу (отказаться от прохождения)
   Future<void> abandonProgramSession(String sessionId) async {
     final session = _sessions.firstWhere((s) => s.id == sessionId);
 
@@ -1323,14 +1352,12 @@ class FitnessProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Генерация сводки по завершённой программе
   Future<void> _generateProgramSummary(ProgramSession session, WorkoutProgram program) async {
     debugPrint('🏆 Генерация сводки для: ${program.name}');
 
     final completedDays = session.daySessions.where((d) => d.status == DaySessionStatus.completed).toList();
     final skippedDays = session.daySessions.where((d) => d.status == DaySessionStatus.skipped).toList();
 
-    // Собираем данные по упражнениям за время программы
     final exerciseStats = <String, Map<String, dynamic>>{};
 
     for (final log in _logs.where((l) => l.date.isAfter(session.startDate))) {
@@ -1393,7 +1420,6 @@ class FitnessProvider extends ChangeNotifier {
     debugPrint('🏆 Сводка сгенерирована: ${completedDays.length}/${program.days.length} дней, тоннаж: ${session.totalVolumeCompleted.toStringAsFixed(0)} кг');
   }
 
-  /// Получить программу по ID сессии
   WorkoutProgram? getProgramForSession(String sessionId) {
     try {
       final session = _sessions.firstWhere((s) => s.id == sessionId);
@@ -1401,6 +1427,489 @@ class FitnessProvider extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  // ==================== 🎯 v8: СИСТЕМА ФИТНЕС-ЦЕЛЕЙ ====================
+
+  /// Добавить новую цель
+  Future<FitnessTarget> addTarget(FitnessTarget target) async {
+    await _db.insert('fitness_targets', target.toMap());
+    _targets.insert(0, target);
+    notifyListeners();
+    debugPrint('🎯 Добавлена цель: ${target.name}');
+    return target;
+  }
+
+  /// Обновить существующую цель
+  Future<void> updateTarget(FitnessTarget target) async {
+    await _db.update('fitness_targets', target.toMap(),
+        where: 'id = ?', whereArgs: [target.id]);
+    final index = _targets.indexWhere((t) => t.id == target.id);
+    if (index != -1) _targets[index] = target;
+    notifyListeners();
+  }
+
+  /// Удалить цель
+  Future<void> deleteTarget(String id) async {
+    await _db.delete('fitness_targets', where: 'id = ?', whereArgs: [id]);
+    _targets.removeWhere((t) => t.id == id);
+    notifyListeners();
+    debugPrint('🗑️ Цель удалена: $id');
+  }
+
+  /// Пометить цель как достигнутую вручную
+  Future<void> completeTarget(String id) async {
+    final target = _targets.firstWhere((t) => t.id == id);
+    final updated = target.copyWith(
+      status: FitnessTargetStatus.completed,
+      currentValue: target.targetValue,
+      completedAt: DateTime.now(),
+    );
+    await updateTarget(updated);
+    debugPrint('🏆 Цель достигнута: ${target.name}');
+  }
+
+  /// Приостановить цель
+  Future<void> pauseTarget(String id) async {
+    final target = _targets.firstWhere((t) => t.id == id);
+    await updateTarget(target.copyWith(status: FitnessTargetStatus.paused));
+  }
+
+  /// Возобновить цель
+  Future<void> resumeTarget(String id) async {
+    final target = _targets.firstWhere((t) => t.id == id);
+    await updateTarget(target.copyWith(status: FitnessTargetStatus.active));
+  }
+
+  // ==================== 📝 ЖУРНАЛ ПРОГРЕССА ЦЕЛЕЙ ====================
+
+  /// 🔥 НОВОЕ: Добавить запись прогресса в цель
+  Future<void> addTargetEntry(String targetId, double value, {String? note}) async {
+    final targetIndex = _targets.indexWhere((t) => t.id == targetId);
+    if (targetIndex == -1) {
+      debugPrint('⚠️ Цель $targetId не найдена');
+      return;
+    }
+
+    final target = _targets[targetIndex];
+    final entry = FitnessTargetEntry(
+      date: DateTime.now(),
+      value: value,
+      note: note,
+      bodyWeight: _profile?.currentWeight,
+    );
+
+    final updatedEntries = List<FitnessTargetEntry>.from(target.entries)..add(entry);
+
+    // Автоматически обновляем currentValue если новое значение лучше
+    double newCurrentValue = target.currentValue;
+    if (target.isAscending) {
+      // Для роста берём максимум
+      if (value > target.currentValue) newCurrentValue = value;
+    } else {
+      // Для убывания (похудение) берём минимум
+      if (value < target.currentValue || target.currentValue == 0) newCurrentValue = value;
+    }
+
+    // Проверка достижения цели
+    final bool isNowCompleted;
+    if (target.isAscending) {
+      isNowCompleted = newCurrentValue >= target.targetValue;
+    } else {
+      isNowCompleted = newCurrentValue <= target.targetValue;
+    }
+
+    final updated = target.copyWith(
+      entries: updatedEntries,
+      currentValue: newCurrentValue,
+      status: isNowCompleted ? FitnessTargetStatus.completed : target.status,
+      completedAt: isNowCompleted && !target.isCompleted ? DateTime.now() : target.completedAt,
+    );
+
+    await _db.update('fitness_targets', updated.toMap(),
+        where: 'id = ?', whereArgs: [updated.id]);
+    _targets[targetIndex] = updated;
+    notifyListeners();
+
+    if (isNowCompleted && !target.isCompleted) {
+      debugPrint('🏆🎯 Цель достигнута через запись прогресса: ${target.name}');
+    } else {
+      debugPrint('📝 Запись прогресса для "${target.name}": $value ${target.unit}');
+    }
+  }
+
+  /// 🔥 НОВОЕ: Удалить запись из журнала
+  Future<void> removeTargetEntry(String targetId, DateTime entryDate) async {
+    final targetIndex = _targets.indexWhere((t) => t.id == targetId);
+    if (targetIndex == -1) return;
+
+    final target = _targets[targetIndex];
+    final updatedEntries = target.entries
+        .where((e) => e.date.toIso8601String() != entryDate.toIso8601String())
+        .toList();
+
+    // Пересчитываем currentValue по оставшимся записям
+    double newCurrentValue = target.startValue;
+    if (updatedEntries.isNotEmpty) {
+      if (target.isAscending) {
+        newCurrentValue = updatedEntries.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+      } else {
+        newCurrentValue = updatedEntries.map((e) => e.value).reduce((a, b) => a < b ? a : b);
+      }
+    }
+
+    final updated = target.copyWith(
+      entries: updatedEntries,
+      currentValue: newCurrentValue,
+    );
+
+    await _db.update('fitness_targets', updated.toMap(),
+        where: 'id = ?', whereArgs: [updated.id]);
+    _targets[targetIndex] = updated;
+    notifyListeners();
+    debugPrint('🗑️ Удалена запись из журнала цели: ${target.name}');
+  }
+
+  /// 🔥 НОВОЕ: Прогноз достижения цели (линейная экстраполяция)
+  /// Возвращает {days, date, speed, isRealistic, reason, entriesCount, trendDays}
+  Map<String, dynamic> calculateForecast(FitnessTarget target) {
+    if (target.entries.length < 2) {
+      return {
+        'days': null,
+        'date': null,
+        'speed': 0.0,
+        'isRealistic': false,
+        'reason': 'Недостаточно данных (нужно минимум 2 записи)',
+        'entriesCount': target.entries.length,
+        'trendDays': 0,
+      };
+    }
+
+    final sorted = List<FitnessTargetEntry>.from(target.entries)
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    // Берём последние N записей для расчёта (сглаживание)
+    final recentCount = sorted.length.clamp(2, 10);
+    final recent = sorted.sublist(sorted.length - recentCount);
+
+    final first = recent.first;
+    final last = recent.last;
+    final daysDiff = last.date.difference(first.date).inDays;
+
+    if (daysDiff == 0) {
+      return {
+        'days': null,
+        'date': null,
+        'speed': 0.0,
+        'isRealistic': false,
+        'reason': 'Все записи за один день',
+        'entriesCount': sorted.length,
+        'trendDays': 0,
+      };
+    }
+
+    final valueDiff = last.value - first.value;
+    final speedPerDay = valueDiff / daysDiff; // единиц в день
+
+    // Направление должно совпадать с целью
+    if (target.isAscending && speedPerDay <= 0) {
+      return {
+        'days': null,
+        'date': null,
+        'speed': speedPerDay,
+        'isRealistic': false,
+        'reason': 'Прогресс остановился или идёт в обратную сторону',
+        'entriesCount': sorted.length,
+        'trendDays': daysDiff,
+      };
+    }
+    if (!target.isAscending && speedPerDay >= 0) {
+      return {
+        'days': null,
+        'date': null,
+        'speed': speedPerDay,
+        'isRealistic': false,
+        'reason': 'Прогресс остановился или идёт в обратную сторону',
+        'entriesCount': sorted.length,
+        'trendDays': daysDiff,
+      };
+    }
+
+    final remaining = target.isAscending
+        ? target.targetValue - target.currentValue
+        : target.currentValue - target.targetValue;
+
+    final daysToGoal = (remaining / speedPerDay.abs()).ceil();
+    final estimatedDate = DateTime.now().add(Duration(days: daysToGoal));
+
+    // Реалистичность: не больше 3 лет и положительный прогноз
+    final isRealistic = daysToGoal > 0 && daysToGoal < 1095;
+
+    return {
+      'days': daysToGoal,
+      'date': estimatedDate,
+      'speed': speedPerDay.abs(),
+      'isRealistic': isRealistic,
+      'reason': isRealistic
+          ? 'На основе последних $recentCount записей'
+          : 'Прогноз слишком далёкий',
+      'entriesCount': sorted.length,
+      'trendDays': daysDiff,
+    };
+  }
+
+  /// 🔥 НОВОЕ: Получить отсортированные записи цели (новые сверху)
+  List<FitnessTargetEntry> getTargetEntries(String targetId) {
+    try {
+      final target = _targets.firstWhere((t) => t.id == targetId);
+      final sorted = List<FitnessTargetEntry>.from(target.entries);
+      sorted.sort((a, b) => b.date.compareTo(a.date)); // новые сверху
+      return sorted;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 🔥 Автообновление прогресса всех активных целей
+  Future<void> _updateTargetsProgress() async {
+    bool changed = false;
+
+    for (final target in _targets.where((t) => t.status == FitnessTargetStatus.active).toList()) {
+      try {
+        final newValue = _calculateTargetProgress(target);
+        if ((newValue - target.currentValue).abs() > 0.001) {
+          final isNowCompleted = newValue >= target.targetValue && !target.isCompleted;
+          final updated = target.copyWith(
+            currentValue: newValue,
+            status: isNowCompleted ? FitnessTargetStatus.completed : target.status,
+            completedAt: isNowCompleted ? DateTime.now() : target.completedAt,
+          );
+          await _db.update('fitness_targets', updated.toMap(),
+              where: 'id = ?', whereArgs: [updated.id]);
+          final idx = _targets.indexWhere((t) => t.id == updated.id);
+          if (idx != -1) _targets[idx] = updated;
+          changed = true;
+
+          if (isNowCompleted) {
+            debugPrint('🏆🎯 Цель автоматически достигнута: ${target.name}');
+          } else {
+            debugPrint('📈 Обновлён прогресс цели "${target.name}": $newValue/${target.targetValue}');
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Ошибка обновления цели ${target.name}: $e');
+      }
+    }
+
+    if (changed) notifyListeners();
+  }
+
+  /// Вычислить текущий прогресс цели на основе имеющихся данных
+  double _calculateTargetProgress(FitnessTarget target) {
+    switch (target.type) {
+      case FitnessTargetType.strengthMax:
+      // Максимальный вес в упражнении (лучший подход)
+        if (target.exerciseId == null) return target.currentValue;
+        double maxWeight = 0;
+        for (final log in _logs) {
+          for (final ex in log.exercisesLog) {
+            if (ex.exerciseId == target.exerciseId) {
+              for (final set in ex.sets) {
+                if (set.status == SetStatus.completed && set.weight > maxWeight) {
+                  maxWeight = set.weight;
+                }
+              }
+            }
+          }
+        }
+        return maxWeight;
+
+      case FitnessTargetType.strengthReps:
+      // Максимальный вес, с которым сделано N повторений
+        if (target.exerciseId == null) return target.currentValue;
+        final targetReps = target.extra['reps'] as int? ?? 0;
+        double bestWeight = 0;
+        for (final log in _logs) {
+          for (final ex in log.exercisesLog) {
+            if (ex.exerciseId == target.exerciseId) {
+              for (final set in ex.sets) {
+                if (set.status == SetStatus.completed &&
+                    set.reps >= targetReps &&
+                    set.weight > bestWeight) {
+                  bestWeight = set.weight;
+                }
+              }
+            }
+          }
+        }
+        return bestWeight;
+
+      case FitnessTargetType.bodyweightReps:
+      // Макс. повторений в одном подходе
+        if (target.exerciseId == null) return target.currentValue;
+        int maxReps = 0;
+        for (final log in _logs) {
+          for (final ex in log.exercisesLog) {
+            if (ex.exerciseId == target.exerciseId) {
+              for (final set in ex.sets) {
+                if (set.status == SetStatus.completed && set.reps > maxReps) {
+                  maxReps = set.reps;
+                }
+              }
+            }
+          }
+        }
+        return maxReps.toDouble();
+
+      case FitnessTargetType.volume:
+      // Макс. объём за одну тренировку
+        double maxVolume = 0;
+        for (final log in _logs) {
+          final vol = log.totalVolume ?? 0;
+          if (vol > maxVolume) maxVolume = vol;
+        }
+        return maxVolume;
+
+      case FitnessTargetType.endurance:
+      // Пока без автообновления — пользователь сам отмечает
+        return target.currentValue;
+
+      case FitnessTargetType.bodyWeight:
+      // Текущий вес тела из профиля
+        final weight = _profile?.currentWeight;
+        if (weight == null) return target.currentValue;
+        return weight;
+
+      case FitnessTargetType.bodyMeasurement:
+      // Из последнего фото
+        if (_photos.isEmpty) return target.currentValue;
+        final sorted = List<FitnessPhoto>.from(_photos)
+          ..sort((a, b) => b.date.compareTo(a.date));
+        final latest = sorted.first;
+        final measurementKey = target.extra['measurement'] as String?;
+        if (measurementKey == null) return target.currentValue;
+        final values = {
+          'chest': latest.chest,
+          'waist': latest.waist,
+          'hips': latest.hips,
+          'biceps': latest.biceps,
+          'thigh': latest.thigh,
+          'calf': latest.calf,
+          'neck': latest.neck,
+          'forearm': latest.forearm,
+        };
+        return values[measurementKey] ?? target.currentValue;
+
+      case FitnessTargetType.cardioDistance:
+      case FitnessTargetType.cardioTime:
+      case FitnessTargetType.custom:
+        return target.currentValue;
+    }
+  }
+
+  /// Шаблоны популярных целей для быстрого создания
+  List<FitnessTarget> getTargetTemplates() {
+    return [
+      FitnessTarget(
+        id: 'tpl_bench_100',
+        name: 'Жим лёжа 100 кг',
+        description: 'Покорить сотку в жиме лёжа',
+        type: FitnessTargetType.strengthMax,
+        exerciseId: 'ex_default_001',
+        targetValue: 100,
+        unit: 'кг',
+        accentColor: const Color(0xFFFF6B35),
+      ),
+      FitnessTarget(
+        id: 'tpl_pullups_10',
+        name: 'Подтянуться 10 раз',
+        description: 'Классический норматив',
+        type: FitnessTargetType.bodyweightReps,
+        exerciseId: 'ex_default_005',
+        targetValue: 10,
+        unit: 'раз',
+        accentColor: const Color(0xFF4CAF50),
+      ),
+      FitnessTarget(
+        id: 'tpl_run_5k',
+        name: 'Пробежать 5 км',
+        description: 'Дистанция для выносливости',
+        type: FitnessTargetType.cardioDistance,
+        targetValue: 5,
+        unit: 'км',
+        accentColor: const Color(0xFF4A9BFF),
+      ),
+      FitnessTarget(
+        id: 'tpl_bench_50x50',
+        name: 'Жим 50 кг × 50 раз',
+        description: 'Силовая выносливость',
+        type: FitnessTargetType.strengthReps,
+        exerciseId: 'ex_default_001',
+        targetValue: 50,
+        unit: 'кг',
+        extra: {'reps': 50},
+        accentColor: const Color(0xFFE91E63),
+      ),
+      FitnessTarget(
+        id: 'tpl_squat_150',
+        name: 'Присед 150 кг',
+        description: 'Серьёзный результат в приседе',
+        type: FitnessTargetType.strengthMax,
+        exerciseId: 'ex_default_012',
+        targetValue: 150,
+        unit: 'кг',
+        accentColor: const Color(0xFF9C27B0),
+      ),
+      FitnessTarget(
+        id: 'tpl_deadlift_200',
+        name: 'Становая 200 кг',
+        description: '200 кг — элитный уровень',
+        type: FitnessTargetType.strengthMax,
+        exerciseId: 'ex_default_008',
+        targetValue: 200,
+        unit: 'кг',
+        accentColor: const Color(0xFF795548),
+      ),
+      FitnessTarget(
+        id: 'tpl_plank_180',
+        name: 'Планка 3 минуты',
+        description: 'Стальной кор',
+        type: FitnessTargetType.endurance,
+        exerciseId: 'ex_default_022',
+        targetValue: 180,
+        unit: 'сек',
+        accentColor: const Color(0xFF00C7BE),
+      ),
+      FitnessTarget(
+        id: 'tpl_pushups_100',
+        name: '100 отжиманий',
+        description: 'За одну тренировку',
+        type: FitnessTargetType.bodyweightReps,
+        exerciseId: 'ex_default_004',
+        targetValue: 100,
+        unit: 'раз',
+        accentColor: const Color(0xFFFF9500),
+      ),
+      FitnessTarget(
+        id: 'tpl_volume_10t',
+        name: '10 тонн за тренировку',
+        description: 'Объёмная силовая работа',
+        type: FitnessTargetType.volume,
+        targetValue: 10000,
+        unit: 'кг',
+        accentColor: const Color(0xFF3F51B5),
+      ),
+      FitnessTarget(
+        id: 'tpl_biceps_40',
+        name: 'Бицепс 40 см',
+        description: 'Классическая цель качков',
+        type: FitnessTargetType.bodyMeasurement,
+        targetValue: 40,
+        unit: 'см',
+        extra: {'measurement': 'biceps'},
+        accentColor: const Color(0xFFFF5722),
+      ),
+    ];
   }
 
   @override
