@@ -1,36 +1,46 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/profile_provider.dart';
 import '../../core/user_profile.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  const EditProfileScreen({
+    super.key,
+  });
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  State<EditProfileScreen> createState() =>
+      _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
-  late TextEditingController nameController;
-  late TextEditingController cityController;
-  late TextEditingController bioController;
-  late TextEditingController ageController;
-  late TextEditingController telegramController;
+class _EditProfileScreenState
+    extends State<EditProfileScreen> {
+  static const Color _accent = Color(0xFFFF6B00);
+  static const Color _accent2 = Color(0xFFFF8A3D);
+  static const Color _cyan = Color(0xFF42DFFF);
+  static const Color _violet = Color(0xFF9A7CFF);
+  static const Color _green = Color(0xFF40E0A0);
+
+  late final TextEditingController nameController;
+  late final TextEditingController cityController;
+  late final TextEditingController bioController;
+  late final TextEditingController ageController;
+  late final TextEditingController telegramController;
 
   String selectedCategory = 'LEGO';
   String _avatarUrl = '';
   bool isSaving = false;
-
-  // 🔥 Загружаем настройку темы из SharedPreferences
+  bool _isUploadingAvatar = false;
   bool _isDarkMode = false;
 
-  final categories = [
+  final List<String> categories = [
     'LEGO',
     'Игрушки',
     'Самокат',
@@ -58,43 +68,96 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     'Надувное',
   ];
 
-  final locations = [
-    'Москва', 'Санкт-Петербург', 'Щёлково', 'Фрязино', 'Новосибирск',
-    'Екатеринбург', 'Казань', 'Нижний Новгород', 'Челябинск', 'Самара',
-    'Омск', 'Ростов-на-Дону', 'Уфа', 'Красноярск', 'Воронеж',
-    'Пермь', 'Волгоград', 'Краснодар', 'Саратов', 'Тюмень',
-    'Тольятти', 'Ижевск', 'Барнаул', 'Иркутск', 'Хабаровск',
-    'Ярославль', 'Владивосток', 'Махачкала', 'Томск', 'Оренбург',
-    'Кемерово', 'Новокузнецк', 'Рига', 'Юрмала', 'Даугавпилс',
-    'Лиепая', 'Вентспилс', 'Елгава', 'Резекне', 'Таллин',
+  final List<String> locations = [
+    'Москва',
+    'Санкт-Петербург',
+    'Щёлково',
+    'Фрязино',
+    'Новосибирск',
+    'Екатеринбург',
+    'Казань',
+    'Нижний Новгород',
+    'Челябинск',
+    'Самара',
+    'Омск',
+    'Ростов-на-Дону',
+    'Уфа',
+    'Красноярск',
+    'Воронеж',
+    'Пермь',
+    'Волгоград',
+    'Краснодар',
+    'Саратов',
+    'Тюмень',
+    'Тольятти',
+    'Ижевск',
+    'Барнаул',
+    'Иркутск',
+    'Хабаровск',
+    'Ярославль',
+    'Владивосток',
+    'Махачкала',
+    'Томск',
+    'Оренбург',
+    'Кемерово',
+    'Новокузнецк',
+    'Рига',
+    'Юрмала',
+    'Даугавпилс',
+    'Лиепая',
+    'Вентспилс',
+    'Елгава',
+    'Резекне',
+    'Таллин',
   ];
 
   @override
   void initState() {
     super.initState();
 
-    // 🔥 Загружаем тему при инициализации
     _loadThemeMode();
 
-    final profile = context.read<ProfileProvider>().profile;
+    final profile =
+        context.read<ProfileProvider>().profile;
 
-    nameController = TextEditingController(text: profile.name);
-    cityController = TextEditingController(text: profile.city);
-    bioController = TextEditingController(text: profile.bio);
-    ageController = TextEditingController(text: profile.age.toString());
-    telegramController = TextEditingController(text: profile.telegram);
-    selectedCategory = profile.favoriteCategory;
+    nameController =
+        TextEditingController(text: profile.name);
+
+    cityController =
+        TextEditingController(text: profile.city);
+
+    bioController =
+        TextEditingController(text: profile.bio);
+
+    ageController = TextEditingController(
+      text: profile.age > 0
+          ? profile.age.toString()
+          : '',
+    );
+
+    telegramController =
+        TextEditingController(text: profile.telegram);
+
+    selectedCategory =
+    profile.favoriteCategory.isNotEmpty
+        ? profile.favoriteCategory
+        : 'LEGO';
+
     _avatarUrl = profile.avatarUrl;
   }
 
-  // 🔥 Загружаем настройку темы
   Future<void> _loadThemeMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _isDarkMode = prefs.getBool('is_dark_mode') ?? false;
-      });
+    final prefs =
+    await SharedPreferences.getInstance();
+
+    if (!mounted) {
+      return;
     }
+
+    setState(() {
+      _isDarkMode =
+          prefs.getBool('is_dark_mode') ?? false;
+    });
   }
 
   @override
@@ -108,486 +171,1427 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickAvatar() async {
+    if (_isUploadingAvatar || isSaving) {
+      return;
+    }
+
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60);
-    if (picked != null) {
-      try {
-        final bytes = await File(picked.path).readAsBytes();
-        final base64 = base64Encode(bytes);
 
-        final response = await http.post(
-          Uri.parse('https://functions.yandexcloud.net/d4e3c2me21eou683ic6d'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({"action": "upload", "file_data": base64}),
-        );
+    try {
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 60,
+      );
 
-        final data = jsonDecode(response.body);
-        if (data['ok'] == true && mounted) {
-          setState(() => _avatarUrl = data['file_url']);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Фото загружено')),
-          );
-        }
-      } catch (e) {
-        print("AVATAR UPLOAD ERROR: $e");
+      if (picked == null) {
+        return;
       }
+
+      setState(() {
+        _isUploadingAvatar = true;
+      });
+
+      final bytes =
+      await File(picked.path).readAsBytes();
+
+      final encoded =
+      base64Encode(bytes);
+
+      final response = await http
+          .post(
+        Uri.parse(
+          'https://functions.yandexcloud.net/d4e3c2me21eou683ic6d',
+        ),
+        headers: const {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'action': 'upload',
+          'file_data': encoded,
+        }),
+      )
+          .timeout(
+        const Duration(seconds: 30),
+      );
+
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300) {
+        throw Exception(
+          'Upload failed: ${response.statusCode}',
+        );
+      }
+
+      final data = jsonDecode(
+        response.body,
+      );
+
+      if (data is Map &&
+          data['ok'] == true &&
+          data['file_url'] != null) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _avatarUrl =
+              data['file_url'].toString();
+          _isUploadingAvatar = false;
+        });
+
+        _showSnackBar(
+          'Фото успешно загружено',
+          accent: _green,
+        );
+      } else {
+        throw Exception(
+          'Сервер не вернул URL изображения',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploadingAvatar = false;
+        });
+
+        _showSnackBar(
+          'Не удалось загрузить фото',
+          accent: const Color(0xFFFF5D73),
+        );
+      }
+
+      debugPrint(
+        'AVATAR UPLOAD ERROR: $e',
+      );
     }
   }
 
   Future<void> save() async {
+    if (isSaving) {
+      return;
+    }
+
+    final age =
+        int.tryParse(
+          ageController.text.trim(),
+        ) ??
+            0;
+
     final updated = UserProfile(
       name: nameController.text.trim(),
       city: cityController.text.trim(),
       bio: bioController.text.trim(),
-      age: int.tryParse(ageController.text) ?? 0,
+      age: age,
       favoriteCategory: selectedCategory,
-      telegram: telegramController.text.trim(),
+      telegram:
+      telegramController.text.trim(),
       avatarUrl: _avatarUrl,
     );
 
-    context.read<ProfileProvider>().updateProfile(updated);
+    context
+        .read<ProfileProvider>()
+        .updateProfile(updated);
 
-    setState(() => isSaving = true);
+    setState(() {
+      isSaving = true;
+    });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('user_id') ?? 'unknown';
+      final prefs =
+      await SharedPreferences.getInstance();
 
-      final url = Uri.parse('https://functions.yandexcloud.net/d4euctluka7dnot8sosh');
+      final userId =
+          prefs.getString('user_id') ??
+              'unknown';
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "action": "update",
-          "user_id": userId,
-          "name": updated.name,
-          "city": updated.city,
-          "bio": updated.bio,
-          "telegram": updated.telegram,
-          "age": updated.age,
-          "avatar_url": _avatarUrl,
-        }),
+      final url = Uri.parse(
+        'https://functions.yandexcloud.net/d4euctluka7dnot8sosh',
       );
 
-      print("PROFILE SAVE STATUS: ${response.statusCode}");
-      print("PROFILE SAVE BODY: ${response.body}");
+      final response = await http
+          .post(
+        url,
+        headers: const {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'action': 'update',
+          'user_id': userId,
+          'name': updated.name,
+          'city': updated.city,
+          'bio': updated.bio,
+          'telegram': updated.telegram,
+          'age': updated.age,
+          'avatar_url': _avatarUrl,
+        }),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+      );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              response.statusCode == 200
-                  ? 'Профиль сохранён в облаке'
-                  : 'Сохранено локально (сервер: ${response.statusCode})',
-            ),
-          ),
+      debugPrint(
+        'PROFILE SAVE STATUS: '
+            '${response.statusCode}',
+      );
+
+      debugPrint(
+        'PROFILE SAVE BODY: '
+            '${response.body}',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (response.statusCode == 200) {
+        _showSnackBar(
+          'Профиль сохранён в облаке',
+          accent: _green,
+        );
+      } else {
+        _showSnackBar(
+          'Сохранено локально • сервер ${response.statusCode}',
+          accent: _accent,
         );
       }
     } catch (e) {
-      print("PROFILE SYNC ERROR: $e");
+      debugPrint(
+        'PROFILE SYNC ERROR: $e',
+      );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Сохранено локально (нет сети)')),
+        _showSnackBar(
+          'Сохранено локально • нет сети',
+          accent: _accent,
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
       }
     }
 
-    setState(() => isSaving = false);
-
-    if (mounted) {
-      Navigator.pop(context);
+    if (!mounted) {
+      return;
     }
+
+    Navigator.pop(context);
+  }
+
+  void _showSnackBar(
+      String message, {
+        Color accent = _accent,
+      }) {
+    if (!mounted) {
+      return;
+    }
+
+    final background = _isDarkMode
+        ? const Color(0xFF12242C)
+        : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: background,
+          elevation: 10,
+          shape: RoundedRectangleBorder(
+            borderRadius:
+            BorderRadius.circular(16),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                      accent.withOpacity(0.45),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: _isDarkMode
+                        ? Colors.white
+                        : const Color(0xFF18252D),
+                    fontSize: 12.5,
+                    fontWeight:
+                    FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 Адаптивные цвета (используем _isDarkMode из SharedPreferences)
-    final backgroundColor = _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
-    final surfaceColor = _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
-    final textColor = _isDarkMode ? Colors.white : Colors.black87;
-    final subTextColor = _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
-    final borderColor = _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
-    final fillColor = _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade50;
+    final backgroundColor = _isDarkMode
+        ? const Color(0xFF071016)
+        : const Color(0xFFF5F8FB);
+
+    final surfaceColor = _isDarkMode
+        ? const Color(0xFF0D1B22)
+        : Colors.white;
+
+    final surfaceColor2 = _isDarkMode
+        ? const Color(0xFF12242C)
+        : const Color(0xFFF0F4F7);
+
+    final textColor = _isDarkMode
+        ? Colors.white
+        : const Color(0xFF17242C);
+
+    final subTextColor = _isDarkMode
+        ? const Color(0xFF91A4AE)
+        : const Color(0xFF6C7B84);
+
+    final borderColor = _isDarkMode
+        ? Colors.white.withOpacity(0.07)
+        : const Color(0xFFDCE4E9);
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Container(
-            decoration: BoxDecoration(
-              color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor),
-            ),
-            child: IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: textColor, size: 20),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
-        title: Text(
-          'Редактировать профиль',
-          style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.orange, Colors.deepOrange],
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: TextButton(
-                onPressed: isSaving ? null : save,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
-                child: isSaving
-                    ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-                    : const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 6),
-                    Text(
-                      'Сохранить',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+      appBar: _buildAppBar(
+        textColor: textColor,
+        borderColor: borderColor,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Аватар
-            GestureDetector(
-              onTap: _pickAvatar,
-              child: Center(
-                child: Hero(
-                  tag: 'profile_avatar',
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withOpacity(0.2),
-                          blurRadius: 20,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 64,
-                      backgroundColor: Colors.orange.shade100,
-                      backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-                      child: _avatarUrl.isEmpty
-                          ? const Icon(Icons.camera_alt, size: 48, color: Colors.orange)
-                          : null,
-                    ),
-                  ),
-                ),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics:
+          const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            40,
+          ),
+          child: Column(
+            children: [
+              _buildAvatarSection(),
+              const SizedBox(height: 28),
+              _buildSectionTitle(
+                icon: Icons.person_rounded,
+                title: 'Основное',
+                subtitle:
+                'Как тебя будут видеть другие',
+                accent: _accent,
+                textColor: textColor,
+                subTextColor: subTextColor,
               ),
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: _pickAvatar,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.orange.withOpacity(0.15), Colors.deepOrange.withOpacity(0.05)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              const SizedBox(height: 12),
+              _buildCard(
+                surfaceColor: surfaceColor,
+                borderColor: borderColor,
+                child: Column(
                   children: [
-                    Icon(Icons.camera_alt_rounded, color: Colors.orange, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Изменить фото',
-                      style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w600),
+                    _buildTextField(
+                      controller: nameController,
+                      label: 'Имя',
+                      hint: 'Как тебя зовут?',
+                      icon: Icons.person_rounded,
+                      textColor: textColor,
+                      subTextColor: subTextColor,
+                      borderColor: borderColor,
+                      surfaceColor2:
+                      surfaceColor2,
+                    ),
+                    _buildDivider(borderColor),
+                    _buildCityField(
+                      textColor: textColor,
+                      subTextColor:
+                      subTextColor,
+                      borderColor: borderColor,
+                      surfaceColor2:
+                      surfaceColor2,
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-
-            // Секция "Основное"
-            _buildSectionTitle('👤 Основное', textColor),
-            const SizedBox(height: 16),
-
-            // Имя
-            _buildTextField(
-              controller: nameController,
-              label: 'Имя',
-              icon: Icons.person_rounded,
-              hint: 'Ваше имя',
-              textColor: textColor,
-              subTextColor: subTextColor,
-              borderColor: borderColor,
-              fillColor: fillColor,
-              surfaceColor: surfaceColor,
-            ),
-            const SizedBox(height: 16),
-
-            // Город
-            _buildSectionTitle('📍 Город', textColor),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor),
+              const SizedBox(height: 26),
+              _buildSectionTitle(
+                icon: Icons.chat_bubble_outline_rounded,
+                title: 'О тебе',
+                subtitle:
+                'Добавь немного информации',
+                accent: _cyan,
+                textColor: textColor,
+                subTextColor: subTextColor,
               ),
-              child: DropdownButtonFormField<String>(
-                value: locations.contains(cityController.text) ? cityController.text : locations.first,
-                dropdownColor: surfaceColor,
-                style: TextStyle(color: textColor, fontSize: 15),
-                decoration: const InputDecoration(border: InputBorder.none),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.orange),
-                items: locations.map((loc) => DropdownMenuItem(
-                  value: loc,
-                  child: Text(loc, style: TextStyle(color: textColor)),
-                )).toList(),
-                onChanged: (val) {
-                  if (val != null) cityController.text = val;
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Секция "О себе"
-            _buildSectionTitle('📝 О себе', textColor),
-            const SizedBox(height: 16),
-
-            _buildTextField(
-              controller: bioController,
-              label: 'Расскажите о себе',
-              icon: Icons.info_outline_rounded,
-              hint: 'Чем увлекаетесь, что ищете...',
-              maxLines: 3,
-              textColor: textColor,
-              subTextColor: subTextColor,
-              borderColor: borderColor,
-              fillColor: fillColor,
-              surfaceColor: surfaceColor,
-            ),
-            const SizedBox(height: 16),
-
-            _buildTextField(
-              controller: ageController,
-              label: 'Возраст',
-              icon: Icons.cake_rounded,
-              hint: 'Ваш возраст',
-              keyboardType: TextInputType.number,
-              textColor: textColor,
-              subTextColor: subTextColor,
-              borderColor: borderColor,
-              fillColor: fillColor,
-              surfaceColor: surfaceColor,
-            ),
-            const SizedBox(height: 16),
-
-            _buildTextField(
-              controller: telegramController,
-              label: 'Telegram',
-              icon: Icons.telegram,
-              hint: '@username',
-              textColor: textColor,
-              subTextColor: subTextColor,
-              borderColor: borderColor,
-              fillColor: fillColor,
-              surfaceColor: surfaceColor,
-            ),
-            const SizedBox(height: 24),
-
-            // Секция "Интересы"
-            _buildSectionTitle('🎯 Любимая категория', textColor),
-            const SizedBox(height: 16),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: borderColor),
-              ),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: categories.map((cat) {
-                  final isSelected = selectedCategory == cat;
-                  return GestureDetector(
-                    onTap: () => setState(() => selectedCategory = cat),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                          colors: [Colors.orange, Colors.deepOrange],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                            : null,
-                        color: isSelected ? null : fillColor,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: isSelected ? Colors.orange : borderColor,
-                          width: 1.5,
-                        ),
-                        boxShadow: isSelected
-                            ? [
-                          BoxShadow(
-                            color: Colors.orange.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isSelected) ...[
-                            const Icon(Icons.check_rounded, color: Colors.white, size: 16),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            cat,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : textColor,
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+              const SizedBox(height: 12),
+              _buildCard(
+                surfaceColor: surfaceColor,
+                borderColor: borderColor,
+                child: Column(
+                  children: [
+                    _buildTextField(
+                      controller: bioController,
+                      label: 'О себе',
+                      hint:
+                      'Чем увлекаешься, что ищешь...',
+                      icon:
+                      Icons.notes_rounded,
+                      maxLines: 4,
+                      textColor: textColor,
+                      subTextColor: subTextColor,
+                      borderColor: borderColor,
+                      surfaceColor2:
+                      surfaceColor2,
                     ),
-                  );
-                }).toList(),
+                    _buildDivider(borderColor),
+                    _buildTextField(
+                      controller: ageController,
+                      label: 'Возраст',
+                      hint: 'Твой возраст',
+                      icon:
+                      Icons.cake_rounded,
+                      keyboardType:
+                      TextInputType.number,
+                      textColor: textColor,
+                      subTextColor: subTextColor,
+                      borderColor: borderColor,
+                      surfaceColor2:
+                      surfaceColor2,
+                    ),
+                    _buildDivider(borderColor),
+                    _buildTextField(
+                      controller:
+                      telegramController,
+                      label: 'Telegram',
+                      hint: '@username',
+                      icon: Icons.telegram,
+                      textColor: textColor,
+                      subTextColor: subTextColor,
+                      borderColor: borderColor,
+                      surfaceColor2:
+                      surfaceColor2,
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 40),
-          ],
+              const SizedBox(height: 26),
+              _buildSectionTitle(
+                icon:
+                Icons.auto_awesome_rounded,
+                title: 'Интерес',
+                subtitle:
+                'Что тебе нравится обменивать',
+                accent: _violet,
+                textColor: textColor,
+                subTextColor: subTextColor,
+              ),
+              const SizedBox(height: 12),
+              _buildCategoryCard(
+                surfaceColor: surfaceColor,
+                surfaceColor2: surfaceColor2,
+                borderColor: borderColor,
+                textColor: textColor,
+              ),
+              const SizedBox(height: 30),
+              _buildSaveButton(),
+              const SizedBox(height: 10),
+              Text(
+                'Изменения сохраняются локально и в облаке',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: subTextColor,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, Color textColor) {
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 20,
+  PreferredSizeWidget _buildAppBar({
+    required Color textColor,
+    required Color borderColor,
+  }) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: false,
+      titleSpacing: 12,
+      leading: Padding(
+        padding:
+        const EdgeInsets.only(left: 12),
+        child: Container(
+          margin:
+          const EdgeInsets.symmetric(
+            vertical: 8,
+          ),
           decoration: BoxDecoration(
-            color: Colors.orange,
-            borderRadius: BorderRadius.circular(2),
+            color: _isDarkMode
+                ? Colors.white.withOpacity(0.045)
+                : Colors.black.withOpacity(0.035),
+            borderRadius:
+            BorderRadius.circular(15),
+            border: Border.all(
+              color: borderColor,
+            ),
+          ),
+          child: IconButton(
+            onPressed: () =>
+                Navigator.pop(context),
+            tooltip: 'Назад',
+            icon: Icon(
+              Icons.arrow_back_rounded,
+              color: textColor,
+              size: 20,
+            ),
           ),
         ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+      ),
+      title: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Редактировать профиль',
+            style: TextStyle(
+              color: textColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.35,
+            ),
+          ),
+          Text(
+            'Обнови информацию о себе',
+            style: TextStyle(
+              color: _isDarkMode
+                  ? const Color(0xFF738993)
+                  : const Color(0xFF87959D),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        Padding(
+          padding:
+          const EdgeInsets.only(right: 12),
+          child: Container(
+            margin:
+            const EdgeInsets.symmetric(
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              gradient:
+              const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _accent,
+                  _accent2,
+                ],
+              ),
+              borderRadius:
+              BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color:
+                  _accent.withOpacity(0.20),
+                  blurRadius: 17,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: TextButton(
+              onPressed:
+              isSaving ? null : save,
+              style: TextButton.styleFrom(
+                foregroundColor:
+                Colors.white,
+                padding:
+                const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 10,
+                ),
+                shape:
+                RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(15),
+                ),
+              ),
+              child: isSaving
+                  ? const SizedBox(
+                width: 19,
+                height: 19,
+                child:
+                CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: Colors.white,
+                ),
+              )
+                  : const Row(
+                mainAxisSize:
+                MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    'Сохранить',
+                    style:
+                    TextStyle(
+                      color:
+                      Colors.white,
+                      fontSize: 12,
+                      fontWeight:
+                      FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
+  Widget _buildAvatarSection() {
+    final hasAvatar =
+        _avatarUrl.isNotEmpty;
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _pickAvatar,
+          child: Hero(
+            tag: 'profile_avatar',
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 140,
+                  height: 140,
+                  decoration:
+                  BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient:
+                    const LinearGradient(
+                      begin:
+                      Alignment.topLeft,
+                      end:
+                      Alignment.bottomRight,
+                      colors: [
+                        _accent2,
+                        _accent,
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _accent
+                            .withOpacity(0.20),
+                        blurRadius: 30,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 130,
+                  height: 130,
+                  decoration:
+                  BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white
+                          .withOpacity(0.95),
+                      width: 3,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    backgroundColor:
+                    _isDarkMode
+                        ? const Color(
+                      0xFF182A32,
+                    )
+                        : const Color(
+                      0xFFFFF0E7,
+                    ),
+                    backgroundImage:
+                    hasAvatar
+                        ? NetworkImage(
+                      _avatarUrl,
+                    )
+                        : null,
+                    child: hasAvatar
+                        ? null
+                        : const Icon(
+                      Icons
+                          .camera_alt_rounded,
+                      color: _accent,
+                      size: 47,
+                    ),
+                  ),
+                ),
+                if (_isUploadingAvatar)
+                  Container(
+                    width: 130,
+                    height: 130,
+                    decoration:
+                    BoxDecoration(
+                      shape:
+                      BoxShape.circle,
+                      color: Colors.black
+                          .withOpacity(0.55),
+                    ),
+                    child:
+                    const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                Positioned(
+                  right: 8,
+                  bottom: 7,
+                  child: Container(
+                    width: 37,
+                    height: 37,
+                    decoration:
+                    BoxDecoration(
+                      shape:
+                      BoxShape.circle,
+                      gradient:
+                      const LinearGradient(
+                        colors: [
+                          _accent,
+                          _accent2,
+                        ],
+                      ),
+                      border: Border.all(
+                        color: _isDarkMode
+                            ? const Color(
+                          0xFF071016,
+                        )
+                            : Colors.white,
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _accent
+                              .withOpacity(
+                            0.28,
+                          ),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 13),
+        GestureDetector(
+          onTap: _pickAvatar,
+          child: Container(
+            padding:
+            const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 9,
+            ),
+            decoration: BoxDecoration(
+              color: _accent.withOpacity(
+                _isDarkMode ? 0.09 : 0.07,
+              ),
+              borderRadius:
+              BorderRadius.circular(17),
+              border: Border.all(
+                color:
+                _accent.withOpacity(0.19),
+              ),
+            ),
+            child: Row(
+              mainAxisSize:
+              MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.photo_camera_rounded,
+                  color: _accent,
+                  size: 16,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  _isUploadingAvatar
+                      ? 'Загрузка...'
+                      : 'Изменить фото',
+                  style: const TextStyle(
+                    color: _accent,
+                    fontSize: 12,
+                    fontWeight:
+                    FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Нажми на фото, чтобы выбрать новое',
+          style: TextStyle(
+            color: _isDarkMode
+                ? const Color(0xFF738993)
+                : const Color(0xFF87959D),
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle({
     required IconData icon,
-    String? hint,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
+    required String title,
+    required String subtitle,
+    required Color accent,
     required Color textColor,
     required Color subTextColor,
-    required Color borderColor,
-    required Color fillColor,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: accent.withOpacity(
+              _isDarkMode ? 0.10 : 0.08,
+            ),
+            borderRadius:
+            BorderRadius.circular(13),
+          ),
+          child: Icon(
+            icon,
+            color: accent,
+            size: 19,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight:
+                  FontWeight.w900,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: subTextColor,
+                  fontSize: 10.5,
+                  fontWeight:
+                  FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard({
     required Color surfaceColor,
+    required Color borderColor,
+    required Widget child,
   }) {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        borderRadius:
+        BorderRadius.circular(24),
+        border: Border.all(
+          color: borderColor,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_isDarkMode ? 0.1 : 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(
+              _isDarkMode ? 0.11 : 0.035,
+            ),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        maxLines: maxLines,
-        style: TextStyle(color: textColor, fontSize: 15),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          labelStyle: TextStyle(color: subTextColor, fontSize: 14),
-          hintStyle: TextStyle(color: subTextColor.withOpacity(0.5), fontSize: 14),
-          prefixIcon: Container(
-            margin: const EdgeInsets.all(8),
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding:
+        const EdgeInsets.all(16),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController
+    controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required Color textColor,
+    required Color subTextColor,
+    required Color borderColor,
+    required Color surfaceColor2,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    final inputType = keyboardType ??
+        TextInputType.text;
+
+    return TextField(
+      controller: controller,
+      keyboardType: inputType,
+      maxLines: maxLines,
+      minLines: maxLines > 1 ? 3 : 1,
+      textInputAction:
+      maxLines > 1
+          ? TextInputAction.newline
+          : TextInputAction.next,
+      style: TextStyle(
+        color: textColor,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      cursorColor: _accent,
+      decoration:
+      _inputDecoration(
+        label: label,
+        hint: hint,
+        icon: icon,
+        textColor: textColor,
+        subTextColor: subTextColor,
+        borderColor: borderColor,
+        surfaceColor2: surfaceColor2,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String label,
+    required String hint,
+    required IconData icon,
+    required Color textColor,
+    required Color subTextColor,
+    required Color borderColor,
+    required Color surfaceColor2,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      floatingLabelBehavior:
+      FloatingLabelBehavior.auto,
+      labelStyle: TextStyle(
+        color: subTextColor,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      floatingLabelStyle:
+      const TextStyle(
+        color: _accent,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+      ),
+      hintStyle: TextStyle(
+        color:
+        subTextColor.withOpacity(0.45),
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+      ),
+      prefixIcon: Padding(
+        padding:
+        const EdgeInsets.fromLTRB(
+          10,
+          10,
+          7,
+          10,
+        ),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: _accent.withOpacity(
+              _isDarkMode ? 0.08 : 0.06,
             ),
-            child: Icon(icon, color: Colors.orange, size: 20),
+            borderRadius:
+            BorderRadius.circular(12),
           ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+          child: Icon(
+            icon,
+            color: _accent,
+            size: 19,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Colors.orange, width: 2),
+        ),
+      ),
+      filled: true,
+      fillColor: surfaceColor2,
+      contentPadding:
+      const EdgeInsets.symmetric(
+        horizontal: 13,
+        vertical: 17,
+      ),
+      border: OutlineInputBorder(
+        borderRadius:
+        BorderRadius.circular(17),
+        borderSide: BorderSide(
+          color: borderColor,
+        ),
+      ),
+      enabledBorder:
+      OutlineInputBorder(
+        borderRadius:
+        BorderRadius.circular(17),
+        borderSide: BorderSide(
+          color: borderColor,
+        ),
+      ),
+      focusedBorder:
+      OutlineInputBorder(
+        borderRadius:
+        BorderRadius.circular(17),
+        borderSide:
+        const BorderSide(
+          color: _accent,
+          width: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCityField({
+    required Color textColor,
+    required Color subTextColor,
+    required Color borderColor,
+    required Color surfaceColor2,
+  }) {
+    final currentCity =
+    cityController.text.trim();
+
+    final selectedValue =
+    locations.contains(currentCity)
+        ? currentCity
+        : null;
+
+    return DropdownButtonFormField<String>(
+      value: selectedValue,
+      dropdownColor:
+      _isDarkMode
+          ? const Color(0xFF12242C)
+          : Colors.white,
+      style: TextStyle(
+        color: textColor,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      icon: const Icon(
+        Icons.keyboard_arrow_down_rounded,
+        color: _accent,
+      ),
+      decoration:
+      _inputDecoration(
+        label: 'Город',
+        hint: 'Выбери город',
+        icon: Icons.location_on_rounded,
+        textColor: textColor,
+        subTextColor: subTextColor,
+        borderColor: borderColor,
+        surfaceColor2: surfaceColor2,
+      ),
+      items: locations
+          .map(
+            (location) =>
+            DropdownMenuItem<String>(
+              value: location,
+              child: Text(
+                location,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 14,
+                  fontWeight:
+                  FontWeight.w600,
+                ),
+              ),
+            ),
+      )
+          .toList(),
+      onChanged: (value) {
+        if (value == null) {
+          return;
+        }
+
+        setState(() {
+          cityController.text = value;
+        });
+      },
+    );
+  }
+
+  Widget _buildDivider(
+      Color borderColor,
+      ) {
+    return Padding(
+      padding:
+      const EdgeInsets.symmetric(
+        vertical: 13,
+        horizontal: 4,
+      ),
+      child: Container(
+        height: 1,
+        color: borderColor,
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard({
+    required Color surfaceColor,
+    required Color surfaceColor2,
+    required Color borderColor,
+    required Color textColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius:
+        BorderRadius.circular(24),
+        border: Border.all(
+          color: borderColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(
+              _isDarkMode ? 0.10 : 0.03,
+            ),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
           ),
-          filled: true,
-          fillColor: Colors.transparent,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding:
+            const EdgeInsets.symmetric(
+              horizontal: 13,
+              vertical: 12,
+            ),
+            decoration: BoxDecoration(
+              color: _violet.withOpacity(
+                _isDarkMode ? 0.07 : 0.06,
+              ),
+              borderRadius:
+              BorderRadius.circular(16),
+              border: Border.all(
+                color:
+                _violet.withOpacity(0.12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: _violet
+                        .withOpacity(0.11),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.star_rounded,
+                    color: _violet,
+                    size: 17,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                    children: [
+                      Text(
+                        'Сейчас выбрано',
+                        style: TextStyle(
+                          color:
+                          _isDarkMode
+                              ? const Color(
+                            0xFF8498A2,
+                          )
+                              : const Color(
+                            0xFF71808A,
+                          ),
+                          fontSize: 9.5,
+                          fontWeight:
+                          FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 2,
+                      ),
+                      Text(
+                        selectedCategory,
+                        style:
+                        TextStyle(
+                          color:
+                          textColor,
+                          fontSize: 13,
+                          fontWeight:
+                          FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children:
+            categories.map(
+                  (category) {
+                return _buildCategoryChip(
+                  category: category,
+                  selected:
+                  selectedCategory ==
+                      category,
+                  surfaceColor2:
+                  surfaceColor2,
+                  textColor:
+                  textColor,
+                );
+              },
+            ).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip({
+    required String category,
+    required bool selected,
+    required Color surfaceColor2,
+    required Color textColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius:
+        BorderRadius.circular(17),
+        onTap: () {
+          setState(() {
+            selectedCategory =
+                category;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(
+            milliseconds: 220,
+          ),
+          curve: Curves.easeOut,
+          padding:
+          const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 9,
+          ),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+              begin:
+              Alignment.topLeft,
+              end:
+              Alignment.bottomRight,
+              colors: [
+                _accent,
+                _accent2,
+              ],
+            )
+                : null,
+            color: selected
+                ? null
+                : surfaceColor2,
+            borderRadius:
+            BorderRadius.circular(17),
+            border: Border.all(
+              color: selected
+                  ? _accent
+                  : _isDarkMode
+                  ? Colors.white
+                  .withOpacity(0.055)
+                  : const Color(
+                0xFFDCE4E9,
+              ),
+            ),
+            boxShadow: selected
+                ? [
+              BoxShadow(
+                color: _accent
+                    .withOpacity(0.18),
+                blurRadius: 12,
+                offset:
+                const Offset(0, 4),
+              ),
+            ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize:
+            MainAxisSize.min,
+            children: [
+              if (selected) ...[
+                const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                category,
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : textColor,
+                  fontSize: 11.5,
+                  fontWeight: selected
+                      ? FontWeight.w800
+                      : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient:
+          const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              _accent,
+              _accent2,
+            ],
+          ),
+          borderRadius:
+          BorderRadius.circular(19),
+          boxShadow: [
+            BoxShadow(
+              color: _accent
+                  .withOpacity(0.22),
+              blurRadius: 24,
+              offset: const Offset(0, 9),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed:
+          isSaving ? null : save,
+          style:
+          ElevatedButton.styleFrom(
+            backgroundColor:
+            Colors.transparent,
+            foregroundColor:
+            Colors.white,
+            shadowColor:
+            Colors.transparent,
+            disabledBackgroundColor:
+            Colors.transparent,
+            shape:
+            RoundedRectangleBorder(
+              borderRadius:
+              BorderRadius.circular(19),
+            ),
+          ),
+          child: isSaving
+              ? const SizedBox(
+            width: 22,
+            height: 22,
+            child:
+            CircularProgressIndicator(
+              strokeWidth: 2.3,
+              color: Colors.white,
+            ),
+          )
+              : const Row(
+            mainAxisAlignment:
+            MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                color: Colors.white,
+                size: 21,
+              ),
+              SizedBox(width: 9),
+              Text(
+                'Сохранить изменения',
+                style:
+                TextStyle(
+                  color:
+                  Colors.white,
+                  fontSize: 14,
+                  fontWeight:
+                  FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

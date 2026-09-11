@@ -13,6 +13,42 @@ import 'widgets/stats/stats_widget.dart';
 import '../../fitness/fitness_entry.dart';
 import '../../fitness/providers/fitness_provider.dart';
 
+// ==================== iOS-STYLE DESIGN SYSTEM ====================
+
+class _IOS {
+  // Фон
+  static const Color lightBg = Color(0xFFF2F2F7);
+  static const Color darkBg = Color(0xFF000000);
+  static const Color lightCard = Color(0xFFFFFFFF);
+  static const Color darkCard = Color(0xFF1C1C1E);
+  static const Color darkCardElevated = Color(0xFF2C2C2E);
+
+  // Акценты (iOS system colors)
+  static const Color blue = Color(0xFF007AFF);
+  static const Color green = Color(0xFF34C759);
+  static const Color orange = Color(0xFFFF9500);
+  static const Color yellow = Color(0xFFFFCC00);
+  static const Color purple = Color(0xFFAF52DE);
+  static const Color teal = Color(0xFF5AC8FA);
+  static const Color indigo = Color(0xFF5856D6);
+  static const Color pink = Color(0xFFFF2D55);
+  static const Color red = Color(0xFFFF3B30);
+
+  // Разделители
+  static Color lightSep = Colors.black.withOpacity(0.06);
+  static Color darkSep = Colors.white.withOpacity(0.08);
+
+  static Color separator(bool isDark) => isDark ? darkSep : lightSep;
+  static Color card(bool isDark) => isDark ? darkCard : lightCard;
+  static Color bg(bool isDark) => isDark ? darkBg : lightBg;
+  static Color textPrimary(bool isDark) =>
+      isDark ? Colors.white : Colors.black;
+  static Color textSecondary(bool isDark) =>
+      isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF3C3C43).withOpacity(0.6);
+  static Color textTertiary(bool isDark) =>
+      isDark ? Colors.white.withOpacity(0.3) : const Color(0xFF3C3C43).withOpacity(0.3);
+}
+
 // ==================== СОВРЕМЕННАЯ СЕТКА 2×N ====================
 
 class LeftPanelLife extends StatefulWidget {
@@ -58,7 +94,8 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
   }
 
   void _onScroll() {
-    final collapsed = _scrollController.hasClients && _scrollController.offset > 60;
+    final collapsed =
+        _scrollController.hasClients && _scrollController.offset > 60;
     if (collapsed != _isHeaderCollapsed) {
       setState(() => _isHeaderCollapsed = collapsed);
     }
@@ -68,57 +105,104 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final provider = context.watch<LifeProvider>();
-    // 🔥 Фитнес-провайдер для баннера
     final fitness = context.watch<FitnessProvider>();
-    // Исключаем фитнес из сетки — теперь он сверху отдельным баннером
-    final widgets = provider.widgets.where((w) => w.type != 'fitness').toList();
+    final widgets =
+    provider.widgets.where((w) => w.type != 'fitness').toList();
     final stats = provider.getStats();
 
     return Container(
       width: double.infinity,
       height: double.infinity,
-      color: isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA),
+      color: _IOS.bg(isDark),
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: provider.isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(
+          child: CircularProgressIndicator(color: _IOS.blue),
+        )
             : Stack(
           children: [
             CustomScrollView(
               controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
               slivers: [
+                // ===== Header =====
                 SliverToBoxAdapter(
                   child: AnimatedSize(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
+                    alignment: Alignment.topCenter,
                     child: _isHeaderCollapsed
-                        ? const SizedBox(height: 12)
-                        : Column(
+                        ? const SizedBox(height: 0)
+                        : _buildHeader(isDark, stats, provider),
+                  ),
+                ),
+
+                // ===== Quick stats chips =====
+                SliverToBoxAdapter(
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.topCenter,
+                    child: _isHeaderCollapsed
+                        ? const SizedBox(height: 0)
+                        : _buildQuickStats(isDark, stats),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                // ===== Fitness hero =====
+                SliverToBoxAdapter(
+                  child: _buildFitnessHero(isDark, fitness),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                // ===== Section title =====
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Row(
                       children: [
-                        _buildHeader(isDark, stats, provider),
-                        const SizedBox(height: 8),
-                        _buildQuickStats(isDark, stats),
-                        const SizedBox(height: 8),
+                        Text(
+                          'Виджеты',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            color: _IOS.textPrimary(isDark),
+                          ),
+                        ),
+                        const Spacer(),
+                        if (widgets.isNotEmpty)
+                          Text(
+                            '${widgets.length}',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: _IOS.textTertiary(isDark),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
-                // 🔥 НОВОЕ: Фитнес-баннер во всю ширину сверху
-                SliverToBoxAdapter(
-                  child: _buildFitnessHero(isDark, fitness),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                // ===== Widget grid =====
                 if (widgets.isEmpty)
-                  SliverFillRemaining(child: _buildEmptyState(isDark))
+                  SliverToBoxAdapter(child: _buildEmptyState(isDark))
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        childAspectRatio: 0.9,
+                        childAspectRatio: 0.88,
                       ),
                       delegate: SliverChildBuilderDelegate(
                             (context, index) {
@@ -134,16 +218,119 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
                       ),
                     ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 120)),
               ],
             ),
-            // Кнопка добавления
+
+            // ===== Add FAB =====
             Positioned(
-              bottom: 28,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _buildAddButton(isDark, provider),
+              bottom: 24,
+              right: 20,
+              child: _buildAddButton(isDark, provider),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // HEADER — iOS Large Title style
+  // ============================================================
+
+  Widget _buildHeader(
+      bool isDark,
+      Map<String, dynamic> stats,
+      LifeProvider provider,
+      ) {
+    final now = DateTime.now();
+    final weekdays = [
+      'Понедельник',
+      'Вторник',
+      'Среда',
+      'Четверг',
+      'Пятница',
+      'Суббота',
+      'Воскресенье',
+    ];
+    final months = [
+      'января',
+      'февраля',
+      'марта',
+      'апреля',
+      'мая',
+      'июня',
+      'июля',
+      'августа',
+      'сентября',
+      'октября',
+      'ноября',
+      'декабря',
+    ];
+    final dateLine =
+        '${weekdays[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Верхняя строка: дата + кнопки
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    dateLine.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
+                      color: _IOS.textTertiary(isDark),
+                    ),
+                  ),
+                ),
+                _buildIconButton(
+                  isDark: isDark,
+                  icon: Icons.lock_outline_rounded,
+                  onTap: widget.onLockTap ?? () {},
+                ),
+                const SizedBox(width: 8),
+                _buildIconButton(
+                  isDark: isDark,
+                  icon: Icons.refresh_rounded,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    provider.init();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Large Title
+            Text(
+              'Life Dashboard',
+              style: TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.9,
+                height: 1.05,
+                color: _IOS.textPrimary(isDark),
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // Subtitle
+            Text(
+              '${stats['totalEvents'] ?? 0} событий • ${stats['totalTasks'] ?? 0} задач • ${stats['totalHabits'] ?? 0} привычек',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+                color: _IOS.textSecondary(isDark),
+                height: 1.3,
               ),
             ),
           ],
@@ -152,7 +339,103 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
     );
   }
 
-  // ==================== 🔥 ФИТНЕС-БАННЕР (HERO) ====================
+  Widget _buildIconButton({
+    required bool isDark,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : Colors.black.withOpacity(0.05),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: _IOS.textSecondary(isDark),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // QUICK STATS — iOS pill chips
+  // ============================================================
+
+  Widget _buildQuickStats(bool isDark, Map<String, dynamic> stats) {
+    final items = <List<String>>[
+      ['📋', '${stats['totalTasks'] ?? 0}', 'Задачи'],
+      ['💡', '${stats['totalIdeas'] ?? 0}', 'Идеи'],
+      ['💪', '${stats['totalHabits'] ?? 0}', 'Привычки'],
+      ['📅', '${stats['totalEvents'] ?? 0}', 'События'],
+    ];
+
+    return SizedBox(
+      height: 66,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final item = items[i];
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _IOS.card(isDark),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _IOS.separator(isDark)),
+            ),
+            child: Row(
+              children: [
+                Text(item[0], style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      item[1],
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                        letterSpacing: -0.2,
+                        color: _IOS.textPrimary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item[2],
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        height: 1,
+                        color: _IOS.textTertiary(isDark),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // FITNESS HERO — featured card
+  // ============================================================
 
   Widget _buildFitnessHero(bool isDark, FitnessProvider fitness) {
     final stats = fitness.getStats();
@@ -164,318 +447,294 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
         .firstOrNull
         : null;
 
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        _openFullscreenWidget(
-          context,
-          'fitness',
-          isDark,
-          context.read<LifeProvider>(),
-        );
-      },
-      child: Container(
-        height: 220,
-        margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF6B35).withOpacity(0.3),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: const Color(0xFF00E5FF).withOpacity(0.15),
-              blurRadius: 40,
-              offset: const Offset(0, 16),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 🖼️ Фоновое изображение зала (с фолбэком)
-              Image.asset(
-                'assets/images/kachalka.jpeg',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF1A1D24),
-                          Color(0xFF0F1115),
-                          Color(0xFF2A1508),
-                        ],
-                      ),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.fitness_center_rounded,
-                        size: 72,
-                        color: Color(0xFFFF6B35),
-                      ),
-                    ),
-                  );
-                },
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          _openFullscreenWidget(
+            context,
+            'fitness',
+            isDark,
+            context.read<LifeProvider>(),
+          );
+        },
+        child: Container(
+          height: 210,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.5 : 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
-              // Затемнение для читаемости текста
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.92),
-                      Colors.black.withOpacity(0.5),
-                      Colors.black.withOpacity(0.15),
-                    ],
-                  ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Фон
+                Image.asset(
+                  'assets/images/kachalka.jpeg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF1A1D24),
+                            Color(0xFF0F1115),
+                            Color(0xFF2A1508),
+                          ],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.fitness_center_rounded,
+                          size: 64,
+                          color: _IOS.orange,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-              // Неоновая полоса сверху (в стиле зала)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 3,
-                  decoration: const BoxDecoration(
+
+                // Затемнение
+                DecoratedBox(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
                       colors: [
-                        Color(0xFF00E5FF),
-                        Color(0xFFFF2E9A),
-                        Color(0xFFFF6B35),
-                        Color(0xFFB4FF39),
+                        Colors.black.withOpacity(0.15),
+                        Colors.black.withOpacity(0.55),
+                        Colors.black.withOpacity(0.85),
                       ],
                     ),
                   ),
                 ),
-              ),
-              // Контент
-              Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Верхняя строка: GYM + стрик
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B35),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFF6B35).withOpacity(0.5),
-                                blurRadius: 12,
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.fitness_center_rounded,
-                                  color: Colors.white, size: 16),
-                              SizedBox(width: 6),
-                              Text(
-                                'GYM',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        if ((stats['currentStreak'] ?? 0) > 0)
+
+                // Контент
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Верхняя строка
+                      Row(
+                        children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 6,
+                              vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
+                              color: Colors.white.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: Colors.white.withOpacity(0.25),
+                                width: 0.5,
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('🔥', style: TextStyle(fontSize: 12)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${stats['currentStreak']}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ],
+                            child: const Text(
+                              'FITNESS',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ),
-                      ],
-                    ),
-                    const Spacer(),
-                    // Заголовок
-                    const Text(
-                      'Качалка',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                        height: 1.1,
+                          const Spacer(),
+                          if ((stats['currentStreak'] ?? 0) > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.25),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('🔥',
+                                      style: TextStyle(fontSize: 12)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${stats['currentStreak']}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Неоновая сила начинается здесь ⚡',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+
+                      const Spacer(),
+
+                      // Заголовок
+                      const Text(
+                        'Качалка',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
+                          height: 1.05,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    // Активная программа или статистика
-                    if (activeSession != null && activeProgram != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Неоновая сила начинается здесь ⚡',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.75),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Стат-чипы
                       Row(
                         children: [
-                          Expanded(
-                            child: Text(
-                              '🎯 ${activeProgram.name}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          _buildHeroChip(
+                            icon: Icons.local_fire_department_rounded,
+                            value: '${stats['workoutsThisWeek'] ?? 0}',
+                            label: 'на неделе',
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            '${(activeSession.progressPercent * 100).toInt()}%',
-                            style: const TextStyle(
-                              color: Color(0xFFFF6B35),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
+                          _buildHeroChip(
+                            icon: Icons.fitness_center_rounded,
+                            value: '${stats['totalWorkouts'] ?? 0}',
+                            label: 'всего',
+                          ),
+                          const Spacer(),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 18,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: activeSession.progressPercent,
-                          backgroundColor: Colors.white.withOpacity(0.2),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFFFF6B35),
-                          ),
-                          minHeight: 6,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    // Статистика (стеклянные чипы)
-                    Row(
-                      children: [
-                        _buildHeroStatChip(
-                          '💪',
-                          '${stats['workoutsThisWeek'] ?? 0}',
-                          'на неделе',
-                        ),
-                        const SizedBox(width: 8),
-                        _buildHeroStatChip(
-                          '🏋️',
-                          '${stats['totalWorkouts'] ?? 0}',
-                          'всего',
-                        ),
-                        const SizedBox(width: 8),
-                        _buildHeroStatChip(
-                          '⚡',
-                          _formatVolume(stats['totalVolume'] ?? 0.0),
-                          'тоннаж',
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.25),
+
+                      // Прогресс активной программы
+                      if (activeSession != null && activeProgram != null) ...[
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                activeProgram.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 18,
+                            Text(
+                              '${(activeSession.progressPercent * 100).toInt()}%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: activeSession.progressPercent,
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                            minHeight: 4,
                           ),
                         ),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHeroStatChip(String emoji, String value, String label) {
+  Widget _buildHeroChip({
+    required IconData icon,
+    required String value,
+    required String label,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 0.5,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 14)),
+          Icon(icon, color: Colors.white, size: 14),
           const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 8,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.65),
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              height: 1,
+            ),
           ),
         ],
       ),
@@ -489,127 +748,52 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
     return volume.toStringAsFixed(0);
   }
 
-  // ==================== ЗАГОЛОВОК ====================
+  // ============================================================
+  // EMPTY STATE
+  // ============================================================
 
-  Widget _buildHeader(
-      bool isDark,
-      Map<String, dynamic> stats,
-      LifeProvider provider,
-      ) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF1A1D24).withOpacity(0.8)
-            : Colors.white.withOpacity(0.7),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-        border: Border(
-          bottom: BorderSide(
-            color: isDark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.black.withOpacity(0.03),
-          ),
+  Widget _buildEmptyState(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        decoration: BoxDecoration(
+          color: _IOS.card(isDark),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _IOS.separator(isDark)),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          )
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
+        child: Column(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6C63FF), Color(0xFF3F3D9E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6C63FF).withOpacity(0.3),
-                    blurRadius: 8,
-                  )
-                ],
+                color: _IOS.blue.withOpacity(0.12),
+                shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.dashboard_rounded,
-                color: Colors.white,
-                size: 24,
+                Icons.widgets_rounded,
+                size: 28,
+                color: _IOS.blue,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Life Dashboard',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF1A1D24),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  Text(
-                    '${stats['totalEvents'] ?? 0} событий • ${stats['totalTasks'] ?? 0} задач',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isDark ? Colors.white38 : Colors.grey.shade500,
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 16),
+            Text(
+              'Нет виджетов',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+                color: _IOS.textPrimary(isDark),
               ),
             ),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: widget.onLockTap ?? () {},
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.05)
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.lock_rounded,
-                      size: 18,
-                      color: isDark ? Colors.white54 : Colors.grey.shade600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    provider.init();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.05)
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.refresh_rounded,
-                      size: 18,
-                      color: isDark ? Colors.white54 : Colors.grey.shade600,
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 4),
+            Text(
+              'Нажмите + чтобы добавить',
+              style: TextStyle(
+                fontSize: 14,
+                color: _IOS.textSecondary(isDark),
+              ),
             ),
           ],
         ),
@@ -617,135 +801,51 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
     );
   }
 
-  Widget _buildQuickStats(bool isDark, Map<String, dynamic> stats) {
-    final items = [
-      ['📋', '${stats['totalTasks'] ?? 0}', 'задач'],
-      ['💡', '${stats['totalIdeas'] ?? 0}', 'идей'],
-      ['💪', '${stats['totalHabits'] ?? 0}', 'привычек'],
-      ['📅', '${stats['totalEvents'] ?? 0}', 'событий'],
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Row(
-        children: items.map((item) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1A1D24).withOpacity(0.6)
-                  : Colors.white.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.05)
-                    : Colors.black.withOpacity(0.03),
-              ),
-            ),
-            child: Row(
-              children: [
-                Text(item[0], style: const TextStyle(fontSize: 14)),
-                const SizedBox(width: 6),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      item[1],
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    Text(
-                      item[2],
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: isDark ? Colors.white38 : Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.widgets_rounded,
-            size: 56,
-            color: isDark ? Colors.white12 : Colors.grey.shade300,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Нет виджетов',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white38 : Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Нажмите + чтобы добавить',
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark ? Colors.white24 : Colors.grey.shade400,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== КНОПКА ДОБАВЛЕНИЯ ====================
+  // ============================================================
+  // ADD BUTTON — iOS FAB
+  // ============================================================
 
   Widget _buildAddButton(bool isDark, LifeProvider provider) {
     return GestureDetector(
-      onTap: () => _showAddWidgetDialog(context, isDark, provider),
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        _showAddWidgetDialog(context, isDark, provider);
+      },
       child: Container(
-        width: 60,
-        height: 60,
+        width: 58,
+        height: 58,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF6C63FF), Color(0xFF3F3D9E)],
+            colors: [_IOS.blue, Color(0xFF0051D5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6C63FF).withOpacity(0.4),
+              color: _IOS.blue.withOpacity(0.35),
               blurRadius: 20,
-              offset: const Offset(0, 6),
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-            width: 2,
-          ),
         ),
         child: const Icon(
           Icons.add_rounded,
           color: Colors.white,
-          size: 30,
+          size: 28,
         ),
       ),
     );
   }
 
-  // ==================== КАРТОЧКА ВИДЖЕТА ====================
+  // ============================================================
+  // WIDGET CARD — iOS style
+  // ============================================================
 
   Widget _buildWidgetCard(
       LifeWidget widget,
@@ -756,199 +856,139 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
     final config = _getWidgetConfig(widget.type);
 
     return GestureDetector(
-      onTap: () => _openFullscreenWidget(
-        context,
-        widget.type,
-        isDark,
-        provider,
-      ),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _openFullscreenWidget(
+          context,
+          widget.type,
+          isDark,
+          provider,
+        );
+      },
       child: Container(
         key: Key(widget.id),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              config.color.withOpacity(0.15),
-              config.color.withOpacity(0.05),
-            ],
-          ),
+          color: _IOS.card(isDark),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.06)
-                : Colors.black.withOpacity(0.04),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: config.color.withOpacity(0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: _IOS.separator(isDark)),
         ),
         child: Stack(
           children: [
-            // Декоративные элементы
-            Positioned(
-              top: -20,
-              right: -20,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: config.color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -30,
-              left: -30,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: config.color.withOpacity(0.05),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
             // Основное содержимое
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Иконка
+                  // Иконка в квадрате
                   Container(
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [config.color, config.color.withOpacity(0.6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: config.color.withOpacity(0.3),
-                          blurRadius: 8,
-                        ),
-                      ],
+                      color: config.color.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
                       child: Icon(
                         config.icon,
-                        color: Colors.white,
+                        color: config.color,
                         size: 22,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+
+                  const Spacer(),
+
                   // Название
                   Text(
                     config.label,
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF1A1D24),
-                      letterSpacing: -0.3,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                      height: 1.1,
+                      color: _IOS.textPrimary(isDark),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  // Количество
-                  Text(
-                    config.count.toString(),
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: config.color,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Подпись
+                  const SizedBox(height: 3),
+
+                  // Подпись + chevron
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: config.color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
+                      Expanded(
                         child: Text(
                           config.subtitle,
                           style: TextStyle(
-                            fontSize: 8,
-                            color: config.color,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: _IOS.textSecondary(isDark),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.05)
-                              : Colors.black.withOpacity(0.04),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          size: 16,
-                          color: isDark ? Colors.white38 : Colors.grey.shade500,
-                        ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: _IOS.textTertiary(isDark),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            // Drag-ручка
+
+            // Меню (drag + delete) — появляется поверх в верхнем правом
             Positioned(
-              top: 8,
-              left: 8,
+              top: 10,
+              right: 10,
+              child: Row(
+                children: [
+                  // Удаление
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      _confirmRemoveWidget(context, widget, provider);
+                    },
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.05),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 14,
+                        color: _IOS.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Drag handle (визуальный)
+            Positioned(
+              top: 12,
+              right: 44,
               child: ReorderableDragStartListener(
                 index: index,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  width: 26,
+                  height: 26,
                   decoration: BoxDecoration(
-                    color: (isDark ? Colors.black : Colors.white).withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(6),
+                    color: isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : Colors.black.withOpacity(0.03),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    Icons.drag_handle_rounded,
+                    Icons.drag_indicator_rounded,
                     size: 14,
-                    color: isDark ? Colors.white38 : Colors.grey.shade500,
-                  ),
-                ),
-              ),
-            ),
-            // Кнопка удаления
-            Positioned(
-              top: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.mediumImpact();
-                  _confirmRemoveWidget(context, widget, provider);
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: (isDark ? Colors.black : Colors.white).withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 14,
-                    color: Colors.red.shade400,
+                    color: _IOS.textTertiary(isDark),
                   ),
                 ),
               ),
@@ -959,108 +999,176 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
     );
   }
 
-  // ==================== КОНФИГУРАЦИЯ ВИДЖЕТОВ ====================
+  // ============================================================
+  // WIDGET CONFIG
+  // ============================================================
 
   _WidgetConfig _getWidgetConfig(String type) {
     switch (type) {
       case 'calendar':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.calendar_month_rounded,
-          color: const Color(0xFF4A9BFF),
+          color: _IOS.blue,
           label: 'Календарь',
-          subtitle: 'События',
-          count: 12,
+          subtitle: 'События и встречи',
         );
       case 'tasks':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.checklist_rounded,
-          color: const Color(0xFF34C759),
+          color: _IOS.green,
           label: 'Задачи',
-          subtitle: 'To-do',
-          count: 8,
+          subtitle: 'To-do список',
         );
       case 'habits':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.fitness_center_rounded,
-          color: const Color(0xFFFF9500),
+          color: _IOS.orange,
           label: 'Привычки',
-          subtitle: 'Ритуалы',
-          count: 5,
+          subtitle: 'Ежедневные ритуалы',
         );
       case 'notes':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.note_rounded,
-          color: const Color(0xFFFFCC00),
+          color: _IOS.yellow,
           label: 'Заметки',
-          subtitle: 'Записи',
-          count: 15,
+          subtitle: 'Быстрые записи',
         );
       case 'ideas':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.lightbulb_rounded,
-          color: const Color(0xFFAF52DE),
+          color: _IOS.purple,
           label: 'Идеи',
-          subtitle: 'Вдохновение',
-          count: 7,
+          subtitle: 'Мозговой штурм',
         );
       case 'stats':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.analytics_rounded,
-          color: const Color(0xFF00C7BE),
+          color: _IOS.teal,
           label: 'Статистика',
           subtitle: 'Аналитика',
-          count: 3,
         );
       case 'inbox':
-        return _WidgetConfig(
+        return const _WidgetConfig(
           icon: Icons.inbox_rounded,
-          color: const Color(0xFF8E8E93),
+          color: Color(0xFF8E8E93),
           label: 'Входящие',
           subtitle: 'Новые',
-          count: 4,
         );
       default:
         return _WidgetConfig(
           icon: Icons.widgets_rounded,
-          color: Colors.grey,
+          color: const Color(0xFF8E8E93),
           label: type,
           subtitle: 'Виджет',
-          count: 0,
         );
     }
   }
 
-  // ==================== ДИАЛОГИ ====================
+  // ============================================================
+  // DIALOGS
+  // ============================================================
 
   void _confirmRemoveWidget(
       BuildContext context,
       LifeWidget widget,
       LifeProvider provider,
       ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Удалить виджет?'),
-        content: Text('Виджет "${_getWidgetConfig(widget.type).label}" будет удалён'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 60),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.removeWidget(widget.id);
-            },
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  children: [
+                    Text(
+                      'Удалить виджет?',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: _IOS.textPrimary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '«${_getWidgetConfig(widget.type).label}» будет удалён',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _IOS.textSecondary(isDark),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 0.5, color: _IOS.separator(isDark)),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Отмена',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            color: _IOS.blue,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 0.5,
+                    height: 50,
+                    color: _IOS.separator(isDark),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        provider.removeWidget(widget.id);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Удалить',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: _IOS.red,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  // ==================== ОТКРЫТИЕ ПОЛНОЭКРАННОГО ВИДЖЕТА ====================
+  // ============================================================
+  // OPEN FULLSCREEN
+  // ============================================================
 
   void _openFullscreenWidget(
       BuildContext context,
@@ -1090,9 +1198,12 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
         break;
       case 'inbox':
         screen = Container(
-          color: isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA),
-          child: const Center(
-            child: Text('Входящие в разработке'),
+          color: _IOS.bg(isDark),
+          child: Center(
+            child: Text(
+              'Входящие в разработке',
+              style: TextStyle(color: _IOS.textSecondary(isDark)),
+            ),
           ),
         );
         break;
@@ -1110,7 +1221,7 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
         builder: (context) => ChangeNotifierProvider.value(
           value: provider,
           child: Scaffold(
-            backgroundColor: isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA),
+            backgroundColor: _IOS.bg(isDark),
             body: screen,
           ),
         ),
@@ -1118,7 +1229,9 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
     );
   }
 
-  // ==================== ДИАЛОГ ДОБАВЛЕНИЯ ====================
+  // ============================================================
+  // ADD WIDGET DIALOG — iOS sheet
+  // ============================================================
 
   void _showAddWidgetDialog(
       BuildContext context,
@@ -1126,12 +1239,18 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
       LifeProvider provider,
       ) {
     final widgetTypes = [
-      _WidgetType('calendar', Icons.calendar_month_rounded, 'Календарь', 'События и встречи', const Color(0xFF4A9BFF)),
-      _WidgetType('tasks', Icons.checklist_rounded, 'Задачи', 'To-do лист', const Color(0xFF34C759)),
-      _WidgetType('habits', Icons.fitness_center_rounded, 'Привычки', 'Ежедневные ритуалы', const Color(0xFFFF9500)),
-      _WidgetType('notes', Icons.note_rounded, 'Заметки', 'Быстрые записи', const Color(0xFFFFCC00)),
-      _WidgetType('ideas', Icons.lightbulb_rounded, 'Идеи', 'Мозговой штурм', const Color(0xFFAF52DE)),
-      _WidgetType('stats', Icons.analytics_rounded, 'Статистика', 'Аналитика', const Color(0xFF00C7BE)),
+      _WidgetType('calendar', Icons.calendar_month_rounded, 'Календарь',
+          'События', _IOS.blue),
+      _WidgetType(
+          'tasks', Icons.checklist_rounded, 'Задачи', 'To-do', _IOS.green),
+      _WidgetType('habits', Icons.fitness_center_rounded, 'Привычки',
+          'Ритуалы', _IOS.orange),
+      _WidgetType(
+          'notes', Icons.note_rounded, 'Заметки', 'Записи', _IOS.yellow),
+      _WidgetType('ideas', Icons.lightbulb_rounded, 'Идеи', 'Мысли',
+          _IOS.purple),
+      _WidgetType(
+          'stats', Icons.analytics_rounded, 'Статистика', 'Данные', _IOS.teal),
     ];
 
     showModalBottomSheet(
@@ -1139,110 +1258,139 @@ class _LeftPanelLifeState extends State<LeftPanelLife>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1D24) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          color: isDark ? _IOS.darkCard : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                width: 36,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.2)
+                      : Colors.black.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Добавить виджет',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'Добавить виджет',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4,
+                  color: _IOS.textPrimary(isDark),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Выберите тип виджета',
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? Colors.white38 : Colors.grey.shade500,
+              const SizedBox(height: 4),
+              Text(
+                'Выберите тип виджета',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _IOS.textSecondary(isDark),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 1.6,
-              ),
-              itemCount: widgetTypes.length,
-              itemBuilder: (_, i) {
-                final wt = widgetTypes[i];
-                return GestureDetector(
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    Navigator.pop(ctx);
-                    provider.addWidget(wt.type);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.03)
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: wt.color.withOpacity(0.2)),
+              const SizedBox(height: 20),
+
+              // Grid
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1.5,
+                ),
+                itemCount: widgetTypes.length,
+                itemBuilder: (_, i) {
+                  final wt = widgetTypes[i];
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(ctx);
+                      provider.addWidget(wt.type);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: wt.color.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: wt.color.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(wt.icon, color: wt.color, size: 22),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            wt.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                              color: _IOS.textPrimary(isDark),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            wt.subtitle,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _IOS.textSecondary(isDark),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: wt.color.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(wt.icon, color: wt.color, size: 22),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          wt.label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                        Text(
-                          wt.subtitle,
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: isDark ? Colors.white38 : Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Cancel
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: TextButton.styleFrom(
+                    backgroundColor: isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.black.withOpacity(0.05),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Закрыть'),
+                  child: Text(
+                    'Отмена',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _IOS.textPrimary(isDark),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1256,14 +1404,12 @@ class _WidgetConfig {
   final Color color;
   final String label;
   final String subtitle;
-  final int count;
 
   const _WidgetConfig({
     required this.icon,
     required this.color,
     required this.label,
     required this.subtitle,
-    required this.count,
   });
 }
 

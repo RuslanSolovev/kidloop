@@ -195,6 +195,8 @@ class NutritionProvider extends ChangeNotifier {
     required MealType mealType,
     DateTime? date,
     String? note,
+    String? templateId,
+    String? templateName,
   }) async {
     final finalDate = date ?? DateTime.now();
     final macros = product.forGrams(grams);
@@ -214,19 +216,34 @@ class NutritionProvider extends ChangeNotifier {
       note: note,
       productName: product.name,
       productCategory: product.category,
+      templateId: templateId,
+      templateName: templateName,
     );
 
     await _db.insert('food_diary', entry.toMap());
     _diary.insert(0, entry);
     notifyListeners();
-    debugPrint('🍽️ + ${product.name} ${grams.round()}г (${macros.calories.round()} ккал)');
   }
 
-  Future<void> addTemplateAsMeal(MealTemplate template, MealType mealType, {DateTime? date}) async {
+  Future<void> addTemplateAsMeal(
+      MealTemplate template,
+      MealType mealType, {
+        DateTime? date,
+      }) async {
+    // Уникальный id группы — чтобы все ингредиенты одного добавления
+    // визуально собрались в одно "блюдо"
+    final groupId = _uuid.v4();
     for (final item in template.items) {
       final product = _findProduct(item.productId);
       if (product != null) {
-        await addEntry(product: product, grams: item.grams, mealType: mealType, date: date);
+        await addEntry(
+          product: product,
+          grams: item.grams,
+          mealType: mealType,
+          date: date,
+          templateId: groupId,
+          templateName: template.name,
+        );
       }
     }
   }

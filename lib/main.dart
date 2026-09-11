@@ -16,7 +16,11 @@ import 'features/games/chess/chess_game_screen.dart';
 import 'features/messenger/chat_screen.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/life_navigator/database/life_database.dart';
-import 'features/fitness/providers/fitness_provider.dart'; // 🔥 ДОБАВИТЬ
+import 'features/fitness/providers/fitness_provider.dart';
+import 'services/notification_service.dart';
+
+import 'features/nutrition/providers/nutrition_provider.dart';
+import 'features/nutrition/providers/color_settings_provider.dart';
 import 'services/notification_service.dart';
 
 void main() async {
@@ -40,7 +44,10 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SubscriptionsProvider()),
         ChangeNotifierProvider(create: (_) => BundleProvider()),
-        ChangeNotifierProvider(create: (_) => FitnessProvider()..init()), // 🔥 ДОБАВИТЬ
+        ChangeNotifierProvider(create: (_) => FitnessProvider()..init()),
+        // 🔥 НОВЫЕ ПРОВАЙДЕРЫ
+        ChangeNotifierProvider(create: (_) => NutritionProvider()..init()),
+        ChangeNotifierProvider(create: (_) => ColorSettingsProvider()..init()),
         Provider.value(value: notificationService),
       ],
       child: const MyApp(),

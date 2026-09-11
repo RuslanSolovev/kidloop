@@ -171,6 +171,10 @@ class FoodDiaryEntry {
   final String productName;
   final String productCategory;
 
+  // НОВОЕ: привязка к шаблону (блюду)
+  final String? templateId;
+  final String? templateName;
+
   FoodDiaryEntry({
     required this.id,
     required this.date,
@@ -185,6 +189,8 @@ class FoodDiaryEntry {
     this.note,
     required this.productName,
     this.productCategory = 'other',
+    this.templateId,
+    this.templateName,
   });
 
   Map<String, dynamic> toMap() => {
@@ -199,25 +205,32 @@ class FoodDiaryEntry {
     'carbs': carbs,
     'time': time ?? DateTime.now().toIso8601String(),
     'note': note,
+    'templateId': templateId,
+    'templateName': templateName,
     'createdAt': DateTime.now().toIso8601String(),
   };
 
-  factory FoodDiaryEntry.fromMap(Map<String, dynamic> m, FoodProduct? product) => FoodDiaryEntry(
-    id: m['id'] as String,
-    date: DateTime.parse(m['date'] as String),
-    mealType: MealType.values.firstWhere((t) => t.name == m['mealType'],
-        orElse: () => MealType.other),
-    productId: m['productId'] as String,
-    grams: (m['grams'] as num).toDouble(),
-    calories: (m['calories'] as num).toDouble(),
-    protein: (m['protein'] as num).toDouble(),
-    fat: (m['fat'] as num).toDouble(),
-    carbs: (m['carbs'] as num).toDouble(),
-    time: m['time'] as String?,
-    note: m['note'] as String?,
-    productName: product?.name ?? 'Удалённый продукт',
-    productCategory: product?.category ?? 'other',
-  );
+  factory FoodDiaryEntry.fromMap(Map<String, dynamic> m, FoodProduct? product) =>
+      FoodDiaryEntry(
+        id: m['id'] as String,
+        date: DateTime.parse(m['date'] as String),
+        mealType: MealType.values.firstWhere(
+              (t) => t.name == m['mealType'],
+          orElse: () => MealType.other,
+        ),
+        productId: m['productId'] as String,
+        grams: (m['grams'] as num).toDouble(),
+        calories: (m['calories'] as num).toDouble(),
+        protein: (m['protein'] as num).toDouble(),
+        fat: (m['fat'] as num).toDouble(),
+        carbs: (m['carbs'] as num).toDouble(),
+        time: m['time'] as String?,
+        note: m['note'] as String?,
+        productName: product?.name ?? 'Удалённый продукт',
+        productCategory: product?.category ?? 'other',
+        templateId: m['templateId'] as String?,
+        templateName: m['templateName'] as String?,
+      );
 }
 
 // ==================== ЦЕЛИ ПИТАНИЯ ====================

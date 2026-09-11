@@ -1,6 +1,7 @@
 // add_item_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,42 @@ import '../../core/item_model.dart';
 import '../../core/items_provider.dart';
 import '../../core/sv_calculator.dart';
 
+// ==================== iOS DESIGN SYSTEM ====================
+
+class _IOS {
+  static const Color lightBg = Color(0xFFF2F2F7);
+  static const Color darkBg = Color(0xFF000000);
+  static const Color lightCard = Color(0xFFFFFFFF);
+  static const Color darkCard = Color(0xFF1C1C1E);
+  static const Color darkCardElevated = Color(0xFF2C2C2E);
+
+  static const Color blue = Color(0xFF007AFF);
+  static const Color green = Color(0xFF34C759);
+  static const Color orange = Color(0xFFFF9500);
+  static const Color yellow = Color(0xFFFFCC00);
+  static const Color purple = Color(0xFFAF52DE);
+  static const Color teal = Color(0xFF5AC8FA);
+  static const Color indigo = Color(0xFF5856D6);
+  static const Color pink = Color(0xFFFF2D55);
+  static const Color red = Color(0xFFFF3B30);
+  static const Color gray = Color(0xFF8E8E93);
+
+  static Color separator(bool isDark) =>
+      isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06);
+  static Color card(bool isDark) => isDark ? darkCard : lightCard;
+  static Color bg(bool isDark) => isDark ? darkBg : lightBg;
+  static Color textPrimary(bool isDark) => isDark ? Colors.white : Colors.black;
+  static Color textSecondary(bool isDark) => isDark
+      ? Colors.white.withOpacity(0.6)
+      : const Color(0xFF3C3C43).withOpacity(0.6);
+  static Color textTertiary(bool isDark) => isDark
+      ? Colors.white.withOpacity(0.3)
+      : const Color(0xFF3C3C43).withOpacity(0.3);
+
+  static Color inputFill(bool isDark) =>
+      isDark ? darkCardElevated : const Color(0xFFF2F2F7);
+}
+
 class AddItemScreen extends StatefulWidget {
   const AddItemScreen({super.key});
 
@@ -18,7 +55,8 @@ class AddItemScreen extends StatefulWidget {
   State<AddItemScreen> createState() => _AddItemScreenState();
 }
 
-class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProviderStateMixin {
+class _AddItemScreenState extends State<AddItemScreen>
+    with SingleTickerProviderStateMixin {
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
 
@@ -34,13 +72,10 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
 
   late AnimationController _svAnimationController;
   late Animation<double> _svScaleAnimation;
-  late Animation<double> _svGlowAnimation;
 
-  // 🔥 Состояние загрузки темы
   bool _isDarkMode = false;
   bool _themeLoaded = false;
 
-  // 🔥 Анимация для загрузки
   late AnimationController _loadingController;
   late Animation<double> _loadingAnimation;
   late AnimationController _pulseController;
@@ -66,67 +101,49 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
     'Лиепая', 'Вентспилс', 'Елгава', 'Резекне', 'Таллин',
   ];
 
-  // 🔥 Геттеры цветов
-  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
-  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
-  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
-  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFFFF8F0);
-  Color get _cardBorderColor => _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
-  Color get _inputFillColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white;
-
   @override
   void initState() {
     super.initState();
 
-    // 🔥 Инициализация анимации загрузки (увеличено до 1 секунды)
     _loadingController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000), // Было 500, стало 1000
+      duration: const Duration(milliseconds: 700),
     );
-    _loadingAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _loadingController, curve: Curves.easeOutCubic),
+    _loadingAnimation = CurvedAnimation(
+      parent: _loadingController,
+      curve: Curves.easeOutCubic,
     );
 
-    // 🔥 Анимация пульсации для прогресс-бара
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
     _loadTheme();
-    updateSv();
+    _updateSv();
 
     _svAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _svScaleAnimation = Tween(begin: 0.98, end: 1.02).animate(
-      CurvedAnimation(parent: _svAnimationController, curve: Curves.easeInOut),
-    );
-    _svGlowAnimation = Tween(begin: 0.3, end: 0.6).animate(
+    _svScaleAnimation = Tween(begin: 0.99, end: 1.01).animate(
       CurvedAnimation(parent: _svAnimationController, curve: Curves.easeInOut),
     );
   }
 
   Future<void> _loadTheme() async {
-    // 🔥 Увеличена задержка до 1 секунды для плавного показа прогресс-бара
-    await Future.delayed(const Duration(milliseconds: 1000)); // Было 100, стало 1000
-
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('is_dark_mode') ?? false;
+    if (!mounted) return;
 
-    if (mounted) {
-      setState(() {
-        _isDarkMode = isDark;
-        _themeLoaded = true;
-      });
-
-      // 🔥 Запускаем анимацию появления
-      _loadingController.forward();
-    }
+    setState(() {
+      _isDarkMode = isDark;
+      _themeLoaded = true;
+    });
+    _loadingController.forward();
   }
 
   @override
@@ -139,23 +156,35 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
     super.dispose();
   }
 
-  void updateSv() {
+  void _updateSv() {
     setState(() {
-      currentSv = SvCalculator.calculate(category: selectedCategory, condition: selectedCondition);
+      currentSv = SvCalculator.calculate(
+        category: selectedCategory,
+        condition: selectedCondition,
+      );
     });
   }
 
   Future<void> _pickImage() async {
     if (_selectedImages.length >= 5) {
+      HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Максимум 5 фото'), backgroundColor: Colors.orange),
+        SnackBar(
+          content: const Text('Максимум 5 фото'),
+          backgroundColor: _IOS.orange,
+          behavior: SnackBarBehavior.floating,
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
       );
       return;
     }
 
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked =
+    await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked != null) {
+      HapticFeedback.selectionClick();
       setState(() {
         _selectedImages.add(File(picked.path));
       });
@@ -163,6 +192,7 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
   }
 
   void _removeImage(int index) {
+    HapticFeedback.mediumImpact();
     setState(() {
       _selectedImages.removeAt(index);
     });
@@ -179,15 +209,19 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
         final bytes = await image.readAsBytes();
         final base64 = base64Encode(bytes);
 
-        final response = await http.post(
-          Uri.parse('https://functions.yandexcloud.net/d4e3c2me21eou683ic6d'),
+        final response = await http
+            .post(
+          Uri.parse(
+              'https://functions.yandexcloud.net/d4e3c2me21eou683ic6d'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "action": "upload",
-            "file_name": "photo_${DateTime.now().millisecondsSinceEpoch}.jpg",
+            "file_name":
+            "photo_${DateTime.now().millisecondsSinceEpoch}.jpg",
             "file_data": base64,
           }),
-        ).timeout(const Duration(seconds: 15));
+        )
+            .timeout(const Duration(seconds: 15));
 
         final data = jsonDecode(response.body);
         if (data['ok'] == true) {
@@ -198,26 +232,59 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
       debugPrint('Upload error: $e');
     }
 
-    setState(() {
-      _isUploading = false;
-      _uploadedImageUrls = urls;
-    });
+    if (mounted) {
+      setState(() {
+        _isUploading = false;
+        _uploadedImageUrls = urls;
+      });
+    }
     return urls;
   }
 
   void saveItem() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedImages.isEmpty) {
+      HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Добавьте хотя бы одно фото'), backgroundColor: Colors.orange),
+        SnackBar(
+          content: const Text('Добавьте хотя бы одно фото'),
+          backgroundColor: _IOS.orange,
+          behavior: SnackBarBehavior.floating,
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
       );
       return;
     }
 
+    HapticFeedback.mediumImpact();
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.orange)),
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: _IOS.card(_isDarkMode),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                color: _IOS.blue,
+                strokeWidth: 2.5,
+              ),
+              SizedBox(height: 14),
+              Text(
+                'Загружаем фото…',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
     final imageUrls = await _uploadImages();
@@ -227,7 +294,13 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
     if (imageUrls.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ошибка загрузки фото'), backgroundColor: Colors.red),
+          SnackBar(
+            content: const Text('Ошибка загрузки фото'),
+            backgroundColor: _IOS.red,
+            behavior: SnackBarBehavior.floating,
+            shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
         );
       }
       return;
@@ -242,7 +315,8 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
       title: titleController.text.trim(),
       description: descriptionController.text.trim(),
       sv: currentSv,
-      imagePath: imageUrls.isNotEmpty ? imageUrls.first : 'assets/images/bear.jpg',
+      imagePath:
+      imageUrls.isNotEmpty ? imageUrls.first : 'assets/images/bear.jpg',
       imagePaths: imageUrls,
       location: selectedLocation,
       category: selectedCategory,
@@ -254,12 +328,14 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
     await context.read<ItemsProvider>().addItem(item);
 
     if (mounted) {
+      HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Объявление опубликовано! 🎉'),
-          backgroundColor: Colors.green.shade600,
+          content: const Text('Объявление опубликовано 🎉'),
+          backgroundColor: _IOS.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       );
       Navigator.pop(context);
@@ -268,79 +344,11 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 Показываем прогресс-бар пока тема не загружена
     if (!_themeLoaded) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _pulseAnimation.value,
-                child: child,
-              );
-            },
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Colors.orange, Colors.deepOrange],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Загрузка...',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Подготовка формы',
-                  style: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _buildLoadingScreen();
     }
 
-    // 🔥 Основной контент с анимацией появления
     final isDark = _isDarkMode;
-    final textColor = _textColor;
-    final subTextColor = _subTextColor;
-    final surfaceColor = _surfaceColor;
-    final backgroundColor = _backgroundColor;
-    final cardBorderColor = _cardBorderColor;
-    final inputFillColor = _inputFillColor;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AnimatedBuilder(
@@ -349,361 +357,672 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
         return Opacity(
           opacity: _loadingAnimation.value,
           child: Transform.translate(
-            offset: Offset(0, 20 * (1 - _loadingAnimation.value)),
+            offset: Offset(0, 12 * (1 - _loadingAnimation.value)),
             child: child,
           ),
         );
       },
       child: Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
-          title: Text('Новое объявление', style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Container(
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cardBorderColor),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.15 : 0.1), blurRadius: 8)],
-              ),
-              child: IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: textColor),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ),
-        ),
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isDark
-                  ? [const Color(0xFF0A0A1A), const Color(0xFF1A1A2E), const Color(0xFF151932)]
-                  : [const Color(0xFFFFF8F0), const Color(0xFFFFF0E0), Colors.white],
-            ),
-          ),
-          child: Form(
-            key: _formKey,
-            child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildModernImagePicker(isDark, subTextColor, surfaceColor, cardBorderColor),
-                        const SizedBox(height: 28),
+        backgroundColor: _IOS.bg(isDark),
+        appBar: _buildAppBar(isDark),
+        body: Form(
+          key: _formKey,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, bottomInset + 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildImagePicker(isDark),
+                      const SizedBox(height: 24),
 
-                        _buildSectionTitle('Название', Icons.edit_rounded, textColor),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: titleController,
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите название' : null,
-                          style: TextStyle(fontSize: 16, color: textColor),
-                          decoration: InputDecoration(
-                            hintText: 'Например: Детский самокат Micro',
-                            hintStyle: TextStyle(color: subTextColor, fontSize: 14),
-                            filled: true,
-                            fillColor: inputFillColor,
-                            contentPadding: const EdgeInsets.all(16),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: cardBorderColor)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
+                      // Title
+                      _buildSectionTitle('Название', isDark),
+                      const SizedBox(height: 8),
+                      _buildTextField(
+                        controller: titleController,
+                        hint: 'Например: Детский самокат Micro',
+                        isDark: isDark,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Введите название'
+                            : null,
+                      ),
+                      const SizedBox(height: 20),
 
-                        _buildSectionTitle('Описание', Icons.description_rounded, textColor),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: descriptionController,
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите описание' : null,
-                          maxLines: 3,
-                          style: TextStyle(fontSize: 16, color: textColor),
-                          decoration: InputDecoration(
-                            hintText: 'Опишите вещь: размер, цвет, возраст...',
-                            hintStyle: TextStyle(color: subTextColor, fontSize: 14),
-                            filled: true,
-                            fillColor: inputFillColor,
-                            contentPadding: const EdgeInsets.all(16),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: cardBorderColor)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.orange, width: 2)),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
+                      // Description
+                      _buildSectionTitle('Описание', isDark),
+                      const SizedBox(height: 8),
+                      _buildTextField(
+                        controller: descriptionController,
+                        hint: 'Размер, цвет, возраст…',
+                        isDark: isDark,
+                        maxLines: 4,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Введите описание'
+                            : null,
+                      ),
+                      const SizedBox(height: 24),
 
-                        _buildSectionTitle('Категория', Icons.category_rounded, textColor),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 44,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: categories.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 8),
-                            itemBuilder: (context, index) {
-                              final cat = categories[index];
-                              final isSelected = selectedCategory == cat;
-                              return GestureDetector(
-                                onTap: () { setState(() => selectedCategory = cat); updateSv(); },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? Colors.orange : surfaceColor,
-                                    borderRadius: BorderRadius.circular(22),
-                                    border: Border.all(color: isSelected ? Colors.orange : cardBorderColor, width: 1.5),
-                                    boxShadow: isSelected ? [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))] : null,
-                                  ),
-                                  child: Text(cat, style: TextStyle(color: isSelected ? Colors.white : textColor, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, fontSize: 14)),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        _buildSectionTitle('Состояние', Icons.verified_rounded, textColor),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8, runSpacing: 8,
-                          children: conditions.map((cond) {
-                            final isSelected = selectedCondition == cond;
+                      // Category
+                      _buildSectionTitle('Категория', isDark),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 38,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: categories.length,
+                          separatorBuilder: (_, __) =>
+                          const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final cat = categories[index];
+                            final isSelected = selectedCategory == cat;
                             return GestureDetector(
-                              onTap: () { setState(() => selectedCondition = cond); updateSv(); },
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => selectedCategory = cat);
+                                _updateSv();
+                              },
                               child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                duration: const Duration(milliseconds: 220),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14),
+                                alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: isSelected ? Colors.green.shade50 : surfaceColor,
-                                  borderRadius: BorderRadius.circular(22),
-                                  border: Border.all(color: isSelected ? Colors.green : cardBorderColor, width: 1.5),
+                                  color: isSelected
+                                      ? _IOS.blue
+                                      : _IOS.card(isDark),
+                                  borderRadius: BorderRadius.circular(19),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? _IOS.blue
+                                        : _IOS.separator(isDark),
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (isSelected) ...[
-                                      const Icon(Icons.check_circle, size: 18, color: Colors.green),
-                                      const SizedBox(width: 6),
-                                    ],
-                                    Text(cond, style: TextStyle(color: isSelected ? Colors.green.shade700 : textColor, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500)),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 24),
-
-                        _buildSectionTitle('Город', Icons.location_on_rounded, textColor),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: surfaceColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: cardBorderColor),
-                          ),
-                          child: DropdownButtonFormField<String>(
-                            value: selectedLocation,
-                            dropdownColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
-                            style: TextStyle(color: textColor, fontSize: 15),
-                            decoration: const InputDecoration(border: InputBorder.none),
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.orange),
-                            items: locations.map((loc) => DropdownMenuItem(value: loc, child: Text(loc, style: TextStyle(color: textColor, fontSize: 15)))).toList(),
-                            onChanged: (val) { if (val != null) setState(() => selectedLocation = val); },
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-
-                        AnimatedBuilder(
-                          animation: _svAnimationController,
-                          builder: (context, child) {
-                            return Transform.scale(
-                              scale: _svScaleAnimation.value,
-                              child: Container(
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                                  borderRadius: BorderRadius.circular(24),
-                                  boxShadow: [BoxShadow(color: Colors.orange.withOpacity(_svGlowAnimation.value), blurRadius: 24, offset: const Offset(0, 8))],
-                                ),
-                                child: Column(
-                                  children: [
-                                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                      const Icon(Icons.auto_awesome, color: Colors.amber, size: 22),
-                                      const SizedBox(width: 8),
-                                      Text('Оценка стоимости', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, fontWeight: FontWeight.w500)),
-                                    ]),
-                                    const SizedBox(height: 12),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(16)),
-                                      child: Text('$currentSv SV', style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                                    ),
-                                  ],
+                                child: Text(
+                                  cat,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    letterSpacing: -0.2,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : _IOS.textPrimary(isDark),
+                                  ),
                                 ),
                               ),
                             );
                           },
                         ),
-                        const SizedBox(height: 32),
+                      ),
+                      const SizedBox(height: 24),
 
-                        SizedBox(
-                          height: 58,
-                          child: ElevatedButton(
-                            onPressed: saveItem,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                              elevation: 8,
-                              shadowColor: Colors.orange.withOpacity(0.5),
+                      // Condition
+                      _buildSectionTitle('Состояние', isDark),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: conditions.map((cond) {
+                          final isSelected = selectedCondition == cond;
+                          return GestureDetector(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => selectedCondition = cond);
+                              _updateSv();
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? _IOS.green
+                                    : _IOS.card(isDark),
+                                borderRadius: BorderRadius.circular(19),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? _IOS.green
+                                      : _IOS.separator(isDark),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isSelected) ...[
+                                    const Icon(
+                                      Icons.check_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Text(
+                                    cond,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      letterSpacing: -0.2,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : _IOS.textPrimary(isDark),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: const Text('Опубликовать объявление', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Location
+                      _buildSectionTitle('Город', isDark),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _IOS.inputFill(isDark),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _IOS.separator(isDark)),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          value: selectedLocation,
+                          dropdownColor: _IOS.card(isDark),
+                          style: TextStyle(
+                            color: _IOS.textPrimary(isDark),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding:
+                            EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          icon: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: _IOS.textSecondary(isDark),
+                          ),
+                          items: locations
+                              .map((loc) => DropdownMenuItem(
+                            value: loc,
+                            child: Text(
+                              loc,
+                              style: TextStyle(
+                                color: _IOS.textPrimary(isDark),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              HapticFeedback.selectionClick();
+                              setState(() => selectedLocation = val);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // SV preview
+                      AnimatedBuilder(
+                        animation: _svAnimationController,
+                        builder: (context, child) => Transform.scale(
+                          scale: _svScaleAnimation.value,
+                          child: child,
+                        ),
+                        child: _buildSvCard(isDark),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Submit
+                      SizedBox(
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: saveItem,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _IOS.blue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Опубликовать',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon, Color textColor) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 18, color: Colors.orange),
+  // ============================================================
+  // LOADING SCREEN
+  // ============================================================
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      backgroundColor: _IOS.bg(_isDarkMode),
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) => Transform.scale(
+            scale: _pulseAnimation.value,
+            child: child,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: _IOS.blue.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(
+                    color: _IOS.blue,
+                    strokeWidth: 2.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Загрузка…',
+                style: TextStyle(
+                  color: _IOS.textSecondary(_isDarkMode),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 10),
-        Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textColor)),
-      ],
+      ),
     );
   }
 
-  Widget _buildModernImagePicker(bool isDark, Color subTextColor, Color surfaceColor, Color cardBorderColor) {
+  // ============================================================
+  // APP BAR
+  // ============================================================
+
+  PreferredSizeWidget _buildAppBar(bool isDark) {
+    return AppBar(
+      backgroundColor: _IOS.bg(isDark).withOpacity(0.85),
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      leadingWidth: 60,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 16, top: 10, bottom: 10),
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.pop(context);
+          },
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.chevron_left_rounded,
+              color: _IOS.textPrimary(isDark),
+              size: 22,
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        'Новое объявление',
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.4,
+          color: _IOS.textPrimary(isDark),
+        ),
+      ),
+      centerTitle: true,
+    );
+  }
+
+  // ============================================================
+  // SECTION TITLE
+  // ============================================================
+
+  Widget _buildSectionTitle(String title, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: _IOS.textTertiary(isDark),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TEXT FIELD
+  // ============================================================
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required bool isDark,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      maxLines: maxLines,
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: _IOS.textPrimary(isDark),
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: _IOS.textTertiary(isDark),
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+        ),
+        filled: true,
+        fillColor: _IOS.inputFill(isDark),
+        contentPadding: const EdgeInsets.all(16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _IOS.separator(isDark)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _IOS.blue, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _IOS.red, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _IOS.red, width: 2),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // IMAGE PICKER
+  // ============================================================
+
+  Widget _buildImagePicker(bool isDark) {
+    final hasImages = _selectedImages.isNotEmpty;
+
     return Column(
       children: [
         GestureDetector(
           onTap: _isUploading ? null : _pickImage,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 220),
             height: 220,
             decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(24),
+              color: _IOS.inputFill(isDark),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: _selectedImages.isNotEmpty ? Colors.orange : cardBorderColor,
-                width: 2,
+                color: hasImages ? Colors.transparent : _IOS.separator(isDark),
+                width: 1,
               ),
-              boxShadow: _selectedImages.isNotEmpty
-                  ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 4))]
-                  : null,
-              image: _selectedImages.isNotEmpty
-                  ? DecorationImage(image: FileImage(_selectedImages.first), fit: BoxFit.cover)
+              image: hasImages
+                  ? DecorationImage(
+                image: FileImage(_selectedImages.first),
+                fit: BoxFit.cover,
+              )
                   : null,
             ),
-            child: _selectedImages.isEmpty
-                ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: hasImages
+                ? Stack(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: [Colors.orange.shade100, Colors.orange.shade200]),
-                  ),
-                  child: const Icon(Icons.add_photo_alternate_rounded, size: 40, color: Colors.orange),
-                ),
-                const SizedBox(height: 16),
-                Text('Нажмите, чтобы добавить фото', style: TextStyle(color: subTextColor, fontSize: 15)),
-                const SizedBox(height: 6),
-                Text('Можно добавить до 5 фото', style: TextStyle(color: isDark ? Colors.grey.shade600 : Colors.grey.shade400, fontSize: 13)),
-              ],
-            )
-                : Stack(
-              children: [
-                if (_isUploading)
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
-                      child: const Column(mainAxisSize: MainAxisSize.min, children: [
-                        CircularProgressIndicator(color: Colors.white),
-                        SizedBox(height: 12),
-                        Text('Загрузка...', style: TextStyle(color: Colors.white)),
-                      ]),
+                // Затемнение для кнопок
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 60,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(20)),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.55),
+                        ],
+                      ),
                     ),
                   ),
+                ),
+
+                // Загрузка
+                if (_isUploading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'Загрузка…',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Главное фото badge
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.55),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Text(
+                      'ГЛАВНОЕ ФОТО',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Add more button
                 if (!_isUploading)
                   Positioned(
-                    bottom: 12, right: 12,
+                    bottom: 12,
+                    right: 12,
                     child: GestureDetector(
                       onTap: _pickImage,
                       child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.2), blurRadius: 8)]),
-                        child: const Icon(Icons.add_photo_alternate_rounded, color: Colors.orange, size: 22),
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add_rounded,
+                          color: _IOS.blue,
+                          size: 22,
+                        ),
                       ),
                     ),
                   ),
               ],
+            )
+                : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: _IOS.blue.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.add_photo_alternate_rounded,
+                    size: 28,
+                    color: _IOS.blue,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Добавить фото',
+                  style: TextStyle(
+                    color: _IOS.textPrimary(isDark),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'До 5 фотографий',
+                  style: TextStyle(
+                    color: _IOS.textSecondary(isDark),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+
+        // Thumbnails
         if (_selectedImages.length > 1) ...[
           const SizedBox(height: 12),
           SizedBox(
-            height: 70,
+            height: 72,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _selectedImages.length,
               itemBuilder: (context, index) {
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: EdgeInsets.only(
+                    right: 8,
+                    left: index == 0 ? 0 : 0,
+                  ),
                   child: Stack(
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.file(
                           _selectedImages[index],
-                          width: 70,
-                          height: 70,
+                          width: 72,
+                          height: 72,
                           fit: BoxFit.cover,
                         ),
                       ),
                       Positioned(
-                        top: 2, right: 2,
+                        top: 2,
+                        right: 2,
                         child: GestureDetector(
                           onTap: () => _removeImage(index),
                           child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
-                            child: const Icon(Icons.close, color: Colors.white, size: 14),
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
                           ),
                         ),
                       ),
                       if (index == 0)
                         Positioned(
-                          bottom: 2, left: 2,
+                          bottom: 4,
+                          left: 4,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                            decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
-                            child: const Text('Главное', style: TextStyle(color: Colors.white, fontSize: 8)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _IOS.blue,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              '1',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
+                            ),
                           ),
                         ),
                     ],
@@ -714,6 +1033,82 @@ class _AddItemScreenState extends State<AddItemScreen> with SingleTickerProvider
           ),
         ],
       ],
+    );
+  }
+
+  // ============================================================
+  // SV CARD
+  // ============================================================
+
+  Widget _buildSvCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _IOS.card(isDark),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _IOS.separator(isDark)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: _IOS.orange.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: _IOS.orange,
+              size: 26,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Оценка стоимости',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                    color: _IOS.textSecondary(isDark),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      '$currentSv',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1,
+                        height: 1,
+                        color: _IOS.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'SV',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                        color: _IOS.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

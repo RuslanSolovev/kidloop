@@ -1,9 +1,59 @@
+// features/fitness/ui/screens/fitness_target_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../models/fitness_models.dart';
 import '../../../models/enums.dart';
 import '../../../providers/fitness_provider.dart';
+
+// ==================== POWER MODE TOKENS ====================
+
+class _Power {
+  static const Color heroBase = Color(0xFF050505);
+  static const Color heroDeep = Color(0xFF120700);
+
+  static const Color volt = Color(0xFFFF5500);
+  static const Color voltBright = Color(0xFFFF7A1A);
+  static const Color magma = Color(0xFFFF2D55);
+  static const Color plasma = Color(0xFFFFCC00);
+  static const Color ice = Color(0xFF00E5FF);
+  static const Color lime = Color(0xFFB4FF39);
+  static const Color green = Color(0xFF00C853);
+  static const Color red = Color(0xFFFF3B30);
+
+  static const Color darkBg = Color(0xFF0A0A0A);
+  static const Color darkCard = Color(0xFF1C1C1E);
+  static const Color darkCard2 = Color(0xFF2C2C2E);
+  static const Color lightBg = Color(0xFFF2F2F7);
+  static const Color lightCard = Color(0xFFFFFFFF);
+
+  static Color bg(bool isDark) => isDark ? darkBg : lightBg;
+  static Color card(bool isDark) => isDark ? darkCard : lightCard;
+  static Color card2(bool isDark) => isDark ? darkCard2 : const Color(0xFFF9FAFB);
+  static Color textPrimary(bool isDark) => isDark ? Colors.white : Colors.black;
+  static Color textSecondary(bool isDark) => isDark
+      ? Colors.white.withOpacity(0.6)
+      : const Color(0xFF3C3C43).withOpacity(0.6);
+  static Color textTertiary(bool isDark) => isDark
+      ? Colors.white.withOpacity(0.3)
+      : const Color(0xFF3C3C43).withOpacity(0.3);
+  static Color separator(bool isDark) =>
+      isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06);
+
+  static List<BoxShadow> softGlow(Color color, {double strength = 0.18}) => [
+    BoxShadow(color: color.withOpacity(strength), blurRadius: 16),
+  ];
+
+  static List<BoxShadow> glow(Color color,
+      {double strength = 0.4, double blur = 24}) =>
+      [
+        BoxShadow(
+          color: color.withOpacity(strength),
+          blurRadius: blur,
+          offset: const Offset(0, 6),
+        ),
+      ];
+}
 
 class FitnessTargetDetailsScreen extends StatefulWidget {
   final FitnessTarget target;
@@ -27,7 +77,6 @@ class _FitnessTargetDetailsScreenState
     final isDark = widget.isDark;
     final provider = context.watch<FitnessProvider>();
 
-    // Берём актуальные данные из провайдера (реактивно обновляется)
     final target = provider.targets.firstWhere(
           (t) => t.id == widget.target.id,
       orElse: () => widget.target,
@@ -37,35 +86,105 @@ class _FitnessTargetDetailsScreenState
     final forecast = provider.calculateForecast(target);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0D14) : const Color(0xFFF5F7FA),
+      backgroundColor: _Power.bg(isDark),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           _buildSliverAppBar(isDark, target, provider),
-          SliverToBoxAdapter(child: _buildHeroCard(isDark, target, forecast)),
-          SliverToBoxAdapter(child: _buildForecastCard(isDark, target, forecast)),
-          SliverToBoxAdapter(child: _buildChartCard(isDark, target, entries)),
+
+          // Large title
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.history_rounded,
-                      color: isDark ? Colors.white70 : Colors.grey.shade700,
-                      size: 20),
-                  const SizedBox(width: 8),
                   Text(
-                    'История записей (${entries.length})',
+                    target.type.displayName.toUpperCase(),
+                    style: const TextStyle(
+                      color: _Power.volt,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    target.name,
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : Colors.black87,
+                      color: _Power.textPrimary(isDark),
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                      height: 1.1,
                     ),
                   ),
                 ],
               ),
             ),
           ),
+
+          SliverToBoxAdapter(
+            child: _buildHeroCard(isDark, target),
+          ),
+          SliverToBoxAdapter(
+            child: _buildForecastCard(isDark, target, forecast),
+          ),
+          SliverToBoxAdapter(
+            child: _buildChartCard(isDark, target, entries),
+          ),
+
+          // History header
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: _Power.volt,
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: _Power.softGlow(_Power.volt, strength: 0.6),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'ИСТОРИЯ',
+                    style: TextStyle(
+                      color: _Power.textPrimary(isDark),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.8,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _Power.volt.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${entries.length}',
+                      style: const TextStyle(
+                        color: _Power.volt,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           if (entries.isEmpty)
             SliverToBoxAdapter(child: _buildEmptyHistory(isDark))
           else
@@ -73,7 +192,9 @@ class _FitnessTargetDetailsScreenState
               delegate: SliverChildBuilderDelegate(
                     (context, index) {
                   final entry = entries[index];
-                  final prev = index < entries.length - 1 ? entries[index + 1] : null;
+                  final prev = index < entries.length - 1
+                      ? entries[index + 1]
+                      : null;
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildEntryCard(isDark, entry, prev, target),
@@ -82,339 +203,635 @@ class _FitnessTargetDetailsScreenState
                 childCount: entries.length,
               ),
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
       floatingActionButton: target.status == FitnessTargetStatus.active
-          ? FloatingActionButton.extended(
-        backgroundColor: target.accentColor,
-        foregroundColor: Colors.white,
-        onPressed: () => _showAddEntrySheet(context, target, provider),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Добавить запись',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+          ? Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow:
+            _Power.glow(target.accentColor, strength: 0.4, blur: 20),
+          ),
+          child: FloatingActionButton.extended(
+            backgroundColor: target.accentColor,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            onPressed: () =>
+                _showAddEntrySheet(context, target, provider),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text(
+              'ЗАПИСАТЬ',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
       )
           : null,
     );
   }
 
-  // ==================== APP BAR ====================
+  // =====================================================================
+  // APP BAR
+  // =====================================================================
 
   Widget _buildSliverAppBar(
-      bool isDark, FitnessTarget target, FitnessProvider provider) {
-    return SliverAppBar.large(
-      backgroundColor: isDark ? const Color(0xFF1A1D24) : Colors.white,
-      foregroundColor: isDark ? Colors.white : Colors.black87,
-      title: Text(target.name,
-          style: const TextStyle(fontWeight: FontWeight.w900)),
-      actions: [
-        PopupMenuButton<String>(
-          icon: Icon(Icons.more_vert,
-              color: isDark ? Colors.white : Colors.black87),
-          onSelected: (value) => _handleMenuAction(value, target, provider),
-          itemBuilder: (ctx) => [
-            if (target.status == FitnessTargetStatus.active)
-              PopupMenuItem(
-                value: 'edit_value',
-                child: Row(children: [
-                  Icon(Icons.edit_rounded,
-                      color: target.accentColor, size: 20),
-                  const SizedBox(width: 12),
-                  const Text('Изменить текущее значение'),
-                ]),
-              ),
-            if (target.status == FitnessTargetStatus.active)
-              PopupMenuItem(
-                value: 'complete',
-                child: Row(children: [
-                  Icon(Icons.emoji_events_rounded,
-                      color: const Color(0xFF4CAF50), size: 20),
-                  const SizedBox(width: 12),
-                  const Text('Отметить как достигнутую'),
-                ]),
-              ),
-            if (target.status == FitnessTargetStatus.active)
-              PopupMenuItem(
-                value: 'pause',
-                child: Row(children: [
-                  Icon(Icons.pause_circle_outline_rounded,
-                      color: Colors.orange, size: 20),
-                  const SizedBox(width: 12),
-                  const Text('Приостановить'),
-                ]),
-              ),
-            if (target.status == FitnessTargetStatus.paused)
-              PopupMenuItem(
-                value: 'resume',
-                child: Row(children: [
-                  Icon(Icons.play_circle_outline_rounded,
-                      color: const Color(0xFF4CAF50), size: 20),
-                  const SizedBox(width: 12),
-                  const Text('Возобновить'),
-                ]),
-              ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(children: [
-                Icon(Icons.delete_outline_rounded,
-                    color: Colors.red.shade400, size: 20),
-                const SizedBox(width: 12),
-                const Text('Удалить цель',
-                    style: TextStyle(color: Colors.red)),
-              ]),
+      bool isDark,
+      FitnessTarget target,
+      FitnessProvider provider,
+      ) {
+    return SliverAppBar(
+      pinned: true,
+      backgroundColor: _Power.bg(isDark).withOpacity(0.85),
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      leadingWidth: 60,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 16, top: 10, bottom: 10),
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.pop(context);
+          },
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.05),
+              shape: BoxShape.circle,
             ),
-          ],
+            child: Icon(
+              Icons.chevron_left_rounded,
+              color: _Power.textPrimary(isDark),
+              size: 22,
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        target.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.3,
+          color: _Power.textPrimary(isDark),
+        ),
+      ),
+      centerTitle: true,
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: PopupMenuButton<String>(
+            icon: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.more_horiz_rounded,
+                color: _Power.textPrimary(isDark),
+                size: 20,
+              ),
+            ),
+            color: _Power.card(isDark),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            onSelected: (value) => _handleMenuAction(value, target, provider),
+            itemBuilder: (ctx) => [
+              if (target.status == FitnessTargetStatus.active)
+                _buildMenuItem(
+                  isDark,
+                  value: 'edit_value',
+                  icon: Icons.edit_rounded,
+                  color: target.accentColor,
+                  label: 'Изменить значение',
+                ),
+              if (target.status == FitnessTargetStatus.active)
+                _buildMenuItem(
+                  isDark,
+                  value: 'complete',
+                  icon: Icons.emoji_events_rounded,
+                  color: _Power.green,
+                  label: 'Отметить достигнутой',
+                ),
+              if (target.status == FitnessTargetStatus.active)
+                _buildMenuItem(
+                  isDark,
+                  value: 'pause',
+                  icon: Icons.pause_circle_outline_rounded,
+                  color: _Power.plasma,
+                  label: 'Приостановить',
+                ),
+              if (target.status == FitnessTargetStatus.paused)
+                _buildMenuItem(
+                  isDark,
+                  value: 'resume',
+                  icon: Icons.play_circle_outline_rounded,
+                  color: _Power.green,
+                  label: 'Возобновить',
+                ),
+              _buildMenuItem(
+                isDark,
+                value: 'delete',
+                icon: Icons.delete_outline_rounded,
+                color: _Power.red,
+                label: 'Удалить',
+                destructive: true,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
+  PopupMenuItem<String> _buildMenuItem(
+      bool isDark, {
+        required String value,
+        required IconData icon,
+        required Color color,
+        required String label,
+        bool destructive = false,
+      }) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+              color: destructive
+                  ? _Power.red
+                  : _Power.textPrimary(isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================================
+  // MENU ACTIONS
+  // =====================================================================
+
   void _handleMenuAction(
-      String action, FitnessTarget target, FitnessProvider provider) async {
+      String action,
+      FitnessTarget target,
+      FitnessProvider provider,
+      ) async {
     switch (action) {
       case 'edit_value':
+        HapticFeedback.selectionClick();
         _editCurrentValue(context, target, provider);
         break;
       case 'complete':
+        HapticFeedback.mediumImpact();
         await provider.completeTarget(target.id);
         break;
       case 'pause':
+        HapticFeedback.selectionClick();
         await provider.pauseTarget(target.id);
         break;
       case 'resume':
+        HapticFeedback.selectionClick();
         await provider.resumeTarget(target.id);
         break;
       case 'delete':
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Удалить цель?'),
-            content: Text('"${target.name}" и вся история будут удалены'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Отмена')),
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Удалить',
-                      style: TextStyle(color: Colors.red))),
-            ],
-          ),
-        );
-        if (confirm == true && mounted) {
-          await provider.deleteTarget(target.id);
-          if (mounted) Navigator.pop(context);
-        }
+        _confirmDeleteTarget(target, provider);
         break;
     }
   }
 
-  // ==================== HERO CARD ====================
+  void _confirmDeleteTarget(
+      FitnessTarget target,
+      FitnessProvider provider,
+      ) {
+    final isDark = widget.isDark;
 
-  Widget _buildHeroCard(
-      bool isDark, FitnessTarget target, Map<String, dynamic> forecast) {
-    final progress = target.progressPercent;
-    final improvement = target.lastImprovement;
-
-    // Определяем направление для правильной интерпретации улучшения
-    final bool isImprovement = target.isAscending
-        ? improvement > 0
-        : improvement < 0;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              target.accentColor,
-              target.accentColor.withOpacity(0.7),
-            ],
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 60),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? _Power.darkCard2 : Colors.white,
+            borderRadius: BorderRadius.circular(14),
           ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: target.accentColor.withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.25),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(target.type.emoji,
-                          style: const TextStyle(fontSize: 12)),
-                      const SizedBox(width: 4),
-                      Text(target.type.displayName.toUpperCase(),
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8)),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                if (target.deadline != null) ...[
-                  Icon(Icons.calendar_today_rounded,
-                      color: Colors.white.withOpacity(0.9), size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatDeadline(target.deadline!),
-                    style: TextStyle(
-                        color: target.isOverdue
-                            ? Colors.red.shade200
-                            : Colors.white.withOpacity(0.9),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  target.formattedCurrent,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    target.unit,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  children: [
+                    Text(
+                      'Удалить цель?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: _Power.textPrimary(isDark),
+                      ),
                     ),
-                  ),
-                ),
-                const Spacer(),
-                if (improvement != 0 && target.entries.length >= 2)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 6),
+                    Text(
+                      '«${target.name}» и вся история будут удалены',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _Power.textSecondary(isDark),
+                        height: 1.4,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isImprovement
-                              ? Icons.trending_up_rounded
-                              : Icons.trending_down_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${improvement > 0 ? '+' : ''}${improvement.toStringAsFixed(1)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
+                  ],
+                ),
+              ),
+              Container(height: 0.5, color: _Power.separator(isDark)),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Отмена',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            color: _Power.volt,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  target.isAscending
-                      ? 'из ${target.formattedTarget} ${target.unit}'
-                      : 'до ${target.formattedTarget} ${target.unit}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                  Container(
+                    width: 0.5,
+                    height: 50,
+                    color: _Power.separator(isDark),
                   ),
-                ),
-                const Spacer(),
-                if (target.startValue > 0 && target.startValue != target.currentValue)
-                  Text(
-                    'стартовое: ${target.startValue == target.startValue.roundToDouble() ? target.startValue.toStringAsFixed(0) : target.startValue.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
+                        HapticFeedback.mediumImpact();
+                        await provider.deleteTarget(target.id);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Удалить',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: _Power.red,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.white.withOpacity(0.25),
-                valueColor:
-                const AlwaysStoppedAnimation<Color>(Colors.white),
-                minHeight: 10,
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${(progress * 100).toInt()}% выполнено',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  'осталось ${target.formattedRemaining} ${target.unit}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ==================== FORECAST CARD ====================
+  // =====================================================================
+  // HERO CARD
+  // =====================================================================
+
+  Widget _buildHeroCard(bool isDark, FitnessTarget target) {
+    final progress = target.progressPercent;
+    final improvement = target.lastImprovement;
+    final bool isImprovement = target.isAscending
+        ? improvement > 0
+        : improvement < 0;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            target.accentColor,
+            target.accentColor.withOpacity(0.75),
+            _Power.heroDeep,
+          ],
+          stops: const [0.0, 0.6, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: target.accentColor.withOpacity(0.35),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Bottom accent line
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.0),
+                    Colors.white,
+                    Colors.white.withOpacity(0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.22),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.25),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            target.type.emoji,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            target.type.displayName.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    if (target.deadline != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              color: target.isOverdue
+                                  ? const Color(0xFFFFD0D0)
+                                  : Colors.white.withOpacity(0.9),
+                              size: 11,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatDeadline(target.deadline!),
+                              style: TextStyle(
+                                color: target.isOverdue
+                                    ? const Color(0xFFFFD0D0)
+                                    : Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                                height: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 22),
+
+                // Big number
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        target.formattedCurrent,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 56,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                          letterSpacing: -3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        target.unit,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.75),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (improvement != 0 && target.entries.length >= 2)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.25),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isImprovement
+                                  ? Icons.trending_up_rounded
+                                  : Icons.trending_down_rounded,
+                              color: Colors.white,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${improvement > 0 ? '+' : ''}${improvement.toStringAsFixed(1)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                                height: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        target.isAscending
+                            ? 'из ${target.formattedTarget} ${target.unit}'
+                            : 'до ${target.formattedTarget} ${target.unit}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                    if (target.startValue > 0 &&
+                        target.startValue != target.currentValue)
+                      Text(
+                        'СТАРТ ${_fmt(target.startValue)}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.55),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+
+                // Progress
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.white.withOpacity(0.18),
+                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                    minHeight: 8,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    Text(
+                      '${(progress * 100).toInt()}% ВЫПОЛНЕНО',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'ОСТАЛОСЬ ${target.formattedRemaining} ${target.unit}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmt(double v) {
+    return v == v.roundToDouble()
+        ? v.toStringAsFixed(0)
+        : v.toStringAsFixed(1);
+  }
+
+  // =====================================================================
+  // FORECAST CARD
+  // =====================================================================
 
   Widget _buildForecastCard(
-      bool isDark, FitnessTarget target, Map<String, dynamic> forecast) {
+      bool isDark,
+      FitnessTarget target,
+      Map<String, dynamic> forecast,
+      ) {
     final isRealistic = forecast['isRealistic'] as bool? ?? false;
     final days = forecast['days'] as int?;
     final date = forecast['date'] as DateTime?;
@@ -422,155 +839,175 @@ class _FitnessTargetDetailsScreenState
     final reason = forecast['reason'] as String? ?? '';
     final trendDays = forecast['trendDays'] as int? ?? 0;
 
-    Color cardColor;
+    Color accent;
     IconData icon;
     String title;
     String subtitle;
 
     if (!isRealistic || days == null) {
-      cardColor = const Color(0xFF9E9E9E);
+      accent = _Power.textTertiary(isDark);
       icon = Icons.analytics_outlined;
       title = 'Прогноз недоступен';
-      subtitle = reason;
+      subtitle = reason.isNotEmpty ? reason : 'Недостаточно данных';
     } else if (days <= 7) {
-      cardColor = const Color(0xFF4CAF50);
+      accent = _Power.green;
       icon = Icons.bolt_rounded;
       title = 'Совсем скоро!';
       subtitle = 'Осталось $days ${_daysWord(days)}';
     } else if (days <= 30) {
-      cardColor = const Color(0xFF2196F3);
+      accent = _Power.ice;
       icon = Icons.trending_up_rounded;
       title = 'Отличный темп';
       subtitle = 'Примерно через $days ${_daysWord(days)}';
     } else if (days <= 180) {
-      cardColor = const Color(0xFFFF9800);
+      accent = _Power.plasma;
       icon = Icons.schedule_rounded;
       title = 'Стабильный прогресс';
       subtitle = 'Ориентировочно ${_formatDate(date!)}';
     } else {
-      cardColor = const Color(0xFF673AB7);
+      accent = _Power.volt;
       icon = Icons.explore_rounded;
       title = 'Долгий путь';
       subtitle = '~${(days / 30).ceil()} месяцев';
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1D24) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: cardColor.withOpacity(0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _Power.card(isDark),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: accent.withOpacity(0.25),
+          width: 0.8,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [cardColor, cardColor.withOpacity(0.7)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                          color: cardColor.withOpacity(0.4), blurRadius: 10),
-                    ],
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 26),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : Colors.black87)),
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? Colors.white54
-                                  : Colors.grey.shade600)),
-                    ],
-                  ),
-                ),
-                if (isRealistic && speed > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: cardColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${speed.toStringAsFixed(2)} ${target.unit}/дн',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: cardColor),
-                    ),
-                  ),
-              ],
-            ),
-            if (trendDays > 0 && isRealistic) ...[
-              const SizedBox(height: 10),
+        boxShadow: _Power.softGlow(accent, strength: 0.10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: _Power.softGlow(accent, strength: 0.2),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Icon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded,
-                        size: 12,
-                        color: isDark ? Colors.white38 : Colors.grey.shade600),
-                    const SizedBox(width: 6),
                     Text(
-                      'Прогноз на основе последних $trendDays ${_daysWord(trendDays)}',
+                      'ПРОГНОЗ',
                       style: TextStyle(
-                          fontSize: 10,
-                          color: isDark ? Colors.white38 : Colors.grey.shade600,
-                          fontWeight: FontWeight.w500),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.8,
+                        color: _Power.textTertiary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
+                        height: 1.1,
+                        color: _Power.textPrimary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _Power.textSecondary(isDark),
+                      ),
                     ),
                   ],
                 ),
               ),
+              if (isRealistic && speed > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    '${speed.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.3,
+                      color: accent,
+                      height: 1,
+                    ),
+                  ),
+                ),
             ],
+          ),
+          if (trendDays > 0 && isRealistic) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: _Power.card2(isDark),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 12,
+                    color: _Power.textTertiary(isDark),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'ПРОГНОЗ НА ОСНОВЕ $trendDays ${_daysWord(trendDays).toUpperCase()}',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0,
+                      color: _Power.textTertiary(isDark),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  // ==================== CHART CARD ====================
+  // =====================================================================
+  // CHART CARD
+  // =====================================================================
 
   Widget _buildChartCard(
-      bool isDark, FitnessTarget target, List<FitnessTargetEntry> entries) {
-    // Для одной записи рисуем просто точку
-    if (entries.isEmpty) {
-      return const SizedBox.shrink();
-    }
+      bool isDark,
+      FitnessTarget target,
+      List<FitnessTargetEntry> entries,
+      ) {
+    if (entries.isEmpty) return const SizedBox.shrink();
 
-    // Сортируем по дате для графика (возрастание)
     final sorted = List<FitnessTargetEntry>.from(entries)
       ..sort((a, b) => a.date.compareTo(b.date));
 
@@ -578,7 +1015,6 @@ class _FitnessTargetDetailsScreenState
     final maxVal = values.reduce((a, b) => a > b ? a : b);
     final minVal = values.reduce((a, b) => a < b ? a : b);
 
-    // Учитываем цель и стартовое значение в диапазоне
     final chartValues = [
       minVal,
       maxVal,
@@ -587,153 +1023,191 @@ class _FitnessTargetDetailsScreenState
     ];
     final chartMin = chartValues.reduce((a, b) => a < b ? a : b);
     final chartMax = chartValues.reduce((a, b) => a > b ? a : b);
-    final chartRange = (chartMax - chartMin).abs() == 0
-        ? 1.0
-        : (chartMax - chartMin).abs();
+    final chartRange =
+    (chartMax - chartMin).abs() == 0 ? 1.0 : (chartMax - chartMin).abs();
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1D24) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.show_chart_rounded,
-                    color: target.accentColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Динамика',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _Power.card(isDark),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _Power.separator(isDark), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: target.accentColor.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const Spacer(),
-                if (sorted.length >= 2)
-                  Text(
-                    '${sorted.first.date.day}.${sorted.first.date.month} — ${sorted.last.date.day}.${sorted.last.date.month}',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color:
-                        isDark ? Colors.white38 : Colors.grey.shade500),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 160,
-              child: CustomPaint(
-                size: const Size(double.infinity, 160),
-                painter: _TargetChartPainter(
-                  points: sorted
-                      .map((e) => (
-                  value: e.value,
-                  date: e.date,
-                  ))
-                      .toList(),
-                  targetValue: target.targetValue,
-                  startValue: target.startValue,
-                  accentColor: target.accentColor,
-                  isDark: isDark,
-                  chartMin: chartMin,
-                  chartRange: chartRange,
+                child: Icon(
+                  Icons.show_chart_rounded,
+                  color: target.accentColor,
+                  size: 17,
                 ),
               ),
+              const SizedBox(width: 10),
+              Text(
+                'ДИНАМИКА',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.6,
+                  color: _Power.textPrimary(isDark),
+                ),
+              ),
+              const Spacer(),
+              if (sorted.length >= 2)
+                Text(
+                  '${sorted.first.date.day}.${sorted.first.date.month} — ${sorted.last.date.day}.${sorted.last.date.month}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: _Power.textTertiary(isDark),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: CustomPaint(
+              size: const Size(double.infinity, 160),
+              painter: _TargetChartPainter(
+                points: sorted
+                    .map((e) => (value: e.value, date: e.date))
+                    .toList(),
+                targetValue: target.targetValue,
+                startValue: target.startValue,
+                accentColor: target.accentColor,
+                isDark: isDark,
+                chartMin: chartMin,
+                chartRange: chartRange,
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildChartStat(isDark, 'Мин', minVal.toStringAsFixed(1),
-                    target.accentColor.withOpacity(0.7)),
-                _buildChartStat(isDark, 'Макс', maxVal.toStringAsFixed(1),
-                    target.accentColor),
-                _buildChartStat(isDark, 'Цель',
-                    target.targetValue.toStringAsFixed(1), Colors.green),
-              ],
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 0.5,
+            color: _Power.separator(isDark),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildChartStat(
+                  isDark,
+                  'МИН',
+                  minVal.toStringAsFixed(1),
+                  _Power.textSecondary(isDark),
+                ),
+              ),
+              Expanded(
+                child: _buildChartStat(
+                  isDark,
+                  'МАКС',
+                  maxVal.toStringAsFixed(1),
+                  target.accentColor,
+                ),
+              ),
+              Expanded(
+                child: _buildChartStat(
+                  isDark,
+                  'ЦЕЛЬ',
+                  target.targetValue.toStringAsFixed(1),
+                  _Power.green,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildChartStat(
-      bool isDark, String label, String value, Color color) {
+      bool isDark,
+      String label,
+      String value,
+      Color color,
+      ) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(value,
-            style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w900, color: color)),
-        Text(label,
-            style: TextStyle(
-                fontSize: 10,
-                color: isDark ? Colors.white38 : Colors.grey.shade500)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.5,
+            height: 1,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
+            color: _Power.textTertiary(isDark),
+          ),
+        ),
       ],
     );
   }
 
-  // ==================== ENTRY CARD ====================
+  // =====================================================================
+  // ENTRY CARD
+  // =====================================================================
 
-  Widget _buildEntryCard(bool isDark, FitnessTargetEntry entry,
-      FitnessTargetEntry? prev, FitnessTarget target) {
+  Widget _buildEntryCard(
+      bool isDark,
+      FitnessTargetEntry entry,
+      FitnessTargetEntry? prev,
+      FitnessTarget target,
+      ) {
     final diff = prev != null ? entry.value - prev.value : 0.0;
     final isImprovement = target.isAscending ? diff > 0 : diff < 0;
-    final isWorsening = diff != 0 && !isImprovement;
+    final hasChange = diff != 0 && prev != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1D24) : Colors.white,
+        color: _Power.card(isDark),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
-        ),
+        border: Border.all(color: _Power.separator(isDark), width: 0.5),
       ),
       child: Row(
         children: [
+          // Value badge
           Container(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  target.accentColor,
-                  target.accentColor.withOpacity(0.7),
-                ],
-              ),
+              color: target.accentColor.withOpacity(0.14),
               borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: target.accentColor.withOpacity(0.3),
-                  blurRadius: 8,
-                ),
-              ],
+              boxShadow:
+              _Power.softGlow(target.accentColor, strength: 0.2),
             ),
-            child: Center(
-              child: Text(
-                entry.value == entry.value.roundToDouble()
-                    ? entry.value.toStringAsFixed(0)
-                    : entry.value.toStringAsFixed(1),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900),
+            alignment: Alignment.center,
+            child: Text(
+              _fmt(entry.value),
+              style: TextStyle(
+                color: target.accentColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+                height: 1,
               ),
             ),
           ),
@@ -745,23 +1219,28 @@ class _FitnessTargetDetailsScreenState
                 Row(
                   children: [
                     Expanded(
-                      child: Text(_formatDate(entry.date),
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color:
-                              isDark ? Colors.white : Colors.black87)),
+                      child: Text(
+                        _formatDate(entry.date),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                          color: _Power.textPrimary(isDark),
+                        ),
+                      ),
                     ),
-                    if (diff != 0 && prev != null)
+                    if (hasChange)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: (isImprovement
-                              ? const Color(0xFF4CAF50)
-                              : const Color(0xFFF44336))
-                              .withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(6),
+                              ? _Power.green
+                              : _Power.red)
+                              .withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(7),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -770,20 +1249,22 @@ class _FitnessTargetDetailsScreenState
                               isImprovement
                                   ? Icons.arrow_upward_rounded
                                   : Icons.arrow_downward_rounded,
-                              size: 12,
+                              size: 11,
                               color: isImprovement
-                                  ? const Color(0xFF4CAF50)
-                                  : const Color(0xFFF44336),
+                                  ? _Power.green
+                                  : _Power.red,
                             ),
-                            const SizedBox(width: 2),
+                            const SizedBox(width: 3),
                             Text(
                               '${diff > 0 ? '+' : ''}${diff.toStringAsFixed(1)}',
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.2,
+                                height: 1,
                                 color: isImprovement
-                                    ? const Color(0xFF4CAF50)
-                                    : const Color(0xFFF44336),
+                                    ? _Power.green
+                                    : _Power.red,
                               ),
                             ),
                           ],
@@ -792,47 +1273,62 @@ class _FitnessTargetDetailsScreenState
                   ],
                 ),
                 if (entry.note != null && entry.note!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(entry.note!,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: isDark
-                              ? Colors.white54
-                              : Colors.grey.shade600),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 5),
+                  Text(
+                    entry.note!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: _Power.textSecondary(isDark),
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
                 if (entry.bodyWeight != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.monitor_weight_rounded,
-                          size: 10,
-                          color:
-                          isDark ? Colors.white24 : Colors.grey.shade400),
+                      Icon(
+                        Icons.monitor_weight_rounded,
+                        size: 10,
+                        color: _Power.textTertiary(isDark),
+                      ),
                       const SizedBox(width: 3),
-                      Text('Вес тела: ${entry.bodyWeight!.toStringAsFixed(1)} кг',
-                          style: TextStyle(
-                              fontSize: 10,
-                              color: isDark
-                                  ? Colors.white24
-                                  : Colors.grey.shade500)),
+                      Text(
+                        'ВЕС ${entry.bodyWeight!.toStringAsFixed(1)} КГ',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                          color: _Power.textTertiary(isDark),
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ],
             ),
           ),
+          const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => _confirmDeleteEntry(entry, target),
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              _confirmDeleteEntry(entry, target);
+            },
             child: Container(
-              padding: const EdgeInsets.all(6),
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
+                color: _Power.red.withOpacity(0.10),
+                shape: BoxShape.circle,
               ),
-              child: Icon(Icons.delete_outline_rounded,
-                  color: Colors.red.shade400, size: 18),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: _Power.red,
+                size: 16,
+              ),
             ),
           ),
         ],
@@ -841,24 +1337,97 @@ class _FitnessTargetDetailsScreenState
   }
 
   Future<void> _confirmDeleteEntry(
-      FitnessTargetEntry entry, FitnessTarget target) async {
+      FitnessTargetEntry entry,
+      FitnessTarget target,
+      ) async {
+    final isDark = widget.isDark;
     final provider = context.read<FitnessProvider>();
+
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Удалить запись?'),
-        content: Text('Запись за ${_formatDate(entry.date)} будет удалена'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Отмена')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Удалить',
-                  style: TextStyle(color: Colors.red))),
-        ],
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 60),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? _Power.darkCard2 : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  children: [
+                    Text(
+                      'Удалить запись?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: _Power.textPrimary(isDark),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Запись за ${_formatDate(entry.date)} будет удалена',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _Power.textSecondary(isDark),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(height: 0.5, color: _Power.separator(isDark)),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx, false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Отмена',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            color: _Power.volt,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 0.5,
+                    height: 50,
+                    color: _Power.separator(isDark),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx, true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Удалить',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: _Power.red,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
     if (confirm == true) {
@@ -866,111 +1435,260 @@ class _FitnessTargetDetailsScreenState
     }
   }
 
-  // ==================== EDIT CURRENT VALUE ====================
+  // =====================================================================
+  // EDIT CURRENT VALUE — iOS Sheet
+  // =====================================================================
 
   void _editCurrentValue(
-      BuildContext context, FitnessTarget target, FitnessProvider provider) {
+      BuildContext context,
+      FitnessTarget target,
+      FitnessProvider provider,
+      ) {
     final isDark = widget.isDark;
-    final controller =
-    TextEditingController(text: target.currentValue.toStringAsFixed(1));
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: isDark ? const Color(0xFF1A1D24) : Colors.white,
-        title: Text('Текущее значение',
-            style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87,
-                fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          autofocus: true,
-          style: TextStyle(
-              color: isDark ? Colors.white : Colors.black87,
-              fontSize: 20,
-              fontWeight: FontWeight.w700),
-          decoration: InputDecoration(
-            labelText: 'Значение (${target.unit})',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-            fillColor: isDark ? const Color(0xFF0F1115) : Colors.grey.shade100,
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Отмена')),
-          ElevatedButton(
-            onPressed: () async {
-              final value = double.tryParse(controller.text) ?? target.currentValue;
-              Navigator.pop(ctx);
-
-              // Создаём новую запись с этим значением
-              await provider.addTargetEntry(target.id, value,
-                  note: 'Ручная корректировка');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: target.accentColor,
-              shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Сохранить', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+    final controller = TextEditingController(
+      text: target.currentValue.toStringAsFixed(1),
     );
-  }
 
-  Widget _buildEmptyHistory(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(24),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 12,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1D24) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
-          ),
+          color: _Power.card(isDark),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.history_rounded,
-                size: 48,
-                color: isDark ? Colors.white12 : Colors.grey.shade300),
-            const SizedBox(height: 12),
-            Text('История пуста',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color:
-                    isDark ? Colors.white38 : Colors.grey.shade500)),
+            Center(
+              child: Container(
+                width: 36,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: _Power.textTertiary(isDark),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'РУЧНАЯ КОРРЕКТИРОВКА',
+              style: TextStyle(
+                color: _Power.volt,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.2,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text('Нажмите + чтобы добавить первую запись',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 12,
-                    color:
-                    isDark ? Colors.white24 : Colors.grey.shade400)),
+            Text(
+              'Текущее значение',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.7,
+                color: _Power.textPrimary(isDark),
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: controller,
+              keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.2,
+                color: _Power.textPrimary(isDark),
+              ),
+              decoration: InputDecoration(
+                hintText: '0.0',
+                hintStyle: TextStyle(
+                  color: _Power.textTertiary(isDark),
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.2,
+                ),
+                suffixText: target.unit,
+                suffixStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _Power.textSecondary(isDark),
+                ),
+                filled: true,
+                fillColor: _Power.card2(isDark),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        Navigator.pop(ctx);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _Power.textSecondary(isDark),
+                        side: BorderSide(color: _Power.separator(isDark)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Отмена',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final value = double.tryParse(controller.text) ??
+                            target.currentValue;
+                        HapticFeedback.mediumImpact();
+                        Navigator.pop(ctx);
+                        await provider.addTargetEntry(
+                          target.id,
+                          value,
+                          note: 'Ручная корректировка',
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: target.accentColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        shadowColor:
+                        target.accentColor.withOpacity(0.5),
+                      ),
+                      child: const Text(
+                        'СОХРАНИТЬ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ==================== ADD ENTRY SHEET ====================
+  // =====================================================================
+  // EMPTY HISTORY
+  // =====================================================================
 
-  void _showAddEntrySheet(BuildContext context, FitnessTarget target,
-      FitnessProvider provider) {
+  Widget _buildEmptyHistory(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: _Power.card(isDark),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _Power.separator(isDark), width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 66,
+            height: 66,
+            decoration: BoxDecoration(
+              color: _Power.volt.withOpacity(0.10),
+              shape: BoxShape.circle,
+              boxShadow: _Power.softGlow(_Power.volt, strength: 0.15),
+            ),
+            child: const Icon(
+              Icons.history_rounded,
+              size: 28,
+              color: _Power.volt,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'ИСТОРИЯ',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.2,
+              color: _Power.volt,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Пока пусто',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              color: _Power.textPrimary(isDark),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Добавьте первую запись, чтобы отслеживать прогресс',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: _Power.textSecondary(isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================================
+  // ADD ENTRY SHEET
+  // =====================================================================
+
+  void _showAddEntrySheet(
+      BuildContext context,
+      FitnessTarget target,
+      FitnessProvider provider,
+      ) {
     final isDark = widget.isDark;
-    final controller =
-    TextEditingController(text: target.currentValue.toStringAsFixed(1));
+    final controller = TextEditingController(
+      text: target.currentValue.toStringAsFixed(1),
+    );
     final noteController = TextEditingController();
-
-    // Подсказки на основе типа цели
-    final String hintText = _getHintForType(target);
+    final hintText = _getHintForType(target);
 
     showModalBottomSheet(
       context: context,
@@ -978,223 +1696,310 @@ class _FitnessTargetDetailsScreenState
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A1D24) : Colors.white,
+            color: _Power.card(isDark),
             borderRadius:
             const BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: _Power.textTertiary(isDark),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
+                const SizedBox(height: 20),
+
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: target.accentColor.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: _Power.softGlow(
                           target.accentColor,
-                          target.accentColor.withOpacity(0.7),
+                          strength: 0.2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        target.type.emoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'НОВАЯ ЗАПИСЬ',
+                            style: TextStyle(
+                              color: _Power.volt,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            target.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                              color: _Power.textPrimary(isDark),
+                            ),
+                          ),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(target.type.emoji,
-                        style: const TextStyle(fontSize: 16)),
+                  ],
+                ),
+
+                const SizedBox(height: 22),
+
+                // Value label
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'ТЕКУЩИЙ РЕЗУЛЬТАТ (${target.unit.toUpperCase()})',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.6,
+                      color: _Power.textTertiary(isDark),
+                    ),
                   ),
-                  const SizedBox(width: 10),
-                  Text('Новая запись',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color:
-                          isDark ? Colors.white : Colors.black87)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Текущий результат (${target.unit})',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color:
-                    isDark ? Colors.white54 : Colors.grey.shade600),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller,
-                keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-                autofocus: true,
-                style: TextStyle(
-                    fontSize: 28,
+                ),
+                TextField(
+                  controller: controller,
+                  keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                  style: TextStyle(
+                    fontSize: 32,
                     fontWeight: FontWeight.w900,
-                    color:
-                    isDark ? Colors.white : Colors.black87),
-                decoration: InputDecoration(
-                  hintText: '0.0',
-                  suffixText: target.unit,
-                  suffixStyle: TextStyle(
+                    letterSpacing: -1.2,
+                    color: _Power.textPrimary(isDark),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '0.0',
+                    hintStyle: TextStyle(
+                      color: _Power.textTertiary(isDark),
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                    ),
+                    suffixText: target.unit,
+                    suffixStyle: TextStyle(
                       fontSize: 14,
-                      color:
-                      isDark ? Colors.white38 : Colors.grey.shade500),
-                  filled: true,
-                  fillColor: isDark
-                      ? const Color(0xFF0F1115)
-                      : Colors.grey.shade100,
-                  border: OutlineInputBorder(
+                      fontWeight: FontWeight.w800,
+                      color: _Power.textSecondary(isDark),
+                    ),
+                    filled: true,
+                    fillColor: _Power.card2(isDark),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 18),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Заметка (опционально)',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color:
-                    isDark ? Colors.white54 : Colors.grey.shade600),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: noteController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  filled: true,
-                  fillColor: isDark
-                      ? const Color(0xFF0F1115)
-                      : Colors.grey.shade100,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    final value =
-                    double.tryParse(controller.text);
-                    if (value == null || value < 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Введите корректное значение'),
-                            backgroundColor: Colors.red),
-                      );
-                      return;
-                    }
-                    Navigator.pop(ctx);
-                    provider.addTargetEntry(
-                      target.id,
-                      value,
-                      note: noteController.text.trim().isEmpty
-                          ? null
-                          : noteController.text.trim(),
-                    );
-                    HapticFeedback.mediumImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle,
-                                color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                  'Запись добавлена: $value ${target.unit}'),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: target.accentColor,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('СОХРАНИТЬ',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w900)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: target.accentColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 18,
+                    ),
                   ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 16),
+
+                // Note label
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'ЗАМЕТКА (ОПЦИОНАЛЬНО)',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.6,
+                      color: _Power.textTertiary(isDark),
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: noteController,
+                  maxLines: 2,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: _Power.textPrimary(isDark),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    hintStyle: TextStyle(
+                      color: _Power.textTertiary(isDark),
+                      fontSize: 13,
+                    ),
+                    filled: true,
+                    fillColor: _Power.card2(isDark),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final value = double.tryParse(controller.text);
+                      if (value == null || value < 0) {
+                        HapticFeedback.mediumImpact();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Введите корректное значение'),
+                            backgroundColor: _Power.red,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(ctx);
+                      provider.addTargetEntry(
+                        target.id,
+                        value,
+                        note: noteController.text.trim().isEmpty
+                            ? null
+                            : noteController.text.trim(),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check_circle_rounded,
+                                  color: Colors.white, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Запись добавлена: $value ${target.unit}',
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: target.accentColor,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: target.accentColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      shadowColor: target.accentColor.withOpacity(0.5),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_rounded, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'СОХРАНИТЬ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  // =====================================================================
+  // HELPERS
+  // =====================================================================
+
   String _getHintForType(FitnessTarget target) {
     switch (target.type) {
       case FitnessTargetType.strengthMax:
-        return 'Например: "удалось пожать 90, осталось 10 кг!"';
+        return 'Например: «удалось пожать 90, осталось 10 кг»';
       case FitnessTargetType.strengthReps:
-        return 'Например: "сделал 8 повторов с 60 кг"';
+        return 'Например: «сделал 8 повторов с 60 кг»';
       case FitnessTargetType.bodyweightReps:
-        return 'Например: "подтянулся 7 раз без раскачки"';
+        return 'Например: «подтянулся 7 раз без раскачки»';
       case FitnessTargetType.cardioDistance:
-        return 'Например: "пробежал 3 км в парке"';
+        return 'Например: «пробежал 3 км в парке»';
       case FitnessTargetType.cardioTime:
-        return 'Например: "5 км за 28 минут"';
+        return 'Например: «5 км за 28 минут»';
       case FitnessTargetType.endurance:
-        return 'Например: "планка 90 секунд"';
+        return 'Например: «планка 90 секунд»';
       case FitnessTargetType.bodyMeasurement:
-        return 'Например: "замер утром после душа"';
+        return 'Например: «замер утром после душа»';
       case FitnessTargetType.bodyWeight:
-        return 'Например: "взвесился утром натощак"';
+        return 'Например: «взвесился утром натощак»';
       case FitnessTargetType.volume:
-        return 'Например: "тяжёлая тренировка"';
+        return 'Например: «тяжёлая тренировка»';
       case FitnessTargetType.custom:
-        return 'Любая заметка о прогрессе...';
+        return 'Любая заметка о прогрессе…';
     }
   }
-
-  // ==================== HELPERS ====================
 
   String _formatDate(DateTime date) {
     const months = [
       'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
-      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'
+      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   String _formatDeadline(DateTime date) {
     final days = date.difference(DateTime.now()).inDays;
-    if (days < 0) return 'Просрочено';
-    if (days == 0) return 'Сегодня';
-    if (days == 1) return 'Завтра';
-    if (days <= 7) return '$days дн.';
+    if (days < 0) return 'ПРОСРОЧЕНО';
+    if (days == 0) return 'СЕГОДНЯ';
+    if (days == 1) return 'ЗАВТРА';
+    if (days <= 7) return '$days ДН.';
     return '${date.day}.${date.month.toString().padLeft(2, '0')}';
   }
 
@@ -1207,7 +2012,7 @@ class _FitnessTargetDetailsScreenState
   }
 }
 
-// ==================== CUSTOM PAINTER ДЛЯ ГРАФИКА ====================
+// ==================== CUSTOM PAINTER ====================
 
 class _TargetChartPainter extends CustomPainter {
   final List<({double value, DateTime date})> points;
@@ -1244,19 +2049,19 @@ class _TargetChartPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          accentColor.withOpacity(0.3),
+          accentColor.withOpacity(0.32),
           accentColor.withOpacity(0.0),
         ],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
     final targetPaint = Paint()
-      ..color = Colors.green.withOpacity(0.6)
+      ..color = const Color(0xFF00C853).withOpacity(0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
     final startPaint = Paint()
-      ..color = Colors.orange.withOpacity(0.5)
+      ..color = const Color(0xFFFF9500).withOpacity(0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -1265,25 +2070,30 @@ class _TargetChartPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final pointBorder = Paint()
-      ..color = isDark ? const Color(0xFF1A1D24) : Colors.white
+      ..color = isDark ? const Color(0xFF1C1C1E) : Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
-    // Целевая линия (пунктир)
     _drawDashedLine(
-      canvas, size, targetValue, targetPaint,
-      dashWidth: 6.0, dashSpace: 4.0,
+      canvas,
+      size,
+      targetValue,
+      targetPaint,
+      dashWidth: 6.0,
+      dashSpace: 4.0,
     );
 
-    // Стартовая линия (если есть и отличается от цели)
     if (startValue > 0 && (startValue - targetValue).abs() > 0.01) {
       _drawDashedLine(
-        canvas, size, startValue, startPaint,
-        dashWidth: 3.0, dashSpace: 3.0,
+        canvas,
+        size,
+        startValue,
+        startPaint,
+        dashWidth: 3.0,
+        dashSpace: 3.0,
       );
     }
 
-    // Точки на графике
     final path = Path();
     final fillPath = Path();
     final coords = <Offset>[];
@@ -1312,11 +2122,11 @@ class _TargetChartPainter extends CustomPainter {
       fillPath.lineTo(coords.last.dx, size.height);
       fillPath.close();
       canvas.drawPath(fillPath, fillPaint);
+
       if (coords.length > 1) {
         canvas.drawPath(path, linePaint);
       }
 
-      // Рисуем точки
       for (final c in coords) {
         canvas.drawCircle(c, 6, pointBorder);
         canvas.drawCircle(c, 4, pointPaint);

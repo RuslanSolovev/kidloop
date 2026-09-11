@@ -1,4 +1,3 @@
-// android/app/src/main/kotlin/com/example/kid_loop/StepCounterService.kt
 package com.example.kid_loop
 
 import android.app.Notification
@@ -40,8 +39,10 @@ class StepCounterService : Service(), SensorEventListener {
     private lateinit var wakeLock: PowerManager.WakeLock
     private lateinit var prefs: SharedPreferences
 
-    private val PAUSE_THRESHOLD = 120_000L
-    private val INACTIVITY_CHECK_INTERVAL = 30_000L
+    // Закрываем прогулку через 1 минуту без шагов
+    private val PAUSE_THRESHOLD = 60_000L
+    // Проверяем каждые 15 секунд
+    private val INACTIVITY_CHECK_INTERVAL = 15_000L
 
     private var inactivityHandler: Handler? = null
     private var inactivityRunnable: Runnable? = null
@@ -54,14 +55,27 @@ class StepCounterService : Service(), SensorEventListener {
         stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "KidLoop:StepCounter")
-        wakeLock.acquire(24 * 60 * 60 * 1000L)
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "KidLoop:StepCounter"
+        )
+        wakeLock.acquire()
 
         createNotificationChannel()
         startForeground(1, createNotification())
 
         prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         loadState()
+
+        // Если сервис был перезапущен системой, а старая сессия осталась
+        // активной — закрываем её, если простой >= 1 минуты.
+        if (isInWalkSession && lastStepTime > 0) {
+            val idle = System.currentTimeMillis() - lastStepTime
+            if (idle >= PAUSE_THRESHOLD) {
+                endWalkSession(lastStepTime)
+            }
+        }
+
         startInactivityChecker()
 
         Log.i(TAG, "✅ StepCounterService запущен (шагомер)")
@@ -84,7 +98,7 @@ class StepCounterService : Service(), SensorEventListener {
         Log.d(TAG, "StepCounterService onDestroy")
         sensorManager.unregisterListener(this)
         inactivityRunnable?.let { inactivityHandler?.removeCallbacks(it) }
-        if (::wakeLock.isInitialized) wakeLock.release()
+        if (::wakeLock.isInitialized && wakeLock.isHeld) wakeLock.release()
         saveDailyStats()
         saveState()
         super.onDestroy()
@@ -124,6 +138,7 @@ class StepCounterService : Service(), SensorEventListener {
         }
 
         if (currentSteps < lastStepCount) {
+            // Перезагрузка устройства
             lastStepCount = currentSteps
             saveState()
             return
@@ -133,6 +148,7 @@ class StepCounterService : Service(), SensorEventListener {
 
         val newSteps = currentSteps - lastStepCount
         if (newSteps > 500) {
+            // Аномальный скачок — пропускаем
             lastStepCount = currentSteps
             saveState()
             return
@@ -144,10 +160,13 @@ class StepCounterService : Service(), SensorEventListener {
             startWalkSession(now)
         } else {
             val diff = if (lastStepTime > 0) now - lastStepTime else PAUSE_THRESHOLD + 1
-            if (diff < PAUSE_THRESHOLD && diff > 0) {
+            if (diff in 1 until PAUSE_THRESHOLD) {
                 currentSessionSeconds += (diff / 1000).toInt()
             } else if (diff >= PAUSE_THRESHOLD) {
-                endWalkSession(now)
+                // Пользователь возобновил ходьбу после длинной паузы:
+                // закрываем старую сессию (в момент последнего шага)
+                // и открываем новую.
+                endWalkSession(lastStepTime)
                 startWalkSession(now)
             }
         }
@@ -166,21 +185,66 @@ class StepCounterService : Service(), SensorEventListener {
         lastStepTime = timestamp
         currentSessionSeconds = 0
         currentSessionSteps = 0
+
+        appendActivityFeed(formatFeedEntry(timestamp, "Начало ходьбы"))
+
         saveState()
+        Log.d(TAG, "▶ Начало ходьбы @ $timestamp")
     }
 
-    private fun endWalkSession(timestamp: Long) {
+    private fun endWalkSession(endTimestamp: Long) {
         if (walkStartTime == 0L) return
-        val durationSeconds = ((timestamp - walkStartTime) / 1000).toInt()
+
+        val safeEnd = if (endTimestamp > walkStartTime) endTimestamp else walkStartTime
+        val durationSeconds = ((safeEnd - walkStartTime) / 1000).toInt()
         val totalSeconds = maxOf(currentSessionSeconds, durationSeconds)
         val activeMinutes = if (totalSeconds >= 60) (totalSeconds / 60) else 1
+
         addActiveMinutes(activeMinutes)
         saveDailyStats()
+
+        appendActivityFeed(
+            formatFeedEntry(
+                safeEnd,
+                "Ходьба завершена • $activeMinutes мин • Шагов: $currentSessionSteps"
+            )
+        )
+
+        Log.d(
+            TAG,
+            "⏹ Ходьба завершена @ $safeEnd • $activeMinutes мин • $currentSessionSteps шагов"
+        )
+
         isInWalkSession = false
         walkStartTime = 0L
         currentSessionSeconds = 0
         currentSessionSteps = 0
         saveState()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Activity feed (журнал прогулок)
+    // ---------------------------------------------------------------------------
+
+    private fun formatFeedEntry(timestamp: Long, message: String): String {
+        val sdf = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
+        return "${sdf.format(Date(timestamp))} — $message"
+    }
+
+    private fun appendActivityFeed(entry: String) {
+        val current = prefs.getString("flutter.activity_feed", "") ?: ""
+        val items = if (current.isEmpty()) {
+            mutableListOf()
+        } else {
+            current.split("\n").filter { it.trim().isNotEmpty() }.toMutableList()
+        }
+        items.add(0, entry)
+        while (items.size > 100) {
+            items.removeAt(items.size - 1)
+        }
+        prefs.edit()
+            .putString("flutter.activity_feed", items.joinToString("\n"))
+            .apply()
     }
 
     private fun saveDailyStats() {
@@ -201,12 +265,20 @@ class StepCounterService : Service(), SensorEventListener {
 
         if (lastDate != todayDate && lastDate.isNotEmpty()) {
             prefs.edit()
-                .putInt("flutter.stats_$yesterdayStr", prefs.getInt("flutter.today_steps", 0))
-                .putInt("flutter.stats_${yesterdayStr}_minutes", prefs.getInt("flutter.active_minutes", 0))
+                .putInt(
+                    "flutter.stats_$yesterdayStr",
+                    prefs.getInt("flutter.today_steps", 0)
+                )
+                .putInt(
+                    "flutter.stats_${yesterdayStr}_minutes",
+                    prefs.getInt("flutter.active_minutes", 0)
+                )
                 .apply()
         }
 
-        val newTodaySteps = if (lastDate != todayDate) newSteps else prefs.getInt("flutter.today_steps", 0) + newSteps
+        val newTodaySteps =
+            if (lastDate != todayDate) newSteps
+            else prefs.getInt("flutter.today_steps", 0) + newSteps
 
         if (lastDate != todayDate) {
             prefs.edit().putInt("flutter.active_minutes", 0).apply()
@@ -215,10 +287,21 @@ class StepCounterService : Service(), SensorEventListener {
         prefs.edit().apply {
             putString("flutter.last_date", todayDate)
             putInt("flutter.today_steps", newTodaySteps)
-            putInt("flutter.weekly_steps", prefs.getInt("flutter.weekly_steps", 0) + newSteps)
-            putInt("flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}",
-                prefs.getInt("flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}", 0) + newSteps)
-            putInt("flutter.total_steps", prefs.getInt("flutter.total_steps", 0) + newSteps)
+            putInt(
+                "flutter.weekly_steps",
+                prefs.getInt("flutter.weekly_steps", 0) + newSteps
+            )
+            putInt(
+                "flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}",
+                prefs.getInt(
+                    "flutter.monthly_${calendar.get(Calendar.YEAR)}_${calendar.get(Calendar.MONTH) + 1}",
+                    0
+                ) + newSteps
+            )
+            putInt(
+                "flutter.total_steps",
+                prefs.getInt("flutter.total_steps", 0) + newSteps
+            )
             apply()
         }
 
@@ -228,19 +311,28 @@ class StepCounterService : Service(), SensorEventListener {
 
     private fun addActiveMinutes(minutes: Int) {
         prefs.edit()
-            .putInt("flutter.active_minutes", prefs.getInt("flutter.active_minutes", 0) + minutes)
+            .putInt(
+                "flutter.active_minutes",
+                prefs.getInt("flutter.active_minutes", 0) + minutes
+            )
             .apply()
     }
 
     private fun startInactivityChecker() {
         inactivityHandler = Handler(Looper.getMainLooper())
-        inactivityRunnable = Runnable {
-            if (isInWalkSession && lastStepTime > 0) {
-                if (System.currentTimeMillis() - lastStepTime >= PAUSE_THRESHOLD) {
-                    endWalkSession(System.currentTimeMillis())
+        inactivityRunnable = object : Runnable {
+            override fun run() {
+                if (isInWalkSession && lastStepTime > 0) {
+                    val idle = System.currentTimeMillis() - lastStepTime
+                    if (idle >= PAUSE_THRESHOLD) {
+                        // Закрываем сессию в момент последнего шага,
+                        // а не сейчас.
+                        endWalkSession(lastStepTime)
+                        updateNotification("Прогулка завершена")
+                    }
                 }
+                inactivityHandler?.postDelayed(this, INACTIVITY_CHECK_INTERVAL)
             }
-            inactivityHandler?.postDelayed(inactivityRunnable!!, INACTIVITY_CHECK_INTERVAL)
         }
         inactivityHandler?.postDelayed(inactivityRunnable!!, INACTIVITY_CHECK_INTERVAL)
     }
@@ -276,14 +368,20 @@ class StepCounterService : Service(), SensorEventListener {
 
     private fun updateNotification(text: String) {
         try {
+            val pi = PendingIntent.getActivity(
+                this, 0, Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
             val n = NotificationCompat.Builder(this, "step_counter")
                 .setContentTitle("KidLoop")
                 .setContentText(text)
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .setContentIntent(pi)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build()
-            startForeground(1, n)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(1, n)
         } catch (e: Exception) {
             Log.e(TAG, "❌ Ошибка обновления уведомления: ${e.message}")
         }

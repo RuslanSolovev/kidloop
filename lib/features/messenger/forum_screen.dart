@@ -1,4 +1,4 @@
-// forum_screen.dart - КАК ЧАТ (мгновенный UI + галочки + НАСТРОЙКИ ЦВЕТОВ)
+// forum_screen.dart - СТИЛЬНЫЙ ФОРУМ (как чат: контрастный верх с скруглением, парящее поле)
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -9,17 +9,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 // 🔥 Модель цветовой схемы форума
 class ForumColorScheme {
-  final Color myBgColor;
+  final Color myBorderColor;
   final Color myTextColor;
-  final Color otherBgColor;
+  final Color otherBorderColor;
   final Color otherTextColor;
   final Color backgroundColor;
   final String name;
 
   const ForumColorScheme({
-    required this.myBgColor,
+    required this.myBorderColor,
     required this.myTextColor,
-    required this.otherBgColor,
+    required this.otherBorderColor,
     required this.otherTextColor,
     required this.backgroundColor,
     required this.name,
@@ -30,83 +30,83 @@ class ForumColorScheme {
 const List<ForumColorScheme> _colorSchemes = [
   ForumColorScheme(
     name: 'Стандарт',
-    myBgColor: Color(0xFFFF9800),
-    myTextColor: Colors.white,
-    otherBgColor: Colors.white,
-    otherTextColor: Colors.black87,
-    backgroundColor: Color(0xFFFFF8F0),
+    myBorderColor: Color(0xFFFF6B35),
+    myTextColor: Color(0xFF1A1D24),
+    otherBorderColor: Color(0xFF2D7FF9),
+    otherTextColor: Color(0xFF1A1D24),
+    backgroundColor: Color(0xFFF5F7FA),
   ),
   ForumColorScheme(
     name: 'Океан',
-    myBgColor: Color(0xFF2196F3),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFE3F2FD),
-    otherTextColor: Color(0xFF1565C0),
-    backgroundColor: Color(0xFFF0F8FF),
+    myBorderColor: Color(0xFF2D7FF9),
+    myTextColor: Color(0xFF1A3A6B),
+    otherBorderColor: Color(0xFF7FB3D9),
+    otherTextColor: Color(0xFF1A3A6B),
+    backgroundColor: Color(0xFFF0F7FF),
   ),
   ForumColorScheme(
     name: 'Лес',
-    myBgColor: Color(0xFF4CAF50),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFE8F5E9),
-    otherTextColor: Color(0xFF2E7D32),
-    backgroundColor: Color(0xFFF1F8E9),
+    myBorderColor: Color(0xFF2E9A4C),
+    myTextColor: Color(0xFF1A4A2A),
+    otherBorderColor: Color(0xFF66BB6A),
+    otherTextColor: Color(0xFF1A4A2A),
+    backgroundColor: Color(0xFFF0FAF2),
   ),
   ForumColorScheme(
     name: 'Закат',
-    myBgColor: Color(0xFFE91E63),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFFCE4EC),
-    otherTextColor: Color(0xFF880E4F),
-    backgroundColor: Color(0xFFFFF5F5),
+    myBorderColor: Color(0xFFE8456B),
+    myTextColor: Color(0xFF7A1A3A),
+    otherBorderColor: Color(0xFFF06292),
+    otherTextColor: Color(0xFF7A1A3A),
+    backgroundColor: Color(0xFFFFF5F7),
   ),
   ForumColorScheme(
     name: 'Фиолет',
-    myBgColor: Color(0xFF9C27B0),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFF3E5F5),
-    otherTextColor: Color(0xFF6A1B9A),
-    backgroundColor: Color(0xFFFDF8FF),
-  ),
-  ForumColorScheme(
-    name: 'Темный',
-    myBgColor: Color(0xFF37474F),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFF1A1A2E),
-    otherTextColor: Color(0xFFECEFF1),
-    backgroundColor: Color(0xFF0A0A1A),
+    myBorderColor: Color(0xFF8B3DF0),
+    myTextColor: Color(0xFF4A1A7A),
+    otherBorderColor: Color(0xFFB39DDB),
+    otherTextColor: Color(0xFF4A1A7A),
+    backgroundColor: Color(0xFFF8F5FF),
   ),
   ForumColorScheme(
     name: 'Мятный',
-    myBgColor: Color(0xFF00897B),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFE0F2F1),
-    otherTextColor: Color(0xFF004D40),
-    backgroundColor: Color(0xFFF0FFFE),
+    myBorderColor: Color(0xFF00A88A),
+    myTextColor: Color(0xFF004A3A),
+    otherBorderColor: Color(0xFF4DB6AC),
+    otherTextColor: Color(0xFF004A3A),
+    backgroundColor: Color(0xFFF0FFFC),
   ),
   ForumColorScheme(
     name: 'Карамель',
-    myBgColor: Color(0xFFFF6F00),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFFFF3E0),
-    otherTextColor: Color(0xFFE65100),
+    myBorderColor: Color(0xFFFF8F00),
+    myTextColor: Color(0xFF6A3A00),
+    otherBorderColor: Color(0xFFFFB74D),
+    otherTextColor: Color(0xFF6A3A00),
     backgroundColor: Color(0xFFFFFBF5),
   ),
   ForumColorScheme(
     name: 'Лаванда',
-    myBgColor: Color(0xFF7B1FA2),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFFF5F0FF),
-    otherTextColor: Color(0xFF4A148C),
-    backgroundColor: Color(0xFFFAF8FF),
+    myBorderColor: Color(0xFF6A1AB0),
+    myTextColor: Color(0xFF3A0A6A),
+    otherBorderColor: Color(0xFFCE93D8),
+    otherTextColor: Color(0xFF3A0A6A),
+    backgroundColor: Color(0xFFFAF5FF),
   ),
   ForumColorScheme(
     name: 'Ночь',
-    myBgColor: Color(0xFF455A64),
-    myTextColor: Colors.white,
-    otherBgColor: Color(0xFF2C3E50),
-    otherTextColor: Color(0xFFECF0F1),
+    myBorderColor: Color(0xFF6A7A8A),
+    myTextColor: Color(0xFFE8F0F8),
+    otherBorderColor: Color(0xFF4A5A6A),
+    otherTextColor: Color(0xFFE8F0F8),
     backgroundColor: Color(0xFF1A1A2E),
+  ),
+  ForumColorScheme(
+    name: 'Вишня',
+    myBorderColor: Color(0xFFD42A5A),
+    myTextColor: Color(0xFF6A1A2A),
+    otherBorderColor: Color(0xFFEF5350),
+    otherTextColor: Color(0xFF6A1A2A),
+    backgroundColor: Color(0xFFFFF5F8),
   ),
 ];
 
@@ -135,21 +135,13 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
   String? _editingMessageId;
   final Set<String> _pendingIds = {};
 
-  // 🔥 Настройки цветов
   int _selectedColorSchemeIndex = 0;
   late ForumColorScheme _currentColorScheme;
 
   static const String forumApiUrl = 'https://functions.yandexcloud.net/d4en6mi363fq4o5js5ee';
   static const String _cacheKey = 'forum_messages_cache';
 
-  // 🔥 Используем Theme напрямую
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
-  Color get _textColor => _isDarkMode ? Colors.white : Colors.black87;
-  Color get _subTextColor => _isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
-  Color get _backgroundColor => _isDarkMode ? const Color(0xFF0A0A1A) : const Color(0xFFF8F9FA);
-  Color get _cardBorderColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200;
-  Color get _inputFillColor => _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100;
-  Color get _surfaceColor => _isDarkMode ? const Color(0xFF1A1A2E) : Colors.white;
 
   @override
   void initState() {
@@ -181,7 +173,6 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     _currentUserName = prefs.getString('user_name') ?? 'Пользователь';
     _currentUserAvatar = prefs.getString('avatar_url') ?? '';
 
-    // 🔥 Загружаем сохраненную цветовую схему
     _selectedColorSchemeIndex = prefs.getInt('forum_color_scheme_${widget.forumId}') ?? 0;
     _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex];
 
@@ -194,190 +185,331 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     }
   }
 
-  // 🔥 Сохранение цветовой схемы
   Future<void> _saveColorScheme(int index) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('forum_color_scheme_${widget.forumId}', index);
   }
 
-  // 🔥 Диалог выбора цветовой схемы
   void _showColorSchemeDialog() {
     final isDark = _isDarkMode;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.palette_rounded, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Оформление форума',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
+        builder: (context, setDialogState) => Container(
+          height: MediaQuery.of(context).size.height * 0.8,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 30,
+                offset: const Offset(0, -10),
               ),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 8),
-                // 🔥 Предпросмотр с фоном
-                Container(
-                  padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.2) : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B35), Color(0xFFFF8A3D)],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.palette_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Оформление форума',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            'Выберите стиль',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.white54 : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Preview
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: _colorSchemes[_selectedColorSchemeIndex].backgroundColor,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
+                      width: 1,
+                    ),
                   ),
-                  child: Column(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Row(
-                        children: [
-                          Icon(Icons.visibility_rounded, size: 14, color: isDark ? Colors.white54 : Colors.grey.shade600),
-                          const SizedBox(width: 6),
-                          Text('Предпросмотр', style: TextStyle(color: isDark ? Colors.white54 : Colors.grey.shade600, fontSize: 12)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      // Мое сообщение
-                      Align(
-                        alignment: Alignment.centerRight,
+                      Flexible(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          constraints: const BoxConstraints(maxWidth: 130),
                           decoration: BoxDecoration(
-                            color: _colorSchemes[_selectedColorSchemeIndex].myBgColor,
+                            border: Border.all(
+                              color: _colorSchemes[_selectedColorSchemeIndex].otherBorderColor,
+                              width: 2,
+                            ),
                             borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(16),
-                              topRight: Radius.circular(16),
-                              bottomLeft: Radius.circular(16),
+                              topLeft: Radius.circular(4),
+                              topRight: Radius.circular(14),
+                              bottomLeft: Radius.circular(14),
+                              bottomRight: Radius.circular(14),
+                            ),
+                          ),
+                          child: Text(
+                            'Привет!',
+                            style: TextStyle(
+                              color: _colorSchemes[_selectedColorSchemeIndex].otherTextColor,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          constraints: const BoxConstraints(maxWidth: 130),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: _colorSchemes[_selectedColorSchemeIndex].myBorderColor,
+                              width: 2,
+                            ),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(14),
+                              topRight: Radius.circular(14),
+                              bottomLeft: Radius.circular(14),
                               bottomRight: Radius.circular(4),
                             ),
                           ),
-                          child: Text('Ваше сообщение',
-                              style: TextStyle(color: _colorSchemes[_selectedColorSchemeIndex].myTextColor, fontSize: 14)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Чужое сообщение
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _colorSchemes[_selectedColorSchemeIndex].otherBgColor,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(4),
-                              topRight: Radius.circular(16),
-                              bottomLeft: Radius.circular(16),
-                              bottomRight: Radius.circular(16),
+                          child: Text(
+                            'Привет! 😊',
+                            style: TextStyle(
+                              color: _colorSchemes[_selectedColorSchemeIndex].myTextColor,
+                              fontSize: 13,
                             ),
                           ),
-                          child: Text('Сообщение участника',
-                              style: TextStyle(color: _colorSchemes[_selectedColorSchemeIndex].otherTextColor, fontSize: 14)),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                // 🔥 Сетка с выбором цветов
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 1.1,
-                  ),
-                  itemCount: _colorSchemes.length,
-                  itemBuilder: (context, index) {
-                    final scheme = _colorSchemes[index];
-                    final isSelected = _selectedColorSchemeIndex == index;
-                    return GestureDetector(
-                      onTap: () => setDialogState(() => _selectedColorSchemeIndex = index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected ? Colors.orange : Colors.grey.withOpacity(0.3),
-                            width: isSelected ? 2.5 : 1,
-                          ),
-                          color: isSelected
-                              ? (isDark ? Colors.orange.withOpacity(0.1) : Colors.orange.withOpacity(0.05))
-                              : Colors.transparent,
-                          boxShadow: isSelected
-                              ? [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 8)]
-                              : null,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(child: Container(height: 24, decoration: BoxDecoration(color: scheme.myBgColor, borderRadius: const BorderRadius.horizontal(left: Radius.circular(8))))),
-                                const SizedBox(width: 2),
-                                Expanded(child: Container(height: 24, decoration: BoxDecoration(color: scheme.otherBgColor))),
-                                const SizedBox(width: 2),
-                                Expanded(child: Container(height: 24, decoration: BoxDecoration(color: scheme.backgroundColor, borderRadius: const BorderRadius.horizontal(right: Radius.circular(8))))),
-                              ],
+              ),
+              const SizedBox(height: 16),
+              // Grid
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 1,
+                    ),
+                    itemCount: _colorSchemes.length,
+                    itemBuilder: (context, index) {
+                      final scheme = _colorSchemes[index];
+                      final isSelected = _selectedColorSchemeIndex == index;
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => _selectedColorSchemeIndex = index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFFFF6B35)
+                                  : isDark
+                                  ? Colors.white.withOpacity(0.1)
+                                  : Colors.grey.shade200,
+                              width: isSelected ? 2.5 : 1,
                             ),
-                            const SizedBox(height: 8),
-                            Text(scheme.name, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? Colors.orange : (isDark ? Colors.white70 : Colors.grey.shade700)), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            if (isSelected) ...[
+                            color: isSelected
+                                ? const Color(0xFFFF6B35).withOpacity(0.08)
+                                : Colors.transparent,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: scheme.myBorderColor,
+                                          borderRadius: const BorderRadius.horizontal(
+                                            left: Radius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: scheme.otherBorderColor,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: scheme.backgroundColor,
+                                          borderRadius: const BorderRadius.horizontal(
+                                            right: Radius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.orange.withOpacity(0.2)), child: const Icon(Icons.check, color: Colors.orange, size: 14)),
+                              Text(
+                                scheme.name,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  color: isSelected
+                                      ? const Color(0xFFFF6B35)
+                                      : (isDark ? Colors.white70 : Colors.grey.shade700),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (isSelected)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 2),
+                                  width: 5,
+                                  height: 5,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFFFF6B35),
+                                  ),
+                                ),
                             ],
-                          ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          'Отмена',
+                          style: TextStyle(
+                            color: isDark ? Colors.white54 : Colors.grey.shade700,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF6B35), Color(0xFFFF8A3D)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex];
+                            });
+                            _saveColorScheme(_selectedColorSchemeIndex);
+                            Navigator.pop(context);
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text(
+                            'Применить',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
-                  child: Row(children: [
-                    Icon(Icons.info_outline, size: 16, color: isDark ? Colors.white54 : Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('Цвета: своё сообщение | чужое | фон', style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.grey.shade600))),
-                  ]),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена', style: TextStyle(color: isDark ? Colors.white54 : Colors.grey))),
-            Container(
-              decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(12)),
-              child: TextButton(
-                onPressed: () {
-                  setState(() => _currentColorScheme = _colorSchemes[_selectedColorSchemeIndex]);
-                  _saveColorScheme(_selectedColorSchemeIndex);
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Применить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -661,9 +793,9 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     if (!isMine) return const SizedBox.shrink();
     switch (status) {
       case 'sending':
-        return const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white70));
+        return const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.grey));
       case 'sent':
-        return Icon(Icons.check, size: 14, color: Colors.white.withOpacity(0.6));
+        return Icon(Icons.check, size: 14, color: Colors.grey);
       case 'read':
         return const Icon(Icons.done_all, size: 14, color: Color(0xFF64B5F6));
       case 'failed':
@@ -673,28 +805,58 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildAvatar(String? url, String name, {double radius = 16}) {
+  Widget _buildAvatar(String? url, String name, {double radius = 16, Color? bgColor, Color? textColor}) {
     if (url != null && url.isNotEmpty) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: Colors.grey.shade200,
+        backgroundColor: bgColor ?? Colors.grey.shade200,
         child: ClipOval(
-          child: CachedNetworkImage(imageUrl: url, width: radius * 2, height: radius * 2, fit: BoxFit.cover,
-            placeholder: (_, __) => _buildInitial(name, radius),
-            errorWidget: (_, __, ___) => _buildInitial(name, radius),
+          child: CachedNetworkImage(
+            imageUrl: url,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(
+              color: bgColor ?? Colors.grey.shade200,
+              child: Center(
+                child: Text(
+                  (name.isNotEmpty ? name[0] : '?').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: radius * 0.85,
+                    color: textColor ?? const Color(0xFFFF6B35),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            errorWidget: (_, __, ___) => Container(
+              color: bgColor ?? const Color(0xFFFF6B35).withOpacity(0.1),
+              child: Center(
+                child: Text(
+                  (name.isNotEmpty ? name[0] : '?').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: radius * 0.85,
+                    color: textColor ?? const Color(0xFFFF6B35),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       );
     }
-    return _buildInitial(name, radius);
-  }
-
-  Widget _buildInitial(String name, double radius) {
     return CircleAvatar(
       radius: radius,
-      backgroundColor: Colors.orange.shade100,
-      child: Text((name.isNotEmpty ? name[0] : '?').toUpperCase(),
-          style: TextStyle(fontSize: radius * 0.85, color: Colors.orange, fontWeight: FontWeight.bold)),
+      backgroundColor: bgColor ?? const Color(0xFFFF6B35).withOpacity(0.1),
+      child: Text(
+        (name.isNotEmpty ? name[0] : '?').toUpperCase(),
+        style: TextStyle(
+          fontSize: radius * 0.85,
+          color: textColor ?? const Color(0xFFFF6B35),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
@@ -703,93 +865,232 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
     final isDark = _isDarkMode;
 
     return Scaffold(
-      backgroundColor: _currentColorScheme.backgroundColor, // 🔥 Фон из схемы
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _cardBorderColor),
+      backgroundColor: _currentColorScheme.backgroundColor,
+      // ========== КОНТРАСТНЫЙ ВЕРХ КАК В ЧАТЕ ==========
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(64),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _currentColorScheme.myBorderColor.withOpacity(0.85),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(44),
             ),
-            child: IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: _textColor, size: 20),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.forumTitle, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _textColor)),
-            Text('${_messages.length} сообщений', style: TextStyle(fontSize: 11, color: _subTextColor)),
-          ],
-        ),
-        centerTitle: true,
-        actions: [
-          // 🔥 Кнопка настроек цветов
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: _currentColorScheme.myBorderColor.withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
-              child: const Icon(Icons.palette_rounded, color: Colors.orange, size: 20),
-            ),
-            onPressed: _showColorSchemeDialog,
-            tooltip: 'Оформление форума',
+            ],
           ),
-        ],
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 8, top: 6, bottom: 6),
+              child: Row(
+                children: [
+                  // Back button
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Avatar (иконка форума)
+                  _buildAvatar(
+                    null,
+                    widget.forumTitle,
+                    radius: 18,
+                    bgColor: Colors.white.withOpacity(0.2),
+                    textColor: Colors.white,
+                  ),
+                  const SizedBox(width: 10),
+                  // Title & count
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          widget.forumTitle,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF4CAF50),
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              '${_messages.length} сообщений',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Palette button
+                  Transform.translate(
+                    offset: const Offset(-4, -4),
+                    child: GestureDetector(
+                      onTap: _showColorSchemeDialog,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.25),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.palette_rounded,
+                          color: Colors.orange,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      body: Column(
+      body: Stack(
         children: [
+          // Основной контент — список сообщений (или состояния загрузки/ошибки/пусто)
           if (_initialLoading)
-            const Expanded(child: Center(child: CircularProgressIndicator(color: Colors.orange)))
+            const Center(child: CircularProgressIndicator(color: Colors.orange))
           else if (_loadError != null && _messages.isEmpty)
-            Expanded(child: _buildErrorState())
+            _buildErrorState()
           else
-            Expanded(child: _messages.isEmpty ? _buildEmptyState() : _buildMessagesList()),
-          _buildInputField(),
+            _messages.isEmpty ? _buildEmptyState() : _buildMessagesList(),
+
+          // Парящее поле ввода
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildInputField(),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildErrorState() {
+    final isDark = _isDarkMode;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.wifi_off_rounded, size: 48, color: _subTextColor),
+        Icon(Icons.wifi_off_rounded, size: 48, color: subTextColor),
         const SizedBox(height: 16),
-        Text(_loadError!, style: TextStyle(fontSize: 16, color: _textColor)),
+        Text(_loadError!, style: TextStyle(fontSize: 16, color: textColor)),
         const SizedBox(height: 24),
-        ElevatedButton.icon(
-          onPressed: () { setState(() { _initialLoading = true; _loadError = null; }); _loadMessages(); },
-          icon: const Icon(Icons.refresh), label: const Text('Повторить'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _initialLoading = true;
+              _loadError = null;
+            });
+            _loadMessages();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF6B35), Color(0xFFFF8A3D)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'Повторить',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
         ),
       ]),
     );
   }
 
   Widget _buildEmptyState() {
+    final isDark = _isDarkMode;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.forum_rounded, size: 48, color: _currentColorScheme.myBgColor.withOpacity(0.4)),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.03) : _currentColorScheme.myBorderColor.withOpacity(0.05),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.forum_rounded,
+            size: 44,
+            color: _currentColorScheme.myBorderColor.withOpacity(0.4),
+          ),
+        ),
         const SizedBox(height: 16),
-        Text('Нет сообщений', style: TextStyle(fontSize: 18, color: _textColor)),
-        const SizedBox(height: 8),
-        Text('Начните обсуждение первым!', style: TextStyle(color: _subTextColor)),
+        Text('Нет сообщений', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: textColor)),
+        const SizedBox(height: 6),
+        Text('Начните обсуждение первым!', style: TextStyle(fontSize: 14, color: subTextColor)),
       ]),
     );
   }
 
+  // Список сообщений с отступом снизу для поля ввода
   Widget _buildMessagesList() {
+    final isDark = _isDarkMode;
+
     return ListView.builder(
-      controller: _scrollController, reverse: true, padding: const EdgeInsets.only(bottom: 8),
+      controller: _scrollController,
+      reverse: true,
+      padding: EdgeInsets.only(
+        top: 6,
+        bottom: 100, // отступ, чтобы последние сообщения не перекрывались полем
+        left: 10,
+        right: 10,
+      ),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
         final msg = _messages[_messages.length - 1 - index];
@@ -798,92 +1099,206 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
         final senderAvatar = msg['sender_avatar'] ?? '';
         final text = msg['text'] ?? '';
         final time = msg['created_at'] ?? '';
+        final isEdited = msg['is_edited'] == true;
         final status = msg['status']?.toString() ?? 'read';
         final replyToData = msg['reply_to_message'] as Map<String, dynamic>?;
 
-        // 🔥 Используем выбранную цветовую схему
-        final myBg = _currentColorScheme.myBgColor;
-        final myText = _currentColorScheme.myTextColor;
-        final otherBg = _currentColorScheme.otherBgColor;
-        final otherText = _currentColorScheme.otherTextColor;
-        final bgColor = isMine ? myBg : otherBg;
-        final textColor = isMine ? myText : otherText;
+        final borderColor = isMine ? const Color(0xFFFF6B35) : _currentColorScheme.otherBorderColor;
+        final textColor = isMine ? _currentColorScheme.myTextColor : _currentColorScheme.otherTextColor;
 
         return GestureDetector(
           onLongPress: status == 'failed' ? null : () => _showMessageOptions(msg, isMine),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Flexible(
                   child: Container(
-                    padding: const EdgeInsets.all(12),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                    ),
                     decoration: BoxDecoration(
-                      gradient: status == 'failed'
-                          ? LinearGradient(colors: [Colors.red.shade100, Colors.red.shade200])
-                          : null,
-                      color: status == 'failed' ? null : bgColor,
+                      border: Border.all(
+                        color: status == 'failed' ? Colors.red : borderColor,
+                        width: status == 'failed' ? 2 : 2.5,
+                      ),
                       borderRadius: BorderRadius.circular(20).copyWith(
                         topRight: isMine ? const Radius.circular(4) : null,
                         topLeft: !isMine ? const Radius.circular(4) : null,
                       ),
-                      border: isMine ? null : Border.all(color: _cardBorderColor),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(_isDarkMode ? 0.15 : 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Stack(children: [
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         if (!isMine)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(children: [
-                              _buildAvatar(senderAvatar, senderName, radius: 15),
-                              const SizedBox(width: 8),
-                              Text(senderName.isNotEmpty ? senderName : 'Пользователь',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: otherText)),
-                            ]),
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: borderColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildAvatar(
+                                    senderAvatar,
+                                    senderName,
+                                    radius: 14,
+                                    bgColor: borderColor.withOpacity(0.2),
+                                    textColor: textColor,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    senderName.isNotEmpty ? senderName : 'Пользователь',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         if (replyToData != null)
                           Container(
-                            margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: (isMine ? Colors.white : Colors.black).withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border(left: BorderSide(color: textColor.withOpacity(0.6), width: 3)),
+                              color: Colors.grey.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border(
+                                left: BorderSide(
+                                  color: textColor.withOpacity(0.5),
+                                  width: 3,
+                                ),
+                              ),
                             ),
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Row(children: [
-                                Icon(Icons.reply_rounded, size: 14, color: textColor.withOpacity(0.7)),
-                                const SizedBox(width: 4),
-                                Text(replyToData['sender_name'] ?? '',
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8))),
-                              ]),
-                              const SizedBox(height: 4),
-                              Text(replyToData['text'] ?? '', maxLines: 3, overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 13, color: textColor.withOpacity(0.7), fontStyle: FontStyle.italic)),
-                            ]),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.reply_rounded,
+                                      size: 12,
+                                      color: textColor.withOpacity(0.6),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      replyToData['sender_name'] ?? '',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: textColor.withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  replyToData['text'] ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: textColor.withOpacity(0.6),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        Text(text, style: TextStyle(fontSize: 16, color: textColor)),
+                        if (text.isNotEmpty)
+                          Text(
+                            text,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: textColor,
+                              height: 1.3,
+                            ),
+                          ),
                         const SizedBox(height: 4),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text(_formatTime(time), style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.7))),
-                            if (isMine) ...[const SizedBox(width: 4), _buildStatusIcon(status, isMine)],
-                          ]),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _formatTime(time),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: textColor.withOpacity(0.5),
+                              ),
+                            ),
+                            if (isEdited) ...[
+                              const SizedBox(width: 3),
+                              Text(
+                                'изм.',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: textColor.withOpacity(0.4),
+                                ),
+                              ),
+                            ],
+                            if (isMine) ...[
+                              const SizedBox(width: 4),
+                              _buildStatusIcon(status, isMine),
+                            ],
+                          ],
                         ),
-                      ]),
-                      if (status == 'failed')
-                        Positioned(
-                          right: 0, top: 0,
-                          child: GestureDetector(
-                            onTap: () => _retryMessage(msg),
-                            child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.refresh, size: 16, color: Colors.white)),
+                        if (status == 'failed')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Не доставлено',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.red.shade400,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: () => _retryMessage(msg),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.refresh_rounded, size: 12, color: Colors.red.shade400),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          'Повторить',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.red.shade400,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                    ]),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -896,113 +1311,449 @@ class _ForumScreenState extends State<ForumScreen> with WidgetsBindingObserver {
 
   void _showMessageOptions(Map<String, dynamic> message, bool isMine) {
     if (!mounted) return;
+
+    final isDark = _isDarkMode;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surfaceColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            ListTile(leading: const Icon(Icons.reply_rounded, color: Colors.orange), title: Text('Ответить', style: TextStyle(color: _textColor)), onTap: () { Navigator.pop(ctx); _setReplyToMessage(message); }),
-            if (isMine) ...[
-              ListTile(leading: const Icon(Icons.edit_rounded, color: Colors.orange), title: Text('Редактировать', style: TextStyle(color: _textColor)), onTap: () { Navigator.pop(ctx); _startEditMessage(message); }),
-              ListTile(leading: const Icon(Icons.delete_rounded, color: Colors.red), title: const Text('Удалить', style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(ctx); _showDeleteConfirmation(message['message_id']); }),
-            ],
-          ]),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1D24) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.2) : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6B35).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.message_rounded,
+                          color: Color(0xFFFF6B35),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isMine ? 'Вы' : (message['sender_name'] ?? 'Пользователь'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white54 : Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              message['text'] ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(
+                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
+                  height: 1,
+                ),
+                _buildOptionTile(
+                  icon: Icons.reply_rounded,
+                  title: 'Ответить',
+                  color: const Color(0xFFFF6B35),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _setReplyToMessage(message);
+                  },
+                  isDark: isDark,
+                ),
+                if (isMine) ...[
+                  _buildOptionTile(
+                    icon: Icons.edit_rounded,
+                    title: 'Редактировать',
+                    color: const Color(0xFF2D7FF9),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _startEditMessage(message);
+                    },
+                    isDark: isDark,
+                  ),
+                  _buildOptionTile(
+                    icon: Icons.delete_rounded,
+                    title: 'Удалить',
+                    color: Colors.red,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showDeleteConfirmation(message['message_id']);
+                    },
+                    isDark: isDark,
+                  ),
+                ],
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Закрыть',
+                        style: TextStyle(
+                          color: isDark ? Colors.white54 : Colors.grey.shade600,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildOptionTile({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : Colors.black87,
+        ),
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDark ? Colors.white38 : Colors.grey.shade400,
+        size: 18,
+      ),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+    );
+  }
+
   void _showDeleteConfirmation(String messageId) {
     if (!mounted) return;
+
+    final isDark = _isDarkMode;
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Удалить сообщение?', style: TextStyle(color: _textColor)),
-        content: Text('Это действие нельзя отменить', style: TextStyle(color: _subTextColor)),
+        backgroundColor: isDark ? const Color(0xFF1A1D24) : Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Удалить?',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Это действие нельзя отменить',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? Colors.white70 : Colors.grey.shade700,
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена', style: TextStyle(color: _subTextColor))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Отмена',
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.grey.shade600,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
           Container(
-            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.all(Radius.circular(12))),
-            child: TextButton(onPressed: () { Navigator.pop(ctx); if (mounted) _deleteMessage(messageId); }, child: const Text('Удалить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                if (mounted) _deleteMessage(messageId);
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text(
+                'Удалить',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
+  // ============ ПАРЯЩЕЕ ПОЛЕ ВВОДА (БЕЗ ФОНА) ============
   Widget _buildInputField() {
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      if (_replyToMessageData != null)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.08), border: Border(bottom: BorderSide(color: Colors.orange.withOpacity(0.2)))),
-          child: Row(children: [
-            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.reply_rounded, color: Colors.orange, size: 18)),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Ответ на сообщение ${_replyToMessageData!['sender_name'] ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange)),
-              Text(_replyToMessageData!['text'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: _subTextColor)),
-            ])),
-            IconButton(icon: Icon(Icons.close_rounded, size: 20, color: _subTextColor), onPressed: _cancelReply),
-          ]),
-        ),
-      if (_editingMessageId != null)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.08), border: Border(bottom: BorderSide(color: Colors.orange.withOpacity(0.2)))),
-          child: Row(children: [
-            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.edit_rounded, color: Colors.orange, size: 18)),
-            const SizedBox(width: 10),
-            const Text('Редактирование', style: TextStyle(fontSize: 13, color: Colors.orange)),
-            const Spacer(),
-            TextButton(onPressed: _cancelEdit, child: Text('Отмена', style: TextStyle(color: Colors.orange))),
-          ]),
-        ),
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: _surfaceColor, border: Border(top: BorderSide(color: _cardBorderColor))),
-        child: SafeArea(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                style: TextStyle(color: _textColor, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: _editingMessageId != null ? 'Редактировать...' : 'Сообщение...',
-                  hintStyle: TextStyle(color: _subTextColor, fontSize: 14),
-                  filled: true, fillColor: _inputFillColor,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Colors.orange, width: 2)),
+    final isDark = _isDarkMode;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Индикаторы ответа/редактирования (прозрачные)
+        if (_replyToMessageData != null || _editingMessageId != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            color: Colors.transparent,
+            child: _replyToMessageData != null
+                ? Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B35).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.reply_rounded, color: Color(0xFFFF6B35), size: 14),
                 ),
-                onSubmitted: (_) => _handleSendMessage(),
-                textCapitalization: TextCapitalization.sentences,
-                minLines: 1, maxLines: 5,
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ответ ${_replyToMessageData!['sender_name'] ?? ''}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFF6B35),
+                        ),
+                      ),
+                      Text(
+                        _replyToMessageData!['text'] ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white54 : Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _cancelReply,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: isDark ? Colors.white54 : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            )
+                : Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D7FF9).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.edit_rounded, color: Color(0xFF2D7FF9), size: 14),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Редактирование',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2D7FF9),
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _cancelEdit,
+                  child: Text(
+                    'Отмена',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white54 : Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _sending ? null : _handleSendMessage,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]), boxShadow: [BoxShadow(color: Color(0x4DFF9800), blurRadius: 8, offset: Offset(0, 2))]),
-                child: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-              ),
+          ),
+        // Строка ввода: только поле и кнопка (без лишней иконки)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: SafeArea(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Овальное поле ввода
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: TextField(
+                      controller: _textController,
+                      onSubmitted: (_) => _handleSendMessage(),
+                      textCapitalization: TextCapitalization.sentences,
+                      minLines: 1,
+                      maxLines: 1,
+                      style: const TextStyle(color: Colors.black87, fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: 'Сообщение...',
+                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Кнопка отправки
+                GestureDetector(
+                  onTap: _sending ? null : _handleSendMessage,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: _sending
+                          ? null
+                          : const LinearGradient(
+                        colors: [Color(0xFFFF6B35), Color(0xFFFF8A3D)],
+                      ),
+                      color: _sending ? (isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200) : null,
+                      shape: BoxShape.circle,
+                      boxShadow: _sending
+                          ? null
+                          : [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B35).withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: _sending
+                        ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isDark ? Colors.white54 : Colors.grey.shade600,
+                      ),
+                    )
+                        : Icon(
+                      _editingMessageId != null ? Icons.check_rounded : Icons.send_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ]),
+          ),
         ),
-      ),
-
-
-
-    ]);
+      ],
+    );
   }
 
   String _formatTime(String iso) {

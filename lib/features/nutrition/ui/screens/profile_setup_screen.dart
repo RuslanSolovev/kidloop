@@ -1,7 +1,61 @@
+// features/nutrition/ui/screens/profile_setup_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/nutrition_models.dart';
 import '../../providers/nutrition_provider.dart';
+import '../../providers/color_settings_provider.dart';
+
+// ==================== POWER MODE TOKENS ====================
+
+class _Power {
+  static const Color heroBase = Color(0xFF050505);
+  static const Color heroDeep = Color(0xFF120700);
+
+  static const Color volt = Color(0xFFFF5500);
+  static const Color voltBright = Color(0xFFFF7A1A);
+  static const Color magma = Color(0xFFFF2D55);
+  static const Color plasma = Color(0xFFFFCC00);
+  static const Color ice = Color(0xFF00E5FF);
+  static const Color lime = Color(0xFFB4FF39);
+  static const Color green = Color(0xFF00C853);
+  static const Color red = Color(0xFFFF3B30);
+  static const Color violet = Color(0xFF9C82FF);
+
+  static const Color darkBg = Color(0xFF0A0A0A);
+  static const Color darkCard = Color(0xFF1C1C1E);
+  static const Color darkCard2 = Color(0xFF2C2C2E);
+  static const Color lightBg = Color(0xFFF2F2F7);
+  static const Color lightCard = Color(0xFFFFFFFF);
+
+  static Color bg(bool isDark) => isDark ? darkBg : lightBg;
+  static Color card(bool isDark) => isDark ? darkCard : lightCard;
+  static Color card2(bool isDark) => isDark ? darkCard2 : const Color(0xFFF9FAFB);
+  static Color textPrimary(bool isDark) => isDark ? Colors.white : Colors.black;
+  static Color textSecondary(bool isDark) => isDark
+      ? Colors.white.withOpacity(0.6)
+      : const Color(0xFF3C3C43).withOpacity(0.6);
+  static Color textTertiary(bool isDark) => isDark
+      ? Colors.white.withOpacity(0.3)
+      : const Color(0xFF3C3C43).withOpacity(0.3);
+  static Color separator(bool isDark) =>
+      isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06);
+
+  static List<BoxShadow> softGlow(Color color, {double strength = 0.18}) => [
+    BoxShadow(color: color.withOpacity(strength), blurRadius: 16),
+  ];
+
+  static List<BoxShadow> glow(Color color,
+      {double strength = 0.4, double blur = 24}) =>
+      [
+        BoxShadow(
+          color: color.withOpacity(strength),
+          blurRadius: blur,
+          offset: const Offset(0, 6),
+        ),
+      ];
+}
 
 class ProfileSetupScreen extends StatefulWidget {
   final bool isDark;
@@ -18,16 +72,36 @@ class ProfileSetupScreen extends StatefulWidget {
 }
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
-  static const bgDark = Color(0xFF0A0E1A);
-  static const surface = Color(0xFF141A2E);
-  static const surfaceLight = Color(0xFF1A2140);
-  static const cyan = Color(0xFF00D4FF);
-  static const green = Color(0xFF00FF9D);
-  static const pink = Color(0xFFFF2D55);
-  static const yellow = Color(0xFFFFD60A);
-  static const orange = Color(0xFFFF9500);
+  // ============================================================
+  // PALETTE
+  // ============================================================
 
-  // Контроллеры
+  Color get _background => _Power.bg(widget.isDark);
+  Color get _surface => _Power.card(widget.isDark);
+  Color get _surface2 => _Power.card2(widget.isDark);
+  Color get _textPrimary => _Power.textPrimary(widget.isDark);
+  Color get _textSecondary => _Power.textSecondary(widget.isDark);
+  Color get _textMuted => _Power.textTertiary(widget.isDark);
+  Color get _divider => _Power.separator(widget.isDark);
+  Color get _lineBase => _Power.separator(widget.isDark);
+
+  /// Акцент — динамический. Используем read, т.к. геттер
+  /// вызывается и в обработчиках нажатий (вне build-фазы).
+  /// Подписка на изменения сделана через context.watch в build().
+  Color get _cyan => context.read<ColorSettingsProvider>().accent;
+
+  // Семантические — фиксированные
+  static const Color _green = _Power.green;
+  static const Color _pink = _Power.magma;
+  static const Color _yellow = _Power.plasma;
+  static const Color _orange = _Power.volt;
+  static const Color _purple = _Power.violet;
+  static const Color _blue = _Power.ice;
+
+  // ============================================================
+  // CONTROLLERS
+  // ============================================================
+
   final _ageController = TextEditingController();
   final _weightController = TextEditingController();
   final _heightController = TextEditingController();
@@ -37,22 +111,24 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _workoutsController = TextEditingController();
   final _bodyFatController = TextEditingController();
 
-  // Выбранные значения
+  // ============================================================
+  // STATE
+  // ============================================================
+
   Gender _gender = Gender.male;
   ActivityLevel _activityLevel = ActivityLevel.moderate;
   GoalType _goalType = GoalType.maintain;
   GoalPace _goalPace = GoalPace.moderate;
 
   int _currentStep = 0;
+
   bool _isLoading = true;
   bool _showResults = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProfile();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
   @override
@@ -68,22 +144,29 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // PROVIDER
+  // ============================================================
+
   NutritionProvider get _provider {
-    if (widget.provider != null) {
-      return widget.provider!;
-    }
+    if (widget.provider != null) return widget.provider!;
     try {
       return Provider.of<NutritionProvider>(context, listen: false);
     } catch (e) {
-      debugPrint('⚠️ Ошибка получения провайдера: $e');
-      throw Exception('NutritionProvider не найден. Передайте провайдер в ProfileSetupScreen');
+      debugPrint('Ошибка получения NutritionProvider: $e');
+      throw Exception('NutritionProvider не найден');
     }
   }
+
+  // ============================================================
+  // LOAD PROFILE
+  // ============================================================
 
   void _loadProfile() {
     try {
       final provider = _provider;
       final profile = provider.userProfile;
+
       if (profile != null) {
         _gender = profile.gender;
         _ageController.text = profile.age.toString();
@@ -92,427 +175,293 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         _activityLevel = profile.activityLevel;
         _goalType = profile.goalType;
         _goalPace = profile.goalPace;
+
         if (profile.targetWeight != null) {
           _targetWeightController.text = profile.targetWeight!.toString();
         }
         if (profile.targetDays != null) {
           _targetDaysController.text = profile.targetDays!.toString();
         }
+
         _stepsController.text = profile.stepsPerDay.toString();
         _workoutsController.text = profile.workoutsPerWeek.toString();
+
         if (profile.bodyFatPercentage > 0) {
           _bodyFatController.text = profile.bodyFatPercentage.toString();
         }
       }
     } catch (e) {
-      debugPrint('⚠️ Ошибка загрузки профиля: $e');
+      debugPrint('Ошибка загрузки профиля: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
+    // Подписка на изменение акцента — вызывает перестройку экрана
+    context.watch<ColorSettingsProvider>();
+
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: bgDark,
-        body: const Center(
-          child: CircularProgressIndicator(
-            color: cyan,
-          ),
-        ),
+        backgroundColor: _background,
+        body: Center(child: _buildLoading()),
       );
     }
 
-    final provider = widget.provider != null
-        ? widget.provider!
-        : context.watch<NutritionProvider>();
+    final provider = widget.provider ?? context.watch<NutritionProvider>();
     final profile = provider.userProfile;
 
-    // Если профиль сохранён и мы не в режиме редактирования, показываем результаты
     if (profile != null && _showResults) {
       return _buildResultsScreen(provider, profile);
     }
 
     return Scaffold(
-      backgroundColor: bgDark,
-      appBar: AppBar(
-        backgroundColor: bgDark,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('НАСТРОЙКА ПРОФИЛЯ',
-            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
-        actions: [
-          if (profile != null)
-            TextButton(
-              onPressed: () {
-                _showRecommendations(provider);
-              },
-              child: const Text('Рекомендации',
-                  style: TextStyle(color: cyan, fontWeight: FontWeight.w700)),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildStepIndicator(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStepHeader(),
-                  const SizedBox(height: 16),
-                  _buildStepContent(provider),
-                  const SizedBox(height: 24),
-                  _buildNavigationButtons(provider),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResultsScreen(NutritionProvider provider, UserProfile profile) {
-    final prediction = profile.goalPrediction;
-
-    return Scaffold(
-      backgroundColor: bgDark,
-      appBar: AppBar(
-        backgroundColor: bgDark,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('ВАШ ПРОФИЛЬ',
-            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
-      ),
+      backgroundColor: _background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Заголовок
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [green.withOpacity(0.2), cyan.withOpacity(0.2)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: green.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Text('✅', style: TextStyle(fontSize: 32)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'ПРОФИЛЬ СОЗДАН!',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          Text(
-                            'На основе твоих данных мы подготовили персональные рекомендации',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Основная информация
-              const Text(
-                '📊 ОСНОВНЫЕ ПОКАЗАТЕЛИ',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
-                ),
+        bottom: false,
+        child: Column(
+          children: [
+            _buildTopBar(hasProfile: profile != null),
+            _buildStepIndicator(),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 135),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        _resultStat('BMR', '${profile.bmr.round()} ккал', cyan),
-                        _resultStat('TDEE', '${profile.tdee.round()} ккал', yellow),
-                        _resultStat('ИМТ', profile.bmi.toStringAsFixed(1), green),
-                      ],
-                    ),
-                    const Divider(color: Colors.white10),
-                    Row(
-                      children: [
-                        _resultStat('Цель', _goalTypeDisplay(profile.goalType), yellow),
-                        _resultStat('Темп', _goalPaceDisplay(profile.goalPace), green),
-                        _resultStat('Активность', _activityDisplay(profile.activityLevel), cyan),
-                      ],
-                    ),
+                    _buildHeroHeading(),
+                    const SizedBox(height: 19),
+                    _buildStepContent(provider),
+                    const SizedBox(height: 20),
+                    if (_currentStep == 1) _buildGoalInsight(provider),
+                    if (_currentStep == 2) _buildLifestyleInsight(provider),
+                    const SizedBox(height: 24),
+                    _buildNavigationButtons(provider),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // Рекомендации по КБЖУ
-              const Text(
-                '🍽️ ЕЖЕДНЕВНЫЕ РЕКОМЕНДАЦИИ',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
-                ),
-                child: Column(
-                  children: [
-                    _resultMacro('🔥', '${profile.targetCalories.round()}', 'ккал', cyan),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: _resultMacro('🥩', '${profile.recommendedProtein.round()}', 'г белка', green)),
-                        Expanded(child: _resultMacro('🧈', '${profile.recommendedFat.round()}', 'г жиров', pink)),
-                        Expanded(child: _resultMacro('🍞', '${profile.recommendedCarbs.round()}', 'г углеводов', yellow)),
-                        Expanded(child: _resultMacro('💧', '${profile.recommendedWater}', 'мл воды', cyan)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Прогноз
-              if (prediction['canPredict'] == true) ...[
-                const Text(
-                  '📈 ПРОГНОЗ ДОСТИЖЕНИЯ ЦЕЛИ',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [yellow.withOpacity(0.1), orange.withOpacity(0.1)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: yellow.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        prediction['isLose'] ? '📉' : '📈',
-                        style: const TextStyle(fontSize: 32),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${prediction['days']} дней',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            Text(
-                              '${prediction['absDiff'].toStringAsFixed(1)} кг ${prediction['isLose'] ? 'сбросить' : 'набрать'} при текущем темпе',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-
-              // Кнопка "Понятно"
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() => _showResults = false);
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.check_circle_rounded, size: 24),
-                  label: const Text(
-                    'ПОНЯТНО, ПРИСТУПИМ!',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: cyan,
-                    foregroundColor: bgDark,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _resultStat(String label, String value, Color color) {
-    return Expanded(
-      child: Column(
+  // ============================================================
+  // TOP BAR
+  // ============================================================
+
+  Widget _buildTopBar({required bool hasProfile}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 12, 4),
+      child: Row(
         children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              Navigator.pop(context);
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: _divider, width: 0.5),
+              ),
+              child: Icon(
+                Icons.chevron_left_rounded,
+                size: 22,
+                color: _textPrimary,
+              ),
             ),
           ),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasProfile ? 'ПРОФИЛЬ' : 'НАСТРОЙКА',
+                  style: TextStyle(
+                    color: _cyan,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  hasProfile ? 'Настройки' : 'Профиль',
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.7,
+                    height: 1.05,
+                  ),
+                ),
+              ],
             ),
           ),
+          if (hasProfile)
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _showRecommendations(_provider);
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _purple.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: _Power.softGlow(_Power.violet, strength: 0.2),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: _purple,
+                  size: 19,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _resultMacro(String emoji, String value, String label, Color color) {
-    return Column(
-      children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white38,
-            fontSize: 9,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
+  // ============================================================
+  // LOADING
+  // ============================================================
 
-  // ==================== ШАГИ ====================
-
-  Widget _buildStepIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: List.generate(3, (index) {
-          final isActive = index <= _currentStep;
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              height: 4,
-              decoration: BoxDecoration(
-                color: isActive ? cyan : Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          );
-        }),
+  Widget _buildLoading() {
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        color: _cyan.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: _Power.glow(_cyan, strength: 0.35, blur: 22),
+      ),
+      alignment: Alignment.center,
+      child: SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          valueColor: AlwaysStoppedAnimation<Color>(_cyan),
+        ),
       ),
     );
   }
 
-  Widget _buildStepHeader() {
+  // ============================================================
+  // HERO HEADING
+  // ============================================================
+
+  Widget _buildHeroHeading() {
     final titles = [
-      '👤 ОСНОВНЫЕ ДАННЫЕ',
-      '🎯 ТВОИ ЦЕЛИ',
-      '🏃 ОБРАЗ ЖИЗНИ',
+      'О тебе',
+      'Твоя цель',
+      'Твой ритм',
     ];
+
     final subtitles = [
-      'Расскажи о себе для точного расчёта',
-      'Что ты хочешь изменить?',
-      'Учём активность для лучших рекомендаций',
+      'Нужно, чтобы FUEL рассчитал твои потребности.',
+      'Выбери направление — остальное FUEL посчитает сам.',
+      'Чем точнее данные, тем точнее рекомендации.',
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          titles[_currentStep],
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: _cyan.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: _Power.glow(_cyan, strength: 0.35, blur: 22),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            _currentStep == 0
+                ? Icons.person_rounded
+                : _currentStep == 1
+                ? Icons.track_changes_rounded
+                : Icons.directions_run_rounded,
+            color: _cyan,
+            size: 24,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 16),
+        Text(
+          titles[_currentStep].toUpperCase(),
+          style: TextStyle(
+            color: _textPrimary,
+            fontSize: 27,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.9,
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
           subtitles[_currentStep],
-          style: const TextStyle(
-            color: Colors.white38,
+          style: TextStyle(
+            color: _textSecondary,
             fontSize: 12,
+            height: 1.45,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
   }
+
+  // ============================================================
+  // STEP INDICATOR
+  // ============================================================
+
+  Widget _buildStepIndicator() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 7),
+      child: Row(
+        children: [
+          for (int i = 0; i < 3; i++)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  height: i == _currentStep ? 5 : 3,
+                  decoration: BoxDecoration(
+                    color: i <= _currentStep
+                        ? _cyan
+                        : _textPrimary.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(5),
+                    boxShadow: i == _currentStep
+                        ? _Power.softGlow(_cyan, strength: 0.5)
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // STEP CONTENT
+  // ============================================================
 
   Widget _buildStepContent(NutritionProvider provider) {
     switch (_currentStep) {
@@ -527,280 +476,748 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
   }
 
-  // ==================== ШАГ 1: ЛИЧНЫЕ ДАННЫЕ ====================
+  // ============================================================
+  // PERSONAL STEP
+  // ============================================================
 
   Widget _buildPersonalDataStep(NutritionProvider provider) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Пол'),
+        _buildLabel('ПОЛ'),
+        const SizedBox(height: 9),
         Row(
           children: [
             Expanded(
-              child: _buildGenderCard(Gender.male, 'Мужской', '♂️'),
+              child: _genderCard(Gender.male, 'Мужской', '♂', _cyan),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 9),
             Expanded(
-              child: _buildGenderCard(Gender.female, 'Женский', '♀️'),
+              child: _genderCard(Gender.female, 'Женский', '♀', _pink),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        _buildSectionTitle('Возраст'),
-        _buildInputField('Лет', _ageController, Icons.cake),
-        const SizedBox(height: 16),
-        _buildSectionTitle('Вес'),
-        _buildInputField('кг', _weightController, Icons.monitor_weight),
-        const SizedBox(height: 16),
-        _buildSectionTitle('Рост'),
-        _buildInputField('см', _heightController, Icons.straighten),
-        const SizedBox(height: 16),
-        _buildSectionTitle('Процент жира (опционально)'),
-        _buildInputField('%', _bodyFatController, Icons.percent),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.03),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+        const SizedBox(height: 21),
+        Row(
+          children: [
+            Expanded(
+              child: _profileInput(
+                title: 'ВОЗРАСТ',
+                subtitle: 'Полных лет',
+                controller: _ageController,
+                suffix: 'лет',
+                icon: Icons.cake_rounded,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _profileInput(
+                title: 'ВЕС',
+                subtitle: 'Текущий',
+                controller: _weightController,
+                suffix: 'кг',
+                icon: Icons.monitor_weight_rounded,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            Expanded(
+              child: _profileInput(
+                title: 'РОСТ',
+                subtitle: 'Твой рост',
+                controller: _heightController,
+                suffix: 'см',
+                icon: Icons.height_rounded,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _profileInput(
+                title: '% ЖИРА',
+                subtitle: 'Опционально',
+                controller: _bodyFatController,
+                suffix: '%',
+                icon: Icons.percent_rounded,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _infoCard(
+          icon: Icons.auto_awesome_rounded,
+          color: _cyan,
+          title: 'Не знаешь процент жира?',
+          message: 'Оставь поле пустым. FUEL продолжит расчёт без него.',
+        ),
+      ],
+    );
+  }
+
+  Widget _genderCard(
+      Gender gender,
+      String label,
+      String symbol,
+      Color color,
+      ) {
+    final selected = _gender == gender;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _gender = gender);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.10) : _surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? color : _divider,
+            width: selected ? 1.2 : 0.5,
           ),
-          child: const Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.white38, size: 14),
-              SizedBox(width: 6),
+          boxShadow: selected ? _Power.softGlow(color, strength: 0.3) : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                symbol,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      color: selected ? _textPrimary : _textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    selected ? 'ВЫБРАНО' : 'ВЫБРАТЬ',
+                    style: TextStyle(
+                      color: selected ? color : _textMuted,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: _Power.darkBg,
+                  size: 14,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // GOALS STEP
+  // ============================================================
+
+  Widget _buildGoalsStep(NutritionProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('ЦЕЛЬ'),
+        const SizedBox(height: 9),
+        ...GoalType.values.map(
+              (goal) => Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: _goalCard(goal),
+          ),
+        ),
+        const SizedBox(height: 15),
+        _buildLabel('СКОРОСТЬ'),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            for (final pace in GoalPace.values)
               Expanded(
-                child: Text(
-                  'Можно оставить пустым — будет рассчитан приблизительно',
-                  style: TextStyle(color: Colors.white38, fontSize: 11),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: pace == GoalPace.fast ? 0 : 6,
+                  ),
+                  child: _paceCard(pace),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 17),
+        Row(
+          children: [
+            Expanded(
+              child: _profileInput(
+                title: 'ЦЕЛЕВОЙ ВЕС',
+                subtitle: 'Опционально',
+                controller: _targetWeightController,
+                suffix: 'кг',
+                icon: Icons.track_changes_rounded,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _profileInput(
+                title: 'СРОК',
+                subtitle: 'Опционально',
+                controller: _targetDaysController,
+                suffix: 'дней',
+                icon: Icons.timelapse_rounded,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _goalCard(GoalType goal) {
+    final selected = _goalType == goal;
+    final info = _goalInfo(goal);
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _goalType = goal);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: selected ? info.color.withOpacity(0.10) : _surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? info.color : _divider,
+            width: selected ? 1.2 : 0.5,
+          ),
+          boxShadow:
+          selected ? _Power.softGlow(info.color, strength: 0.3) : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: info.color.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              alignment: Alignment.center,
+              child: Text(info.emoji, style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    info.title.toUpperCase(),
+                    style: TextStyle(
+                      color: _textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    info.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: selected ? info.color : _surface2,
+                shape: BoxShape.circle,
+              ),
+              child: selected
+                  ? const Icon(
+                Icons.check_rounded,
+                color: _Power.darkBg,
+                size: 14,
+              )
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paceCard(GoalPace pace) {
+    final selected = _goalPace == pace;
+    final info = _paceInfo(pace);
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _goalPace = pace);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 7),
+        decoration: BoxDecoration(
+          color: selected ? info.color.withOpacity(0.10) : _surface,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: selected ? info.color : _divider,
+            width: selected ? 1.2 : 0.5,
+          ),
+          boxShadow:
+          selected ? _Power.softGlow(info.color, strength: 0.3) : null,
+        ),
+        child: Column(
+          children: [
+            Text(info.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 5),
+            Text(
+              info.title.toUpperCase(),
+              style: TextStyle(
+                color: selected ? info.color : _textSecondary,
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // LIFESTYLE STEP
+  // ============================================================
+
+  Widget _buildLifestyleStep(NutritionProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('АКТИВНОСТЬ'),
+        const SizedBox(height: 9),
+        ...ActivityLevel.values.map(
+              (level) => Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: _activityCard(level),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _profileInput(
+                title: 'ШАГОВ В ДЕНЬ',
+                subtitle: 'Среднее',
+                controller: _stepsController,
+                suffix: 'шагов',
+                icon: Icons.directions_walk_rounded,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _profileInput(
+                title: 'ТРЕНИРОВОК',
+                subtitle: 'В неделю',
+                controller: _workoutsController,
+                suffix: 'раз',
+                icon: Icons.fitness_center_rounded,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _buildProfileLiveCard(provider),
+      ],
+    );
+  }
+
+  Widget _activityCard(ActivityLevel level) {
+    final selected = _activityLevel == level;
+    final info = _activityInfo(level);
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _activityLevel = level);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? info.color.withOpacity(0.10) : _surface,
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(
+            color: selected ? info.color : _divider,
+            width: selected ? 1.2 : 0.5,
+          ),
+          boxShadow:
+          selected ? _Power.softGlow(info.color, strength: 0.3) : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 39,
+              height: 39,
+              decoration: BoxDecoration(
+                color: info.color.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Text(info.emoji, style: const TextStyle(fontSize: 18)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    info.title.toUpperCase(),
+                    style: TextStyle(
+                      color: _textPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    info.subtitle,
+                    style: TextStyle(
+                      color: _textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: _cyan,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: _Power.darkBg,
+                  size: 14,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PROFILE INPUT
+  // ============================================================
+
+  Widget _profileInput({
+    required String title,
+    required String subtitle,
+    required TextEditingController controller,
+    required String suffix,
+    required IconData icon,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: _divider, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 29,
+                height: 29,
+                decoration: BoxDecoration(
+                  color: _cyan.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: _cyan, size: 14),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: _textMuted,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGenderCard(Gender gender, String label, String emoji) {
-    final isSelected = _gender == gender;
-    return InkWell(
-      onTap: () => setState(() => _gender = gender),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? cyan.withOpacity(0.15) : surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? cyan : Colors.white.withOpacity(0.1),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? cyan : Colors.white70,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                fontSize: 14,
+          const SizedBox(height: 7),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: onChanged,
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.6,
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==================== ШАГ 2: ЦЕЛИ ====================
-
-  Widget _buildGoalsStep(NutritionProvider provider) {
-    return Column(
-      children: [
-        _buildSectionTitle('Что ты хочешь?'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: GoalType.values.map((goal) => _buildGoalChip(goal)).toList(),
-        ),
-        const SizedBox(height: 20),
-        _buildSectionTitle('Темп достижения'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: GoalPace.values.map((pace) => _buildPaceChip(pace)).toList(),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionTitle('Целевой вес (опционально)'),
-                  _buildInputField('кг', _targetWeightController, Icons.monitor_weight),
-                ],
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  suffix,
+                  style: TextStyle(
+                    color: _textMuted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.4,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionTitle('За дней (опционально)'),
-                  _buildInputField('дней', _targetDaysController, Icons.timer),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (_weightController.text.isNotEmpty && _heightController.text.isNotEmpty)
-          _buildQuickPreview(provider),
-      ],
-    );
-  }
-
-  Widget _buildGoalChip(GoalType goal) {
-    final labels = {
-      GoalType.maintain: '⚖️ Поддержание',
-      GoalType.lose: '🔥 Похудение',
-      GoalType.gain: '💪 Набор веса',
-      GoalType.muscleGain: '🏋️ Набор мышц',
-      GoalType.recomposition: '🔄 Ре-композиция',
-    };
-    final isSelected = _goalType == goal;
-    return InkWell(
-      onTap: () => setState(() => _goalType = goal),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? cyan.withOpacity(0.15) : surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? cyan : Colors.white.withOpacity(0.1),
+            ],
           ),
-        ),
-        child: Text(
-          labels[goal]!,
-          style: TextStyle(
-            color: isSelected ? cyan : Colors.white70,
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-          ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildPaceChip(GoalPace pace) {
-    final labels = {
-      GoalPace.slow: '🐢 Медленно',
-      GoalPace.moderate: '⚡ Умеренно',
-      GoalPace.fast: '🚀 Быстро',
-    };
-    final colors = {
-      GoalPace.slow: green,
-      GoalPace.moderate: yellow,
-      GoalPace.fast: pink,
-    };
-    final isSelected = _goalPace == pace;
-    return InkWell(
-      onTap: () => setState(() => _goalPace = pace),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? colors[pace]!.withOpacity(0.15) : surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? colors[pace]! : Colors.white.withOpacity(0.1),
-          ),
-        ),
-        child: Text(
-          labels[pace]!,
-          style: TextStyle(
-            color: isSelected ? colors[pace] : Colors.white70,
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
+  // ============================================================
+  // INSIGHTS
+  // ============================================================
 
-  // ==================== ШАГ 3: ОБРАЗ ЖИЗНИ ====================
-
-  Widget _buildLifestyleStep(NutritionProvider provider) {
-    return Column(
-      children: [
-        _buildSectionTitle('Уровень активности'),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: ActivityLevel.values.map((level) => _buildActivityChip(level)).toList(),
-        ),
-        const SizedBox(height: 20),
-        _buildSectionTitle('Среднее количество шагов в день'),
-        _buildInputField('шагов', _stepsController, Icons.directions_walk),
-        const SizedBox(height: 16),
-        _buildSectionTitle('Тренировок в неделю'),
-        _buildInputField('раз', _workoutsController, Icons.fitness_center),
-        const SizedBox(height: 24),
-        _buildProfileSummary(provider),
-      ],
-    );
-  }
-
-  Widget _buildActivityChip(ActivityLevel level) {
-    final labels = {
-      ActivityLevel.sedentary: '🪑 Сидячий',
-      ActivityLevel.light: '🚶 Лёгкий',
-      ActivityLevel.moderate: '🏃 Умеренный',
-      ActivityLevel.active: '💪 Активный',
-      ActivityLevel.veryActive: '🔥 Очень активный',
-      ActivityLevel.professional: '🏆 Профи',
-    };
-    final isSelected = _activityLevel == level;
-    return InkWell(
-      onTap: () => setState(() => _activityLevel = level),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? cyan.withOpacity(0.15) : surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? cyan : Colors.white.withOpacity(0.1),
-          ),
-        ),
-        child: Text(
-          labels[level]!,
-          style: TextStyle(
-            color: isSelected ? cyan : Colors.white70,
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== ПРОФИЛЬ СВОДКА ====================
-
-  Widget _buildQuickPreview(NutritionProvider provider) {
+  Widget _buildGoalInsight(NutritionProvider provider) {
     final weight = double.tryParse(_weightController.text) ?? 0;
     final height = double.tryParse(_heightController.text) ?? 0;
 
-    if (weight == 0 || height == 0) return const SizedBox.shrink();
+    if (weight <= 0 || height <= 0) return const SizedBox.shrink();
 
-    final tempProfile = UserProfile(
-      id: 'temp',
+    final profile = _buildTemporaryProfile();
+    if (profile == null) return const SizedBox.shrink();
+
+    return _buildCalculationCard(
+      title: 'ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ',
+      subtitle: 'FUEL уже может показать ориентиры',
+      color: _cyan,
+      children: [
+        Row(
+          children: [
+            _calcStat('BMR', '${profile.bmr.round()}', 'ККАЛ', _cyan),
+            _calcStat('TDEE', '${profile.tdee.round()}', 'ККАЛ', _yellow),
+            _calcStat('ИМТ', profile.bmi.toStringAsFixed(1), '', _green),
+          ],
+        ),
+        _buildInnerRay(_cyan),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'ЦЕЛЕВАЯ КАЛОРИЙНОСТЬ',
+                style: TextStyle(
+                  color: _textMuted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
+            Text(
+              '${profile.targetCalories.round()} ККАЛ',
+              style: TextStyle(
+                color: _cyan,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLifestyleInsight(NutritionProvider provider) {
+    final profile = _buildTemporaryProfile();
+
+    if (profile == null) {
+      return _infoCard(
+        icon: Icons.info_outline_rounded,
+        color: _cyan,
+        title: 'Почти готово',
+        message:
+        'Заполни основные данные выше — и здесь появится твой расчёт.',
+      );
+    }
+
+    return _buildCalculationCard(
+      title: 'ПЕРСОНАЛЬНЫЙ ПЛАН',
+      subtitle: 'Проверь перед сохранением',
+      color: _green,
+      children: [
+        Row(
+          children: [
+            _calcStat(
+                'ЦЕЛЬ', '${profile.targetCalories.round()}', 'ККАЛ', _cyan),
+            _calcStat(
+                'БЕЛОК', '${profile.recommendedProtein.round()}', 'Г', _green),
+            _calcStat('ВОДА', '${profile.recommendedWater}', 'МЛ', _blue),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildInnerRay(_green),
+        Row(
+          children: [
+            Expanded(
+              child:
+              _summaryMini('🎯', _goalTypeDisplay(profile.goalType)),
+            ),
+            Expanded(
+              child:
+              _summaryMini('⚡', _goalPaceDisplay(profile.goalPace)),
+            ),
+            Expanded(
+              child:
+              _summaryMini('🏃', _activityDisplay(profile.activityLevel)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileLiveCard(NutritionProvider provider) {
+    final profile = _buildTemporaryProfile();
+    if (profile == null) return const SizedBox.shrink();
+
+    return _buildCalculationCard(
+      title: 'ПРЕДПРОСМОТР',
+      subtitle: 'Обновляется прямо во время настройки',
+      color: _purple,
+      children: [
+        Row(
+          children: [
+            _calcStat('BMR', '${profile.bmr.round()}', 'ККАЛ', _cyan),
+            _calcStat('TDEE', '${profile.tdee.round()}', 'ККАЛ', _yellow),
+            _calcStat('ИМТ', profile.bmi.toStringAsFixed(1), '', _green),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildInnerRay(_purple),
+        Text(
+          '${_goalTypeDisplay(profile.goalType).toUpperCase()} → ${profile.targetCalories.round()} ККАЛ/ДЕНЬ',
+          style: TextStyle(
+            color: _textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  UserProfile? _buildTemporaryProfile() {
+    final age = int.tryParse(_ageController.text);
+    final weight = double.tryParse(_weightController.text);
+    final height = double.tryParse(_heightController.text);
+
+    if (age == null ||
+        weight == null ||
+        height == null ||
+        age <= 0 ||
+        weight <= 0 ||
+        height <= 0) {
+      return null;
+    }
+
+    return UserProfile(
+      id: 'preview',
       gender: _gender,
-      age: int.tryParse(_ageController.text) ?? 30,
+      age: age,
       weight: weight,
       height: height,
       activityLevel: _activityLevel,
@@ -812,227 +1229,120 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       workoutsPerWeek: int.tryParse(_workoutsController.text) ?? 0,
       bodyFatPercentage: double.tryParse(_bodyFatController.text) ?? 0,
     );
+  }
 
+  Widget _buildCalculationCard({
+    required String title,
+    required String subtitle,
+    required Color color,
+    required List<Widget> children,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [surface, surfaceLight],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cyan.withOpacity(0.2)),
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.15), width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '📊 ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
-              _previewStat('BMR', '${tempProfile.bmr.round()} ккал', cyan),
-              _previewStat('TDEE', '${tempProfile.tdee.round()} ккал', yellow),
-              _previewStat('ИМТ', tempProfile.bmi.toStringAsFixed(1), green),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Целевая калорийность: ${tempProfile.targetCalories.round()} ккал',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (tempProfile.goalType != GoalType.maintain)
-            Text(
-              '${_goalTypeDisplay(tempProfile.goalType)}: ${(tempProfile.targetCalories - tempProfile.tdee).round()} ккал/день',
-              style: TextStyle(
-                color: tempProfile.targetCalories > tempProfile.tdee ? green : pink,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          if (tempProfile.bmiCategory != 'Норма')
-            Text(
-              '⚠️ ${tempProfile.bmiCategory}',
-              style: const TextStyle(
-                color: yellow,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _previewStat(String label, String value, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileSummary(NutritionProvider provider) {
-    final profile = provider.userProfile;
-    if (profile == null) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [surface, surfaceLight],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: green.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '✅ ТЕКУЩИЙ ПРОФИЛЬ',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _profileStat('Пол', profile.gender == Gender.male ? 'Мужской' : 'Женский', cyan),
-              _profileStat('Возраст', '${profile.age} лет', cyan),
-              _profileStat('Вес', '${profile.weight} кг', cyan),
-              _profileStat('Рост', '${profile.height} см', cyan),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _profileStat('Цель', _goalTypeDisplay(profile.goalType), yellow),
-              _profileStat('Темп', _goalPaceDisplay(profile.goalPace), yellow),
-              _profileStat('Активность', _activityDisplay(profile.activityLevel), yellow),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _profileStat('BMR', '${profile.bmr.round()} ккал', green),
-              _profileStat('TDEE', '${profile.tdee.round()} ккал', green),
-              _profileStat('Цель', '${profile.targetCalories.round()} ккал', green),
-              _profileStat('ИМТ', profile.bmi.toStringAsFixed(1), green),
-            ],
-          ),
-          const Divider(color: Colors.white10),
-          Row(
-            children: [
-              _profileStat('🥩 Белок', '${profile.recommendedProtein.round()} г', green),
-              _profileStat('🧈 Жиры', '${profile.recommendedFat.round()} г', pink),
-              _profileStat('🍞 Углеводы', '${profile.recommendedCarbs.round()} г', yellow),
-              _profileStat('💧 Вода', '${profile.recommendedWater} мл', cyan),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _profileStat(String label, String value, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 8,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== НАВИГАЦИЯ ====================
-
-  Widget _buildNavigationButtons(NutritionProvider provider) {
-    return Row(
-      children: [
-        if (_currentStep > 0)
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => setState(() => _currentStep--),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              Container(
+                width: 31,
+                height: 31,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(9),
+                  boxShadow: _Power.softGlow(color, strength: 0.15),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.auto_graph_rounded,
+                  color: color,
+                  size: 15,
                 ),
               ),
-              child: const Text('НАЗАД'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: _textPrimary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: _textMuted,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _calcStat(String title, String value, String unit, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+              height: 1,
             ),
           ),
-        if (_currentStep > 0) const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () async {
-              if (_currentStep < 2) {
-                setState(() => _currentStep++);
-              } else {
-                await _saveProfile(provider);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: cyan,
-              foregroundColor: bgDark,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+          const SizedBox(height: 4),
+          Text(
+            '$title${unit.isEmpty ? '' : ' • $unit'}',
+            style: TextStyle(
+              color: _textMuted,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
             ),
-            child: Text(
-              _currentStep < 2 ? 'ДАЛЕЕ' : 'СОХРАНИТЬ',
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-              ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryMini(String emoji, String value) {
+    return Row(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            value.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
             ),
           ),
         ),
@@ -1040,96 +1350,740 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     );
   }
 
-  // ==================== ХЕЛПЕРЫ ====================
+  Widget _buildInnerRay(Color color) {
+    return SizedBox(
+      height: 13,
+      child: CustomPaint(
+        painter: _GlowRayPainter(
+          color: color,
+          widthFactor: 0.76,
+          backgroundColor: Colors.transparent,
+          coreWidth: 1.8,
+          glowWidth: 6,
+        ),
+      ),
+    );
+  }
 
-  Widget _buildSectionTitle(String title) {
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+
+  Widget _buildNavigationButtons(NutritionProvider provider) {
+    final isLast = _currentStep == 2;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            if (_currentStep > 0) ...[
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _currentStep--);
+                  },
+                  child: Container(
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: _divider, width: 0.5),
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chevron_left_rounded,
+                          color: _textSecondary,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'НАЗАД',
+                          style: TextStyle(
+                            color: _textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+            ],
+            Expanded(
+              flex: 2,
+              child: GestureDetector(
+                onTap: () async {
+                  if (isLast) {
+                    await _saveProfile(provider);
+                  } else {
+                    HapticFeedback.mediumImpact();
+                    setState(() => _currentStep++);
+                  }
+                },
+                child: Container(
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: _cyan,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: _Power.glow(_cyan,
+                        strength: 0.4, blur: 16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        isLast ? 'СОХРАНИТЬ' : 'ПРОДОЛЖИТЬ',
+                        style: const TextStyle(
+                          color: _Power.darkBg,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Icon(
+                        isLast
+                            ? Icons.check_rounded
+                            : Icons.arrow_forward_rounded,
+                        color: _Power.darkBg,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 11),
+        Text(
+          'ШАГ ${_currentStep + 1} ИЗ 3',
+          style: TextStyle(
+            color: _textMuted,
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // RESULTS
+  // ============================================================
+
+  Widget _buildResultsScreen(
+      NutritionProvider provider, UserProfile profile) {
+    final prediction = profile.goalPrediction;
+
+    return Scaffold(
+      backgroundColor: _background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildResultTopBar(),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 5, 16, 125),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildResultHero(profile),
+                    _buildGlowRay(_green),
+                    _buildMainMetrics(profile),
+                    _buildGlowRay(_cyan),
+                    _buildDailyTargets(profile),
+                    if (prediction['canPredict'] == true) ...[
+                      _buildGlowRay(_yellow),
+                      _buildPrediction(prediction),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          setState(() => _showResults = false);
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _cyan,
+                          foregroundColor: _Power.darkBg,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.rocket_launch_rounded, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'ПОНЯТНО, ПОЕХАЛИ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultTopBar() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white70,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
+      padding: const EdgeInsets.fromLTRB(16, 8, 12, 7),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _showResults = false);
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: _divider, width: 0.5),
+              ),
+              child: Icon(
+                Icons.chevron_left_rounded,
+                size: 22,
+                color: _textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'FUEL ПРОФИЛЬ',
+                  style: TextStyle(
+                    color: _green,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Готово',
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.7,
+                    height: 1.05,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _green.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: _Power.softGlow(_Power.green, strength: 0.3),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.check_rounded,
+              color: _green,
+              size: 21,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultHero(UserProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _green.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: _green.withOpacity(0.20), width: 0.8),
+        boxShadow: _Power.softGlow(_Power.green, strength: 0.12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: _green.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: _Power.softGlow(_Power.green, strength: 0.3),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.verified_rounded,
+              color: _green,
+              size: 29,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ПРОФИЛЬ ГОТОВ',
+                  style: TextStyle(
+                    color: _green,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Расчёты готовы',
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Дневник питания будет учитывать твои параметры.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 10,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainMetrics(UserProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: _divider, width: 0.5),
+      ),
+      child: Column(
+        children: [
+          _resultMetricRow('BMR', '${profile.bmr.round()}', 'ККАЛ', _cyan),
+          _resultSeparator(),
+          _resultMetricRow('TDEE', '${profile.tdee.round()}', 'ККАЛ', _yellow),
+          _resultSeparator(),
+          _resultMetricRow(
+            'ИМТ',
+            profile.bmi.toStringAsFixed(1),
+            profile.bmiCategory.toUpperCase(),
+            _green,
+          ),
+          _resultSeparator(),
+          _resultMetricRow(
+            'ЦЕЛЬ',
+            _goalTypeDisplay(profile.goalType),
+            _goalPaceDisplay(profile.goalPace),
+            _orange,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultMetricRow(
+      String title, String value, String subtitle, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: _Power.softGlow(color, strength: 0.4),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 60,
+          child: Text(
+            title,
+            style: TextStyle(
+              color: _textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: _textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: color,
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _resultSeparator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Container(height: 0.5, color: _divider),
+    );
+  }
+
+  Widget _buildDailyTargets(UserProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: _surface2,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _cyan.withOpacity(0.15), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ТВОЯ ДНЕВНАЯ ЦЕЛЬ',
+            style: TextStyle(
+              color: _cyan,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.0,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${profile.targetCalories.round()}',
+                style: TextStyle(
+                  color: _cyan,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.4,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'ККАЛ / ДЕНЬ',
+                  style: TextStyle(
+                    color: _textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _targetCard('🥩', '${profile.recommendedProtein.round()}',
+                  'Г БЕЛКА', _green),
+              _targetCard('🧈', '${profile.recommendedFat.round()}',
+                  'Г ЖИРОВ', _pink),
+              _targetCard('🍞', '${profile.recommendedCarbs.round()}',
+                  'Г УГЛЕВ.', _yellow),
+              _targetCard('💧', '${profile.recommendedWater}',
+                  'МЛ ВОДЫ', _blue),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _targetCard(
+      String emoji, String value, String title, Color color) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(right: 5),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _textMuted,
+                fontSize: 7,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildInputField(String suffix, TextEditingController controller, IconData icon) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
+  Widget _buildPrediction(Map<String, dynamic> prediction) {
+    final isLose = prediction['isLose'] == true;
+
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: _yellow.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: _yellow.withOpacity(0.20), width: 0.5),
       ),
-      decoration: InputDecoration(
-        suffixText: suffix,
-        suffixStyle: const TextStyle(color: Colors.white38, fontSize: 14),
-        prefixIcon: Icon(icon, color: cyan, size: 20),
-        filled: true,
-        fillColor: surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: cyan.withOpacity(0.5)),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: _yellow.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: _Power.softGlow(_Power.plasma, strength: 0.25),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              isLose ? '📉' : '📈',
+              style: const TextStyle(fontSize: 23),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ПРОГНОЗ',
+                  style: TextStyle(
+                    color: _yellow,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${prediction['days']} ДНЕЙ',
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${prediction['absDiff'].toStringAsFixed(1)} КГ ${isLose ? 'СБРОСИТЬ' : 'НАБРАТЬ'}',
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // INFO
+  // ============================================================
+
+  Widget _infoCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String message,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.15), width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 9,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: _textMuted,
+        fontSize: 9,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.6,
+      ),
+    );
+  }
+
+  Widget _buildGlowRay(Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: SizedBox(
+        height: 16,
+        child: CustomPaint(
+          painter: _GlowRayPainter(
+            color: color,
+            widthFactor: 0.86,
+            backgroundColor: _lineBase,
+          ),
         ),
       ),
     );
   }
 
-  String _goalTypeDisplay(GoalType type) {
-    switch (type) {
-      case GoalType.maintain: return 'Поддержание';
-      case GoalType.lose: return 'Похудение';
-      case GoalType.gain: return 'Набор веса';
-      case GoalType.muscleGain: return 'Набор мышц';
-      case GoalType.recomposition: return 'Ре-композиция';
-    }
-  }
-
-  String _goalPaceDisplay(GoalPace pace) {
-    switch (pace) {
-      case GoalPace.slow: return 'Медленно';
-      case GoalPace.moderate: return 'Умеренно';
-      case GoalPace.fast: return 'Быстро';
-    }
-  }
-
-  String _activityDisplay(ActivityLevel level) {
-    switch (level) {
-      case ActivityLevel.sedentary: return 'Сидячий';
-      case ActivityLevel.light: return 'Лёгкий';
-      case ActivityLevel.moderate: return 'Умеренный';
-      case ActivityLevel.active: return 'Активный';
-      case ActivityLevel.veryActive: return 'Очень активный';
-      case ActivityLevel.professional: return 'Профи';
-    }
-  }
+  // ============================================================
+  // SAVE
+  // ============================================================
 
   Future<void> _saveProfile(NutritionProvider provider) async {
     final age = int.tryParse(_ageController.text);
     final weight = double.tryParse(_weightController.text);
     final height = double.tryParse(_heightController.text);
 
-    if (age == null || weight == null || height == null) {
+    if (age == null ||
+        age <= 0 ||
+        weight == null ||
+        weight <= 0 ||
+        height == null ||
+        height <= 0) {
+      HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Заполни все обязательные поля!'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Заполни возраст, вес и рост'),
+          backgroundColor: _pink,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       );
       return;
     }
 
     final profile = UserProfile(
-      id: provider.userProfile?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: provider.userProfile?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       gender: _gender,
       age: age,
       weight: weight,
@@ -1144,378 +2098,294 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       bodyFatPercentage: double.tryParse(_bodyFatController.text) ?? 0,
     );
 
+    HapticFeedback.mediumImpact();
     await provider.saveUserProfile(profile);
 
-    // Показываем экран с результатами
-    setState(() {
-      _showResults = true;
-    });
+    if (!mounted) return;
+    setState(() => _showResults = true);
   }
 
-  // ==================== УМНЫЕ РЕКОМЕНДАЦИИ (УЛУЧШЕННЫЕ) ====================
+  // ============================================================
+  // RECOMMENDATIONS SHEET
+  // ============================================================
 
   void _showRecommendations(NutritionProvider provider) {
     final profile = provider.userProfile;
     if (profile == null) return;
 
+    HapticFeedback.selectionClick();
+
+    // Кэшируем текущий акцент (вне build-фазы)
+    final accent = context.read<ColorSettingsProvider>().accent;
+
     final prediction = profile.goalPrediction;
     final weekSummary = provider.getLast7DaysSummaries();
+    final extras = <Map<String, dynamic>>[];
 
-    // Расчёт дополнительных рекомендаций
-    final List<Map<String, dynamic>> extraRecommendations = [];
-
-    // 1. Рекомендация по ИМТ
     if (profile.bmiCategory != 'Норма') {
-      extraRecommendations.add({
+      extras.add({
         'emoji': '⚖️',
-        'title': 'Индекс массы тела',
-        'message': 'Ваш ИМТ: ${profile.bmi.toStringAsFixed(1)} (${profile.bmiCategory})',
-        'color': yellow,
+        'title': 'ИНДЕКС МАССЫ ТЕЛА',
+        'message':
+        'ИМТ: ${profile.bmi.toStringAsFixed(1)} (${profile.bmiCategory})',
+        'color': _yellow,
       });
     }
 
-    // 2. Рекомендация по распределению БЖУ
-    final proteinPercent = (profile.recommendedProtein * 4 / profile.targetCalories * 100).round();
-    final fatPercent = (profile.recommendedFat * 9 / profile.targetCalories * 100).round();
-    final carbsPercent = (profile.recommendedCarbs * 4 / profile.targetCalories * 100).round();
+    final proteinPercent = profile.targetCalories > 0
+        ? (profile.recommendedProtein * 4 / profile.targetCalories * 100)
+        .round()
+        : 0;
+    final fatPercent = profile.targetCalories > 0
+        ? (profile.recommendedFat * 9 / profile.targetCalories * 100).round()
+        : 0;
+    final carbsPercent = profile.targetCalories > 0
+        ? (profile.recommendedCarbs * 4 / profile.targetCalories * 100)
+        .round()
+        : 0;
 
-    extraRecommendations.add({
+    extras.add({
       'emoji': '📊',
-      'title': 'Распределение БЖУ',
-      'message': 'Белки $proteinPercent% • Жиры $fatPercent% • Углеводы $carbsPercent%',
-      'color': cyan,
+      'title': 'РАСПРЕДЕЛЕНИЕ БЖУ',
+      'message':
+      'Белки $proteinPercent% • Жиры $fatPercent% • Углеводы $carbsPercent%',
+      'color': accent,
     });
 
-    // 3. Рекомендация по воде
     if (profile.recommendedWater > 2000) {
-      extraRecommendations.add({
+      extras.add({
         'emoji': '💧',
-        'title': 'Обрати внимание на воду',
-        'message': 'Рекомендуется ${profile.recommendedWater} мл воды в день',
-        'color': cyan,
+        'title': 'ВОДНЫЙ БАЛАНС',
+        'message': 'Рекомендуется ${profile.recommendedWater} мл воды в день.',
+        'color': _blue,
       });
     }
 
-    // 4. Рекомендация по активности
-    final activityLabels = {
-      ActivityLevel.sedentary: 'Рекомендуем добавить ежедневные прогулки',
-      ActivityLevel.light: 'Хороший старт! Попробуй добавить 2-3 тренировки в неделю',
-      ActivityLevel.moderate: 'Отличный уровень активности!',
-      ActivityLevel.active: 'Ты молодец! Не забывай про восстановление',
-      ActivityLevel.veryActive: 'Интенсивный режим! Уделяй внимание питанию',
-      ActivityLevel.professional: 'Профессиональный уровень!',
+    final activityMessages = {
+      ActivityLevel.sedentary: 'Добавь немного ежедневного движения.',
+      ActivityLevel.light: 'Хороший старт. Постепенно увеличивай активность.',
+      ActivityLevel.moderate: 'Отличный уровень активности.',
+      ActivityLevel.active: 'Хороший темп. Следи за восстановлением.',
+      ActivityLevel.veryActive:
+      'Высокая нагрузка — питание становится особенно важным.',
+      ActivityLevel.professional:
+      'Очень высокая нагрузка. Поддерживай достаточное питание.',
     };
-    extraRecommendations.add({
+
+    extras.add({
       'emoji': '🏃',
-      'title': 'Уровень активности',
-      'message': activityLabels[profile.activityLevel] ?? 'Продолжай в том же духе!',
-      'color': green,
+      'title': 'АКТИВНОСТЬ',
+      'message': activityMessages[profile.activityLevel] ??
+          'Продолжай в том же духе.',
+      'color': _green,
     });
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      backgroundColor: surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        expand: false,
-        builder: (_, scrollController) => Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '🧠 УМНЫЕ РЕКОМЕНДАЦИИ',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'На основе твоих данных и статистики',
-                style: TextStyle(
-                  color: Colors.white38,
-                  fontSize: 11,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Column(
-                    children: [
-                      // Основные рекомендации
-                      _recommendationCard(
-                        '🎯 ЦЕЛЕВАЯ КАЛОРИЙНОСТЬ',
-                        '${profile.targetCalories.round()} ккал/день',
-                        cyan,
-                        'База: ${profile.tdee.round()} ккал (TDEE)',
-                      ),
-                      const SizedBox(height: 8),
-                      _recommendationCard(
-                        '🥩 БЕЛКИ',
-                        '${profile.recommendedProtein.round()} г',
-                        green,
-                        '${(profile.recommendedProtein / profile.weight).toStringAsFixed(1)} г/кг веса',
-                      ),
-                      const SizedBox(height: 8),
-                      _recommendationCard(
-                        '🧈 ЖИРЫ',
-                        '${profile.recommendedFat.round()} г',
-                        pink,
-                        '${(profile.recommendedFat / profile.targetCalories * 100).round()}% от калорий',
-                      ),
-                      const SizedBox(height: 8),
-                      _recommendationCard(
-                        '🍞 УГЛЕВОДЫ',
-                        '${profile.recommendedCarbs.round()} г',
-                        yellow,
-                        '${(profile.recommendedCarbs / profile.targetCalories * 100).round()}% от калорий',
-                      ),
-                      const SizedBox(height: 8),
-                      _recommendationCard(
-                        '💧 ВОДА',
-                        '${profile.recommendedWater} мл/день',
-                        cyan,
-                        '${(profile.recommendedWater / profile.weight).round()} мл/кг веса',
-                      ),
-
-                      // Дополнительные рекомендации
-                      if (extraRecommendations.isNotEmpty) ...[
-                        const Divider(color: Colors.white10),
-                        const SizedBox(height: 8),
-                        ...extraRecommendations.map((rec) => Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: (rec['color'] as Color).withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: (rec['color'] as Color).withOpacity(0.2),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(rec['emoji'], style: const TextStyle(fontSize: 20)),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      rec['title'],
-                                      style: TextStyle(
-                                        color: rec['color'] as Color,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    Text(
-                                      rec['message'],
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
-                      ],
-
-                      // Прогноз
-                      if (prediction['canPredict'] == true) ...[
-                        const Divider(color: Colors.white10),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: yellow.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: yellow.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                prediction['isLose'] ? '📉' : '📈',
-                                style: const TextStyle(fontSize: 28),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Прогноз: ${prediction['days']} дней',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${prediction['absDiff'].toStringAsFixed(1)} кг ${prediction['isLose'] ? 'сбросить' : 'набрать'}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      // Недельная статистика
-                      if (weekSummary.isNotEmpty) ...[
-                        const Divider(color: Colors.white10),
-                        const SizedBox(height: 8),
-                        const Text(
-                          '📊 НЕДЕЛЬНАЯ СТАТИСТИКА',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ...weekSummary.take(7).map((data) => Container(
-                          margin: const EdgeInsets.only(bottom: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: surfaceLight,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.03),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                '${(DateTime.now().subtract(Duration(days: 7 - weekSummary.indexOf(data) - 1))).weekday == 1 ? "Пн" : (DateTime.now().subtract(Duration(days: 7 - weekSummary.indexOf(data) - 1))).weekday == 2 ? "Вт" : (DateTime.now().subtract(Duration(days: 7 - weekSummary.indexOf(data) - 1))).weekday == 3 ? "Ср" : (DateTime.now().subtract(Duration(days: 7 - weekSummary.indexOf(data) - 1))).weekday == 4 ? "Чт" : (DateTime.now().subtract(Duration(days: 7 - weekSummary.indexOf(data) - 1))).weekday == 5 ? "Пт" : (DateTime.now().subtract(Duration(days: 7 - weekSummary.indexOf(data) - 1))).weekday == 6 ? "Сб" : "Вс"}',
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  '${data.calories.round()} ккал',
-                                  style: TextStyle(
-                                    color: data.calories > 0 ? Colors.white : Colors.white38,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                'Б:${data.protein.round()}',
-                                style: const TextStyle(
-                                  color: green,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Ж:${data.fat.round()}',
-                                style: const TextStyle(
-                                  color: pink,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'У:${data.carbs.round()}',
-                                style: const TextStyle(
-                                  color: yellow,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
-                      ],
-
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+      builder: (sheetContext) {
+        return Container(
+          height: MediaQuery.of(sheetContext).size.height * 0.86,
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(29),
+            ),
           ),
-        ),
-      ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 36,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: _textMuted,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(17, 18, 17, 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                color: _purple.withOpacity(0.14),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: _Power.softGlow(_Power.violet,
+                                    strength: 0.2),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: _purple,
+                                size: 21,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'УМНЫЕ РЕКОМЕНДАЦИИ',
+                                    style: TextStyle(
+                                      color: _purple,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 2.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'На основе твоего профиля',
+                                    style: TextStyle(
+                                      color: _textSecondary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+
+                        _recommendationCard(
+                          '🎯',
+                          'ЦЕЛЕВАЯ КАЛОРИЙНОСТЬ',
+                          '${profile.targetCalories.round()} ккал/день',
+                          'TDEE: ${profile.tdee.round()} ккал',
+                          accent,
+                        ),
+                        _recommendationCard(
+                          '🥩',
+                          'БЕЛОК',
+                          '${profile.recommendedProtein.round()} г',
+                          '${(profile.recommendedProtein / profile.weight).toStringAsFixed(1)} г/кг',
+                          _green,
+                        ),
+                        _recommendationCard(
+                          '🧈',
+                          'ЖИРЫ',
+                          '${profile.recommendedFat.round()} г',
+                          '$fatPercent% от калорий',
+                          _pink,
+                        ),
+                        _recommendationCard(
+                          '🍞',
+                          'УГЛЕВОДЫ',
+                          '${profile.recommendedCarbs.round()} г',
+                          '$carbsPercent% от калорий',
+                          _yellow,
+                        ),
+                        _recommendationCard(
+                          '💧',
+                          'ВОДА',
+                          '${profile.recommendedWater} мл',
+                          '${(profile.recommendedWater / profile.weight).round()} мл/кг',
+                          _blue,
+                        ),
+
+                        if (extras.isNotEmpty) ...[
+                          _buildGlowRay(_purple),
+                          ...extras.map(
+                                (item) => _extraRecommendation(item),
+                          ),
+                        ],
+
+                        if (prediction['canPredict'] == true) ...[
+                          _buildGlowRay(_yellow),
+                          _recommendationPrediction(prediction),
+                        ],
+
+                        if (weekSummary.isNotEmpty) ...[
+                          _buildGlowRay(accent),
+                          Text(
+                            'НЕДЕЛЬНАЯ СТАТИСТИКА',
+                            style: TextStyle(
+                              color: _textMuted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          ...weekSummary
+                              .take(7)
+                              .map((data) => _weekRow(data)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _recommendationCard(String label, String value, Color color, String subtitle) {
+  Widget _recommendationCard(
+      String emoji,
+      String title,
+      String value,
+      String subtitle,
+      Color color,
+      ) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 7),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.15)),
+        color: _surface2,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.15), width: 0.5),
       ),
       child: Row(
         children: [
           Container(
-            width: 4,
-            height: 30,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(11),
             ),
+            alignment: Alignment.center,
+            child: Text(emoji, style: const TextStyle(fontSize: 17)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
+                  title,
+                  style: TextStyle(
+                    color: _textMuted,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
                   value,
                   style: TextStyle(
                     color: color,
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white38,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
+                    letterSpacing: -0.3,
                   ),
                 ),
               ],
@@ -1523,13 +2393,463 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           ),
           Text(
             subtitle,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 10,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: _textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _extraRecommendation(Map<String, dynamic> data) {
+    final color = data['color'] as Color;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.15), width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(data['emoji'] as String,
+              style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (data['title'] as String).toUpperCase(),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  data['message'] as String,
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 9,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recommendationPrediction(Map<String, dynamic> prediction) {
+    final isLose = prediction['isLose'] == true;
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: _yellow.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _yellow.withOpacity(0.20), width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Text(isLose ? '📉' : '📈', style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ПРОГНОЗ',
+                  style: TextStyle(
+                    color: _yellow,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${prediction['days']} ДНЕЙ • ${prediction['absDiff'].toStringAsFixed(1)} КГ ${isLose ? 'СБРОСИТЬ' : 'НАБРАТЬ'}',
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _weekRow(dynamic data) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: _surface2,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${data.calories.round()} ККАЛ',
+              style: TextStyle(
+                color: _textPrimary,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          Text(
+            'Б ${data.protein.round()}',
+            style: const TextStyle(
+              color: _green,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            'Ж ${data.fat.round()}',
+            style: const TextStyle(
+              color: _pink,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            'У ${data.carbs.round()}',
+            style: const TextStyle(
+              color: _yellow,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // DATA INFO
+  // ============================================================
+
+  _GoalInfo _goalInfo(GoalType goal) {
+    switch (goal) {
+      case GoalType.maintain:
+        return _GoalInfo(
+          emoji: '⚖️',
+          title: 'Поддержание',
+          subtitle: 'Сохранять текущий вес',
+          color: _cyan,
+        );
+      case GoalType.lose:
+        return const _GoalInfo(
+          emoji: '🔥',
+          title: 'Похудение',
+          subtitle: 'Снизить вес',
+          color: _orange,
+        );
+      case GoalType.gain:
+        return const _GoalInfo(
+          emoji: '📈',
+          title: 'Набор веса',
+          subtitle: 'Постепенно увеличить массу',
+          color: _green,
+        );
+      case GoalType.muscleGain:
+        return const _GoalInfo(
+          emoji: '💪',
+          title: 'Набор мышц',
+          subtitle: 'Фокус на мышечном росте',
+          color: _purple,
+        );
+      case GoalType.recomposition:
+        return _GoalInfo(
+          emoji: '🔄',
+          title: 'Рекомпозиция',
+          subtitle: 'Мышцы вверх, жир вниз',
+          color: _cyan,
+        );
+    }
+  }
+
+  _PaceInfo _paceInfo(GoalPace pace) {
+    switch (pace) {
+      case GoalPace.slow:
+        return const _PaceInfo(
+          emoji: '🐢',
+          title: 'Медленно',
+          color: _green,
+        );
+      case GoalPace.moderate:
+        return const _PaceInfo(
+          emoji: '⚡',
+          title: 'Умеренно',
+          color: _yellow,
+        );
+      case GoalPace.fast:
+        return const _PaceInfo(
+          emoji: '🚀',
+          title: 'Быстро',
+          color: _pink,
+        );
+    }
+  }
+
+  _ActivityInfo _activityInfo(ActivityLevel level) {
+    switch (level) {
+      case ActivityLevel.sedentary:
+        return const _ActivityInfo(
+          emoji: '🪑',
+          title: 'Сидячий',
+          subtitle: 'Минимум движения',
+          color: _blue,
+        );
+      case ActivityLevel.light:
+        return _ActivityInfo(
+          emoji: '🚶',
+          title: 'Лёгкий',
+          subtitle: 'Немного прогулок',
+          color: _cyan,
+        );
+      case ActivityLevel.moderate:
+        return const _ActivityInfo(
+          emoji: '🏃',
+          title: 'Умеренный',
+          subtitle: 'Регулярная активность',
+          color: _green,
+        );
+      case ActivityLevel.active:
+        return const _ActivityInfo(
+          emoji: '💪',
+          title: 'Активный',
+          subtitle: 'Много движения',
+          color: _yellow,
+        );
+      case ActivityLevel.veryActive:
+        return const _ActivityInfo(
+          emoji: '🔥',
+          title: 'Очень активный',
+          subtitle: 'Высокая нагрузка',
+          color: _orange,
+        );
+      case ActivityLevel.professional:
+        return const _ActivityInfo(
+          emoji: '🏆',
+          title: 'Профессиональный',
+          subtitle: 'Интенсивные тренировки',
+          color: _purple,
+        );
+    }
+  }
+
+  String _goalTypeDisplay(GoalType type) {
+    switch (type) {
+      case GoalType.maintain:
+        return 'Поддержание';
+      case GoalType.lose:
+        return 'Похудение';
+      case GoalType.gain:
+        return 'Набор веса';
+      case GoalType.muscleGain:
+        return 'Набор мышц';
+      case GoalType.recomposition:
+        return 'Рекомпозиция';
+    }
+  }
+
+  String _goalPaceDisplay(GoalPace pace) {
+    switch (pace) {
+      case GoalPace.slow:
+        return 'Медленно';
+      case GoalPace.moderate:
+        return 'Умеренно';
+      case GoalPace.fast:
+        return 'Быстро';
+    }
+  }
+
+  String _activityDisplay(ActivityLevel level) {
+    switch (level) {
+      case ActivityLevel.sedentary:
+        return 'Сидячий';
+      case ActivityLevel.light:
+        return 'Лёгкий';
+      case ActivityLevel.moderate:
+        return 'Умеренный';
+      case ActivityLevel.active:
+        return 'Активный';
+      case ActivityLevel.veryActive:
+        return 'Очень активный';
+      case ActivityLevel.professional:
+        return 'Профи';
+    }
+  }
+}
+
+// ============================================================
+// SMALL DATA CLASSES
+// ============================================================
+
+class _GoalInfo {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  const _GoalInfo({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+}
+
+class _PaceInfo {
+  final String emoji;
+  final String title;
+  final Color color;
+
+  const _PaceInfo({
+    required this.emoji,
+    required this.title,
+    required this.color,
+  });
+}
+
+class _ActivityInfo {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  const _ActivityInfo({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+}
+
+// ============================================================
+// GLOW RAY PAINTER
+// ============================================================
+
+class _GlowRayPainter extends CustomPainter {
+  final Color color;
+  final double widthFactor;
+  final Color backgroundColor;
+  final double coreWidth;
+  final double glowWidth;
+
+  _GlowRayPainter({
+    required this.color,
+    required this.widthFactor,
+    required this.backgroundColor,
+    this.coreWidth = 2.2,
+    this.glowWidth = 8,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height / 2;
+
+    if (backgroundColor != Colors.transparent) {
+      final basePaint = Paint()
+        ..color = backgroundColor
+        ..strokeWidth = 1
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(
+        Offset(0, centerY),
+        Offset(size.width, centerY),
+        basePaint,
+      );
+    }
+
+    final totalWidth = size.width * widthFactor;
+    final left = (size.width - totalWidth) / 2;
+    final right = left + totalWidth;
+
+    final rect = Rect.fromLTRB(left, 0, right, size.height);
+
+    final gradient = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        color.withOpacity(0),
+        color.withOpacity(0.035),
+        color.withOpacity(0.12),
+        color.withOpacity(0.35),
+        color.withOpacity(0.88),
+        color,
+        color.withOpacity(0.88),
+        color.withOpacity(0.35),
+        color.withOpacity(0.12),
+        color.withOpacity(0.035),
+        color.withOpacity(0),
+      ],
+      stops: const [
+        0,
+        0.10,
+        0.22,
+        0.36,
+        0.46,
+        0.50,
+        0.54,
+        0.64,
+        0.78,
+        0.90,
+        1,
+      ],
+    );
+
+    final glowPaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = glowWidth
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    canvas.drawLine(Offset(left, centerY), Offset(right, centerY), glowPaint);
+
+    final corePaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = coreWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(Offset(left, centerY), Offset(right, centerY), corePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GlowRayPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.widthFactor != widthFactor ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.coreWidth != coreWidth ||
+        oldDelegate.glowWidth != glowWidth;
   }
 }
